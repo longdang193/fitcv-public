@@ -1,0 +1,83 @@
+trigger_run_management:
+  name: Trigger & Run Management
+  version: 2.17.0
+  status: active
+  type: add
+  summary: "Admins can trigger runs via path reference, file upload, or pasted JSON in either `Run All` or `Stage by Stage` mode, attach a run-scoped synonym overlay before trigger for either mode, continue paused staged runs one stage at a time from persisted checkpoints, replace the run overlay after enrich before continuing into rule filter, cancel paused `awaiting_continue` runs when they should not resume, inspect shared stage progress from a selection-first runs list plus run detail, and export stage-owned artifacts once a stage has been reached in either mode."
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+    - run_orchestration
+  depends_on:
+    - admin_control_plane_core
+  primary_stage: normalize
+  stages:
+    - normalize
+    - enrich
+    - rule_filter
+    - shortlist
+    - ranking
+    - cv_analysis
+    - cv_generation
+  capabilities:
+    - Runs list page with status badges, timestamps, visible-row bulk selection, truncated secondary fields, and selection-first bulk lifecycle actions
+    - Run detail remains the single-run action surface for continue, stop, archive, unarchive, and repair controls
+    - Run detail now groups run-scoped downloads into a compact export surface instead of a wide button row
+    - Run detail now merges stage quality and late-stage reuse into a compact `Run Health` diagnostics surface
+    - Run detail now keeps stage-slice download links on aggregate stage rows instead of repeating them on per-job subevents
+    - "Archive filter: Active / All / Archived"
+    - "Three job-input modes: path, upload, paste"
+    - "Three candidate-profile modes: default_config, upload, paste"
+    - "Two execution modes: `Run All` and `Stage by Stage`"
+    - "Run setup now includes a run-scoped `Synonym Overlay` input with `Default Config` and `Upload YAML` options"
+    - "Rule Filter settings can choose which deterministic post-enrichment checks block versus only mark jobs"
+    - Server-side mode resolution
+    - Canonical snapshot capture for pasted and uploaded inputs
+    - Shared stage progress metadata now persists `last_completed_stage`, `completed_stages`, and reached stage artifacts for both execution modes
+    - Persisted manual checkpoint metadata including next stage, last completed stage, completed stages, and serialized checkpoint payloads remains exclusive to `Stage by Stage`
+    - Manual staged runs pause after normalize, enrich, rule_filter, shortlist, ranking, and cv_analysis
+    - Manual staged runs can continue from the next pending stage without restarting the whole pipeline
+    - "`Run All` now persists stage-boundary progress snapshots during execution instead of waiting until final success to expose reached-stage diagnostics"
+    - "`Run All` and `Stage by Stage` runs can both snapshot a run-scoped synonym-overlay YAML at trigger time"
+    - Manual staged runs paused after `enrich` can replace the run-scoped synonym-overlay YAML before continuing into `rule_filter`
+    - Run detail exposes synonym-overlay state in a dedicated card instead of a crowded top-row action upload
+    - Run detail synonym-overlay inspection now shows the active/default YAML snapshot when available
+    - Manual staged runs now hand off from `ranking -> cv_analysis -> cv_generation` with persisted checkpoint payloads instead of treating all Layer 4 work as one stage
+    - CV results banner on run detail
+    - CV downloads
+    - Run results JSON export
+    - Settings-used JSON export from run detail for succeeded runs when available
+    - Stage-transition artifacts JSON export from run detail for succeeded runs and paused manual runs when available
+    - Run detail can bundle currently available run-owned artifacts into one zip download without changing stage ownership of the underlying files
+    - Mapping-suggestions exports now stay unavailable until `enrich` has truly been reached and a real enrich-owned snapshot exists
+    - Paused-after-normalize runs can now reach `Download Normalize JSON` through the aggregate normalize timeline row even when normalization removed zero duplicates
+    - Timeline-linked stage-slice JSON downloads for recognized stage-boundary events
+    - Stage-slice downloads now expose richer per-stage input, output, and changed-state samples instead of summary-only handoff blocks
+    - "`cv_analysis` stage downloads can now expose channel-level evidence retrieval counts plus final selected-evidence rationale before `cv_generation`"
+    - CV-generation debug JSON export from run detail for succeeded runs when available
+    - Run-results export includes structured CV data and CV generation metadata when available
+    - Run-results export distinguishes non-ranked passed jobs as `not_shortlisted`, `shortlisted_not_scored`, or `scored_not_ranked`
+    - Run-results export and run detail distinguish ranked jobs skipped by the Layer 4 fit gate as `ranked_skipped_fit_gate`
+    - Run-results export now stays job-centric and leaves shortlist retrieval debugging to shortlist-stage diagnostics instead of per-row shortlist debug baggage
+    - Top-level shortlist debug distinguishes raw vector-search hits from the later scoring shortlist after any backfill
+    - Shortlist debug now reports raw unique-job counts separately from raw row counts and carries explicit raw-hit flags for passed jobs in run-results export
+    - Run-results export exposes an explicit decision chain per job covering shortlist path, primary fit authority, CV attempt/skip, and validation outcome
+    - Ranked jobs now use reranker fit as the sole post-filter authority for ranking and CV eligibility
+    - Run detail enriched-jobs table shows a compact pipeline outcome label plus decision-chain detail in addition to filter pass/reject state
+  refs:
+    docs:
+      - docs/fitcv-control-plane-setup.md
+    spec:
+    plan:
+    history:
+      - docs/features/trigger_run_management/history.md
+  keywords:
+    - trigger
+    - run management
+    - upload
+    - paste
+    - runs list
+    - archive
+    - cv downloads
+    - results export
+

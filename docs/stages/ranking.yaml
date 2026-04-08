@@ -1,0 +1,39 @@
+ranking:
+  stage_id: ranking
+  name: Ranking
+  summary: Score shortlist candidates with the six-feature ranking contract, stricter reranker rubric, semantic role alignment, weighted preference alignment, and deterministic fallback candidate-intent inference; reuse exact-match AI-score rows when the stage-owned fingerprint and contract still match; assign the authoritative post-filter ranking fit; and select the ranked jobs eligible to proceed toward CV generation with versioned stage-transition artifacts plus stage-owned quality and reuse metrics.
+  boundaries:
+    - shortlist candidates enter and ranked jobs leave
+    - authoritative post-filter ranking fit ownership belongs to this stage
+    - canonical enrich outputs should be the default semantic input contract for ranking features when available
+    - explicit candidate preferences remain authoritative, but sparse YAML may be supplemented by deterministic fallback intent inferred from recent profile evidence
+    - final ranking inputs and ranked-job selection should be explainable here
+  inputs:
+    - scoring shortlist
+    - reranker outputs
+    - six-feature runtime ranking inputs
+  outputs:
+    - scored ranking inputs
+    - authoritative ranking fit labels
+    - final ranked jobs
+    - optional manual checkpoint payloads that can resume `cv_analysis` from ranked jobs without recomputing earlier stages
+    - bounded `stage_transition_artifacts_v5.ranking` runtime block with six-feature weights, preference-fit weights, fit-label thresholds, effective-preference provenance, contribution visibility, reuse metrics, input samples, output samples, and scored-not-ranked samples
+    - "`stage_transition_artifacts.ranking.decision_summary.quality_metrics` with strong/stretch/skip counts and rates over scored inputs"
+    - "`stage_transition_artifacts.ranking.decision_summary.reuse_metrics` with exact-match AI-score reuse counts and fresh counts over scored inputs"
+    - row-level `ai_score_reuse_status` and `ai_score_input_fingerprint` in ranking outputs and exports
+  depends_on:
+    - shortlist
+  primary_features:
+    - cv_system
+  related_features:
+    - inspection_debugging
+  refs:
+    docs: []
+    spec:
+    plan:
+    history: []
+  keywords:
+    - ranking
+    - ai score
+    - fit label
+    - final score

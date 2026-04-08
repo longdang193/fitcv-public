@@ -1,0 +1,101 @@
+inspection_debugging:
+  name: Inspection & Debugging
+  version: 2.28.0
+  status: active
+  type: add
+  summary: "Admins can see what the pipeline did for a run, including shared stage progress for both `Run All` and `Stage by Stage`, paused staged checkpoints, enrich reuse provenance, selectable rule-filter marks, shortlist retrieval and embedding-reuse diagnostics, richer shortlist candidate-query components, explicit shortlist candidate-query reuse provenance, ranking contribution visibility and calibration surfaces, late-stage reuse diagnostics for `ranking` and `cv_analysis`, slimmer job-ledger exports, compact per-job `results.json` rows, stage-local artifacts, compact severity-based run health with explicit `Pending` vs `N/A`, stage-gated export availability, a job-ledger `results.json` split from bundled stage diagnostics, outcome-first artifact samples, stable normalize timeline ownership, aggregate-first timeline summaries, explicit separation between reranker-blocked rows and true analyzed-and-skipped `cv_analysis` outcomes, truthful reranker-blocked propagation into compact `results.json` decision chains and `cv-debug` omission accounting, multi-channel evidence-selection provenance, lexical-vs-semantic alignment detail, inputs used, generated CVs, explicit decision detail, hybrid validation provenance from deterministic and soft-claim grounding checks, canonicalized settings-used exports, clearer `cv-debug` coverage accounting, and prompt-id-based provenance for both ranking and the active structured-only `cv_generation` path."
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+    - run_orchestration
+  depends_on:
+    - admin_control_plane_core
+  primary_stage: cv_generation
+  stages:
+    - enrich
+    - rule_filter
+    - shortlist
+    - ranking
+    - cv_analysis
+    - cv_generation
+  capabilities:
+    - Run detail page with 3-tab inspection interface
+    - Client-side tab switching
+    - Filter outcome display with reasons and non-blocking marks
+    - Pre-enrichment rejects visible separately
+    - Immutable snapshots for all trigger modes
+    - Run detail shows execution mode plus shared `last_completed_stage` and completed-stage progress for both `Run All` and `Stage by Stage`
+    - Checkpoint status and `next_stage` remain staged-only controls layered on top of the shared progress model
+    - Paused manual runs expose a `Run Next Stage` control in run detail and runs list views
+    - Run detail can show whether a run-scoped synonym overlay is active for a manual run paused after `enrich`
+    - Run detail synonym inspection now shows a collapsible YAML snapshot for either the active run overlay or the default synonym config when available
+    - CV download links
+    - Run-scoped stage-transition artifact download for succeeded runs and paused manual runs when available
+    - Run detail now offers `Download All Artifacts (.zip)` as a convenience bundle of currently available run-scoped artifacts plus a manifest of included and missing files
+    - Run-scoped settings-used JSON download for succeeded runs when available
+    - Settings-used snapshots now remain accurate after the config-room reorganization into runtime, policy, and taxonomy subfolders
+    - Timeline-linked per-stage stage-artifact downloads for recognized aggregate stage-boundary events only
+    - Run-detail exports now hide stage-owned downloads such as `Mapping Suggestions JSON` until the owning stage has actually been reached and the owned stage artifact exists
+    - Mapping-suggestions snapshots are no longer persisted before `enrich`, avoiding empty pre-stage exports
+    - Normalize now always emits an aggregate timeline row that can own `Download Normalize JSON`, even when deduplication removes zero rows
+    - "`results.json` now stays focused on the per-job run ledger while `stage-artifacts.json` remains the bundled diagnostic export for stage-owned metrics, reuse, and samples"
+    - Results-ledger rows now omit full `original_job`, full `enriched_job`, bulky score-explanation substructures, and full CV bodies so operator-facing exports stop duplicating stage-owned diagnostics
+    - Timeline rows now use humanized stage labels plus compact aggregate stage-summary messaging where stage artifacts are available
+    - Stage-transition artifacts now include bounded pre-decision inputs, decision summaries, and output/change-state samples for each major stage
+    - Stage-transition artifacts now order samples outcome-first with outputs and dropped-or-changed rows before raw inputs
+    - Enrich-stage artifacts and settings-used snapshots can expose effective enrich prompt provenance, including prompt ID, version, template path, and model
+    - Prompt provenance for `cv_generation` now reports only the active structured writer runtime prompt instead of implying a dormant markdown-generation prompt is live
+    - Ranking-stage artifacts now expose the active AI-score prompt ID, prompt template path, and model so reranker drift is diagnosable from stage-local logs
+    - "`cv_generation` artifacts and debug snapshots now expose the active structured writer prompt ID and template path instead of relying on `cv_prompt_version` alone"
+    - "`cv-debug.json` now explains ranked-job coverage with attempted-vs-non-attempted counts and omission reasons"
+    - "`settings-used.json` now presents canonical operator-facing settings and moves compatibility-era flat keys into an explicit `compatibility_projection` block when present"
+    - Ranking-stage artifacts report the full six-feature ranking contract, zero-weight features, and ranked-vs-not-ranked scoring context
+    - Newly generated stage-transition artifacts now version the split final-stage artifact shape as `stage_transition_artifacts_v6`
+    - Ranking-stage artifacts and exports now expose per-feature weighted score contributions plus weighted preference-fit subcomponents
+    - Ranking-stage decision summaries can now expose configured preference-fit weights and fit-label thresholds for calibration debugging
+    - Run-scoped CV-generation debug snapshot download for succeeded runs when available
+    - "`cv_analysis` stage artifacts now expose generation-ready, skipped-fit-gate, and analysis-failed records separately from CV writing outcomes"
+    - "`cv_analysis` stage artifacts and analysis records can now expose per-channel retrieval counts, merged-pool sizing, selected-evidence IDs, matched-channel metadata, and selection reasons"
+    - "`cv_analysis` artifacts can now expose lexical-versus-semantic subscores, effective hybrid weights, semantic methods, and semantic embedding reuse state for domain and responsibility alignment"
+    - "`cv_analysis` stage-level embedding counters no longer sum cumulative per-record cache snapshots into misleading fresh/reused totals"
+    - "`cv_generation` stage artifacts now consume `cv_analysis` outputs and focus on writing, validation, repair, and persistence outcomes only"
+    - "`cv_generation` debug records and validation snapshots can now distinguish deterministic selected-evidence grounding violations from softer selected-evidence support failures"
+    - "`cv_generation` artifacts now expose compact validation support-source summaries so reviewers can see whether support came from deterministic or bounded soft-claim checks"
+    - Client-side filtering, search, and pagination for large tables
+    - Job title as link label in generated outputs
+    - Run detail pipeline outcomes can show explicit decision-chain detail when present in the run-results export
+    - Run-results exports now stay job-centric and omit retired row-level shortlist-debug baggage that is already owned by shortlist-stage diagnostics
+    - Skipped-fit-gate rows in `results.json` now keep the row-level `cv_analysis` block and compact `decision_chain` aligned, so operator-facing outcomes no longer mix `skipped_fit_gate` with `not_run`
+    - "Reranker-blocked ranked jobs now carry a distinct `blocked_by_reranker_fit` outcome instead of being conflated with true analyzed-and-skipped rows"
+    - "`results.json` compact decision chains and `cv-debug.json` ranked-job coverage accounting now propagate `blocked_by_reranker_fit` truthfully instead of degrading reranker-blocked rows into generic `not_run` or dropping them from non-attempted coverage"
+    - CV-generation debug snapshots separate authoritative ranking fit from explanatory gap output
+    - Shortlist artifacts now distinguish raw vector row counts from unique-job raw-hit counts
+    - Shortlist debug payloads now report observed raw-hit status without overstating retrieval root causes
+    - Shortlist artifacts and run-results shortlist debug now expose latest-only retrieval facts, explicit raw-hit flags, and clearer backfill-versus-miss distinctions
+    - Shortlist artifacts and run-results shortlist debug can now expose fresh-vs-reused embedding provenance plus structured signature metadata
+    - Shortlist debug surfaces can now expose bounded candidate-query components such as flattened-skill samples plus inferred role-family and domain hints
+    - Shortlist stage artifacts and shortlist debug payloads can now show whether the single candidate query embedding was reused or freshly created, including its signature and contract fingerprint
+    - Shortlist inspection now stays explicit about active retrieval inputs, describing reusable job-embedding provenance without implying unused candidate chunk embeddings are part of the live path
+    - Run detail, run-results exports, and stage artifacts can now expose compact stage-level quality metrics such as shortlist backfill rate, ranking label distribution, cv-analysis skip/ready rates, and cv-generation validation-fail or accepted rates
+    - Ranking artifacts, run results, and run detail can now expose exact-match AI-score reuse counts, reuse rates, reuse statuses, and AI-score input fingerprints
+    - "`cv_analysis` artifacts, run results, and run detail can now expose exact-match analysis reuse counts, reuse rates, reuse statuses, and analysis input fingerprints"
+    - Run results can now persist bounded late-stage reuse snapshots so reuse behavior can be audited without extra storage lookups
+    - Top-level duplicate stage-quality, reuse, and shortlist-summary blocks are retired from the pipeline summary in favor of stage-owned diagnostics
+    - Run-scoped enriched job rows can now include canonical skill companions and parsed mapping suggestions for richer inspection/debug export
+    - Run-scoped enriched job rows and enrich-stage artifacts can now expose raw-job fingerprints, enrich-contract fingerprints, and fresh-vs-reused enrich provenance
+    - Rule-filter stage artifacts and run detail now show the active blocking-filter set plus mark-code counts for selectable screening
+  refs:
+    docs: []
+    spec:
+    plan:
+    history:
+      - docs/features/inspection_debugging/history.md
+  keywords:
+    - inspection
+    - run detail
+    - debugging
+    - enriched jobs
+    - filter outcomes
+    - snapshots
+    - tabs
+

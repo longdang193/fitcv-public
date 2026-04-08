@@ -1,0 +1,30 @@
+multi_file_job_input:
+  name: Multi-File Job Input
+  version: 1.0.0
+  status: active
+  type: add
+  summary: Admins can upload multiple JSON job files in one trigger request.
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+    - run_orchestration
+  depends_on:
+    - trigger_run_management
+  capabilities:
+    - Multiple file inputs in trigger form
+    - Per-file server-side validation
+    - Canonical merge preserving order
+    - One immutable snapshot stored per run
+    - All-or-nothing rejection on validation failure
+  refs:
+    docs: []
+    spec:
+    plan:
+    history:
+      - docs/features/multi_file_job_input/history.md
+  keywords:
+    - multi-file
+    - upload
+    - job input
+    - merge
+

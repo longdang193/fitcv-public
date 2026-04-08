@@ -1,0 +1,35 @@
+admin_control_plane_core:
+  name: Admin Control Plane Core
+  version: 1.0.0
+  status: active
+  type: add
+  summary: Internal admin UI and REST API to manage FitCV pipeline runs without terminal access.
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+    - run_orchestration
+  depends_on: []
+  capabilities:
+    - FastAPI web server
+    - RQ background worker integration
+    - Jinja2 admin pages
+    - PipelineReporter integration
+    - pipeline_runs BigQuery table
+    - pipeline_run_events BigQuery table
+    - insert-before-enqueue invariant
+  refs:
+    docs:
+      - docs/fitcv-control-plane-setup.md
+      - docs/FitCV-pipeline.md
+    spec:
+    plan:
+    history:
+      - docs/features/admin_control_plane_core/history.md
+  keywords:
+    - control plane
+    - admin ui
+    - run management
+    - pipeline runs
+    - worker
+    - reporter
+

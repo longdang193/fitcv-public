@@ -1,0 +1,193 @@
+{% if enriched_total_count %}
+<div style="display:flex;gap:1rem;padding:0.75rem 1.25rem;border-bottom:1px solid var(--accent);flex-wrap:wrap;align-items:center">
+  <span class="meta">Post-dedupe enriched jobs: <strong>{{ enriched_total_count }}</strong></span>
+  <span class="badge badge-success" style="padding:0.2rem 0.6rem;font-size:0.8rem">Passed: {{ enriched_passed_count }}</span>
+  <span class="badge badge-error" style="padding:0.2rem 0.6rem;font-size:0.8rem">Rejected: {{ enriched_rejected_count }}</span>
+  {% if deduplicated_before_enrichment %}
+  <span class="badge badge-warning" style="padding:0.2rem 0.6rem;font-size:0.8rem">Deduplicated before enrichment: {{ deduplicated_before_enrichment | length }}</span>
+  {% endif %}
+  <span class="meta" style="margin-left:auto">
+    {% if enriched_filtered_total_count != enriched_total_count %}
+      Showing {{ enriched_page_start }}-{{ enriched_page_end }} of {{ enriched_filtered_total_count }} filtered rows
+    {% else %}
+      Showing {{ enriched_page_start }}-{{ enriched_page_end }} of {{ enriched_total_count }}
+    {% endif %}
+  </span>
+</div>
+
+<form method="get" action="/admin/runs/{{ run.run_id }}/tabs/enriched" onsubmit="return submitRunDetailTabForm(event, 'enriched', this)" style="display:flex;gap:0.75rem;padding:0.75rem 1.25rem;border-bottom:1px solid var(--accent);flex-wrap:wrap;align-items:center">
+  <input type="hidden" name="page" value="1">
+  <label class="meta" for="enr-filter" style="font-size:0.85rem">Filter</label>
+  <select id="enr-filter" name="filter_name" style="font-size:0.85rem;padding:0.25rem 0.5rem">
+    <option value="all" {% if enriched_filter == 'all' %}selected{% endif %}>All</option>
+    <option value="passed" {% if enriched_filter == 'passed' %}selected{% endif %}>Passed</option>
+    <option value="rejected" {% if enriched_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+    <option value="unknown" {% if enriched_filter == 'unknown' %}selected{% endif %}>Unknown</option>
+  </select>
+  <input id="enr-search" type="search" name="q" value="{{ enriched_query }}" placeholder="Search title, domain, job family…" style="flex:1;min-width:16rem;font-size:0.85rem;padding:0.25rem 0.6rem">
+  <label class="meta" for="enr-page-size" style="font-size:0.85rem">Rows</label>
+  <select id="enr-page-size" name="page_size" style="font-size:0.85rem;padding:0.25rem 0.5rem">
+    {% for size in (25, 50, 100) %}
+    <option value="{{ size }}" {% if enriched_page_size == size %}selected{% endif %}>{{ size }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-secondary">Apply</button>
+</form>
+
+<div class="card" style="padding:0;overflow:hidden">
+  <table class="enr-table">
+    <thead>
+      <tr>
+        <th>Job</th>
+        <th>Fit Context</th>
+        <th>Required Skills (top 5)</th>
+        <th>Filter</th>
+        <th>Pipeline Outcome</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in enriched_jobs %}
+      {% set fr = filter_results_by_job_url.get(job.job_url) %}
+      {% set outcome = pipeline_outcomes_by_job_url.get(job.job_url) %}
+      <tr>
+        <td><a href="{{ job.job_url }}" target="_blank">{{ job.title or job.job_url }}</a></td>
+        <td class="meta">
+          <div class="fit-context-stack">
+            <span><strong>Location:</strong> {{ job.location_type or '—' }}</span>
+            <span><strong>Seniority:</strong> {{ job.seniority or '—' }}</span>
+            <span><strong>Family:</strong> {{ job.job_family or '—' }}</span>
+            <span><strong>Domain:</strong> {{ job.domain or '—' }}</span>
+          </div>
+        </td>
+        <td class="meta">
+          {% if job.required_skills %}
+            {{ job.required_skills[:5] | join(', ') }}{% if job.required_skills | length > 5 %}, <em class="meta">+{{ job.required_skills | length - 5 }} more</em>{% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% if fr is not none %}
+            {% if fr.passed %}
+              <span class="badge badge-success" title="Passed all filters">&#10003; pass</span>
+              {% if fr.marks %}
+              <div class="meta" style="margin-top:0.3rem;max-width:20rem;white-space:normal">
+                Marks: {{ fr.marks | map(attribute='code') | join(', ') }}
+              </div>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-error" title="{{ fr.reasons | join(', ') }}">&#10007; reject</span>
+              <div class="field-error" style="margin-top:0.3rem">{{ fr.reasons | join(', ') }}</div>
+              {% if fr.marks %}
+              <div class="meta" style="margin-top:0.3rem;max-width:20rem;white-space:normal">
+                Marks: {{ fr.marks | map(attribute='code') | join(', ') }}
+              </div>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <span class="empty-value">—</span>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap">
+          {% if outcome is not none %}
+            <span class="badge {{ outcome.badge_class }}" {% if outcome.detail %}title="{{ outcome.detail }}"{% endif %}>{{ outcome.label }}</span>
+            {% if outcome.detail %}
+            <div class="meta" style="margin-top:0.3rem;max-width:20rem;white-space:normal">{{ outcome.detail }}</div>
+            {% endif %}
+          {% else %}
+            <span class="empty-value">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not enriched_jobs %}
+      <tr class="empty-row"><td colspan="5">No jobs match the current controls.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% if enriched_total_pages > 1 %}
+<div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1.25rem;justify-content:flex-end">
+  {% if enriched_has_prev %}
+  <a href="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page - 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     class="btn-secondary"
+     data-tab-fragment-url="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page - 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     data-tab-id="enriched">← Prev</a>
+  {% endif %}
+  <span class="meta">Page {{ enriched_current_page }} of {{ enriched_total_pages }}</span>
+  {% if enriched_has_next %}
+  <a href="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page + 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     class="btn-secondary"
+     data-tab-fragment-url="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page + 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     data-tab-id="enriched">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="card">
+  <p class="meta" style="text-align:center;padding:1.5rem">No enrichment data available for this run.</p>
+</div>
+{% endif %}
+
+{% if pre_enrichment_rejects %}
+<div class="section-card" style="margin:1.5rem 0;padding:0;overflow:hidden">
+  <details>
+    <summary style="padding:0.75rem 1.25rem;cursor:pointer;display:flex;align-items:center;gap:0.5rem;user-select:none">
+      <span class="badge badge-error">&#10007; Rejected before enrichment</span>
+      <span class="badge badge-error" style="border-radius:999px">{{ pre_enrichment_rejects | length }}</span>
+      <span class="meta" style="margin-left:auto">Screened out by global filters before enrichment step.</span>
+    </summary>
+    <table>
+      <thead>
+        <tr>
+          <th>Job URL</th>
+          <th>Reject Reasons</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in pre_enrichment_rejects %}
+        <tr>
+          <td><a href="{{ row.job_url }}" target="_blank" class="meta">{{ row.job_url }}</a></td>
+          <td class="field-error">{{ row.reasons | join(', ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</div>
+{% endif %}
+
+{% if deduplicated_before_enrichment %}
+<div class="section-card" style="margin:1.5rem 0;padding:0;overflow:hidden">
+  <details>
+    <summary style="padding:0.75rem 1.25rem;cursor:pointer;display:flex;align-items:center;gap:0.5rem;user-select:none">
+      <span class="badge badge-warning">↺ Deduplicated before enrichment</span>
+      <span class="badge badge-warning" style="border-radius:999px">{{ deduplicated_before_enrichment | length }}</span>
+      <span class="meta" style="margin-left:auto">Removed during normalization before enrichment/filtering.</span>
+    </summary>
+    <table>
+      <thead>
+        <tr>
+          <th>Job</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in deduplicated_before_enrichment %}
+        <tr>
+          <td>
+            {% if row.job_url %}
+            <a href="{{ row.job_url }}" target="_blank" class="meta">{{ row.job_title or row.job_url }}</a>
+            {% else %}
+            <span class="meta">{{ row.job_title or 'Unknown job' }}</span>
+            {% endif %}
+          </td>
+          <td class="field-error">{{ row.reasons | join(', ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</div>
+{% endif %}

@@ -1,0 +1,117 @@
+# Shared business taxonomy — seniority ladder, allowed enum values.
+# Consumed by: rule_filter.py, enrich.py, ranking.py
+
+seniority:
+  # Ordered from most junior to most senior.
+  # Used by rule_filter (±1 pass / ±2 reject) and ranking (seniority_fit).
+  ladder:
+    - intern
+    - entry
+    - associate
+    - mid
+    - senior
+    - lead
+    - manager
+    - director
+
+  # Common aliases → canonical ladder value (all lowercase)
+  aliases:
+    junior: entry
+    jr: entry
+    sr: senior
+    staff: lead
+    principal: lead
+    vp: director
+    vice president: director
+
+# Valid values for the LLM-enriched location_type field (Task 4)
+valid_location_types:
+  - remote
+  - hybrid
+  - onsite
+
+# Valid seniority values the enrichment LLM is allowed to produce (Task 4)
+valid_seniority_enrich:
+  - junior
+  - mid
+  - senior
+  - lead
+
+# Valid contract types (normalised; used for display + filtering)
+valid_contract_types:
+  - Full-time
+  - Part-time
+  - Contract
+  - Internship
+  - Temporary
+
+# Raw LinkedIn experience_level labels (used for exclusion filtering in Task 7)
+valid_experience_levels:
+  - Internship
+  - Entry level
+  - Associate
+  - Mid-Senior level
+  - Director
+  - Executive
+
+role_taxonomy:
+  canonical_roles:
+    data analyst:
+      aliases:
+        - senior data analyst
+        - junior data analyst
+        - bi analyst
+        - business intelligence analyst
+        - analytics specialist
+        - analytics analyst
+        - insights analyst
+        - data quality analyst
+        - credit analyst
+    data engineer:
+      aliases:
+        - senior data engineer
+        - junior data engineer
+        - analytics engineer
+        - etl engineer
+        - data platform engineer
+        - data warehouse engineer
+    data scientist:
+      aliases:
+        - senior data scientist
+        - junior data scientist
+        - machine learning scientist
+        - applied scientist
+        - ai trainer
+    machine learning engineer:
+      aliases:
+        - ml engineer
+        - mlops engineer
+        - ai engineer
+        - genai engineer
+        - llm engineer
+
+  role_families:
+    analytics:
+      roles:
+        - data analyst
+    data_engineering:
+      roles:
+        - data engineer
+    data_science:
+      roles:
+        - data scientist
+    ml_engineering:
+      roles:
+        - machine learning engineer
+
+  role_family_neighbors:
+    analytics:
+      - data_science
+    data_science:
+      - analytics
+      - ml_engineering
+    data_engineering:
+      - ml_engineering
+    ml_engineering:
+      - data_science
+      - data_engineering

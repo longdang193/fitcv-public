@@ -1,0 +1,89 @@
+cv_system:
+  name: CV System
+  version: 1.33.0
+  status: active
+  type: add
+  summary: CV generation uses a structured preset-based configuration, keeps reranker fit as the sole post-filter fit authority, short-circuits reranker `skip` jobs before expensive `cv_analysis` evidence retrieval with a distinct `blocked_by_reranker_fit` status, splits final-stage execution into `cv_analysis` and `cv_generation`, upgrades `cv_analysis` to hybrid lexical-plus-semantic required-skill, role, domain, and responsibility alignment with one bounded coverage-aware evidence bundle, validates structured and markdown sections against one shared section contract, grounds final-stage validation against the selected `cv_analysis` evidence bundle with deterministic hard-fact checks plus bounded soft-claim support, rejects unresolved candidate-name placeholders such as `Candidate Name` and `[Candidate Name]`, tells the writer to use the real profile name in the header, supports one deterministic header-only repair for that specific failure when a real profile name is available, supports richer shortlist retrieval and reuse, emits stage-level quality metrics, reuses exact-match late-stage `ranking` AI-score rows plus exact-match `cv_analysis` records when their stage-owned fingerprints and contracts still match, centralizes prompt ownership plus config ownership under a clearer responsibility-based config room, treats the structured writer prompt as the sole active `cv_generation` runtime prompt contract, keeps `results.json` focused on the final per-job ledger while stage diagnostics live in stage artifacts, and keeps warning-only max-pages validation as the sole user-facing CV validation rule.
+  owner: fitcv
+  domains:
+    - pipeline
+    - cv_generation
+  depends_on:
+    - admin_control_plane_core
+  primary_stage: cv_generation
+  stages:
+    - enrich
+    - ranking
+    - cv_analysis
+    - cv_generation
+  capabilities:
+    - Preset registry for template binding
+    - CV composition model (section visibility controls)
+    - Warning-only CV max-pages validation
+    - Admin settings UI for CV configuration
+    - Compatibility projection for flat-to-nested migration
+    - Structured CV document generation aligned to preset/composition settings
+    - "Dual-artifact persistence: structured CV JSON plus rendered markdown"
+    - CV generation metadata persistence (schema version, model, prompt version)
+    - Section-aware evidence retrieval for CV composition
+    - Grouped experience-entry preservation for richer Experience sections
+    - Grouped project-entry preservation for richer Projects sections
+    - Adaptive Experience composition with JD-sensitive role-level bullet selection
+    - Phase 1 active ranking contract limited to runtime-computed `ai_score` and `vector_similarity`
+    - Reranker fit is the sole post-filter authority for ranking-time fit and CV-generation eligibility
+    - Gap analysis provides grounded explanation/support context without acting as a competing fit classifier
+    - Ranking and later CV-facing inspection can reuse enrich-stage canonical skill companions instead of reinterpreting raw required-skill phrases
+    - Shortlist retrieval now ranks only the latest active persistent `job_summary` embedding per canonical `job_url` instead of letting historical duplicate rows compete
+    - Shortlist can now reuse unchanged passed-job embeddings when the structured embedding signature and embedding contract both still match
+    - Shortlist candidate-query construction now uses flattened profile skills plus bounded role-family and domain hints so retrieval sees more of the candidate's real evidence surface
+    - Shortlist now reuses the single candidate-query embedding used for vector retrieval when the bounded query signature and candidate-query embedding contract still match
+    - Shortlist no longer generates unused candidate-chunk embeddings as part of shortlist execution
+    - Active shortlist runtime now prepares reusable job embeddings plus the deterministic candidate query vector only; candidate chunk embeddings are not part of the live path unless a later stage explicitly adopts them
+    - Ranking reranker prompts now prioritize required-skill evidence, seniority readiness, and role alignment while treating preferences as explicitly secondary
+    - Ranking `title_relevance` now uses bounded semantic role alignment instead of pure lexical token overlap
+    - Ranking `preference_fit` now scores weighted domain, role-family, and location-type preference alignment
+    - "`cv_analysis` now owns ranked-job context merge, evidence retrieval, gap analysis, and final fit-gate preparation before CV writing"
+    - "`cv_analysis` evidence retrieval now over-retrieves separate required-skill, role, domain, and responsibility candidate pools before merging, deduping by stable `evidence_id`, and selecting one bounded final evidence bundle"
+    - "`cv_analysis` now scores required-skill, role, domain, and responsibility alignment with bounded hybrid lexical-plus-semantic matching, including stage-owned semantic embedding reuse for the candidate evidence and job snippets it actually consumes"
+    - "`cv_analysis.semantic_alignment` now exposes separate required-skill and role lexical/semantic weight pairs so the most important fit channels can receive semantic lift without losing bounded operator control"
+    - "`cv_analysis` stage artifacts now avoid reporting inflated stage-level fresh/reused embedding totals by retiring the old cumulative-snapshot rollup fields"
+    - "`cv_analysis` final evidence selection now stays bounded while preferring broader coverage of job needs instead of purely additive heuristic score"
+    - Candidate profile YAML can now carry additive role-family, domain-tag, and responsibility-theme metadata that improves `cv_analysis` evidence alignment without breaking existing files
+    - "`cv_generation` now consumes persisted `cv_analysis` outputs for writing, validation, repair, and persistence instead of recomputing analysis by default"
+    - "`cv_generation` validation now checks hard facts such as employers, projects, and skills against the selected `cv_analysis` evidence bundle instead of only the full candidate profile when selected evidence is available"
+    - "`cv_generation` validation now uses a bounded hybrid path for softer role, domain, and responsibility claims, combining deterministic selected-theme/tag support with compact selected-evidence text matching"
+    - "`cv_generation` prompt guidance now explicitly tells the writer to stay inside the selected evidence bundle for responsibility, domain, and role-positioning claims"
+    - Ranking can now infer fallback candidate intent from recent role and domain evidence when explicit YAML preferences are sparse, while keeping explicit preferences authoritative
+    - Shared role-title normalization for ranking and candidate-intent inference now lives in central taxonomy config instead of ranking-local alias literals
+    - Structured normalization and markdown validation share one config-driven required-section contract with bounded completeness checks
+    - Run summaries emit bounded stage-transition artifact blocks for `normalize`, `enrich`, `rule_filter`, `shortlist`, `ranking`, `cv_analysis`, and `cv_generation`
+    - Stage-transition artifacts now preserve bounded input, output, and changed-state context per stage rather than summary-only stage results
+    - Effective run settings can be exported once as a dedicated settings-used snapshot instead of being duplicated into every stage block
+    - Live run-scoped CV-generation debug snapshot capture for ranked jobs, including initial structured output, validation state, repair metadata, and final accepted artifact when available
+    - Run summaries and stage artifacts now expose stage-level quality metrics for shortlist, ranking, `cv_analysis`, and `cv_generation`
+    - Ranking can now reuse exact-match AI-score rows per job when the reranker input fingerprint and AI-score contract still match, while leaving final weighted ranking fresh on the resulting scored rows
+    - "`cv_analysis` can now reuse exact-match analysis records per ranked job when the analysis input fingerprint and analysis contract still match, while keeping fresh computation as the safe fallback"
+    - Run results now persist late-stage reuse snapshots and reuse-rate metrics so later runs can reuse exact-match `ranking` AI-score and `cv_analysis` outputs safely
+    - Final run exports now keep `results.json` focused on compact per-job outcomes while stage-owned diagnostics remain in `stage-artifacts.json` and per-stage artifacts
+    - Skipped-fit-gate rows in the compact results ledger now stay consistent with the `cv_analysis`/`cv_generation` split instead of understating completed gate decisions as `not_run`
+    - Ranked jobs with authoritative reranker `fit_label = skip` now stop before evidence retrieval inside `cv_analysis` and carry a distinct `blocked_by_reranker_fit` status instead of paying full analysis cost
+    - Primary prompt text for `enrich`, `ranking`, and the active structured `cv_generation` runtime path now lives in the shared prompt registry instead of being split across stage modules
+    - "`cv_generation.structured_write.v1` is now the sole active `cv_generation` runtime prompt contract; the legacy markdown writer prompt is no longer part of active pipeline config or runtime provenance"
+    - "`cv_generation` now tells the writer to use the real profile name in the header, rejects unresolved candidate-name placeholders such as `Candidate Name` and `[Candidate Name]`, and performs one deterministic header-only repair before final rejection when a real profile name is available"
+    - "`cv_analysis` selection-policy knobs now live in dedicated config instead of stage-local constants, while shared contract/version identifiers and analysis-channel semantics are imported from central runtime modules"
+    - Canonical YAML config ownership now lives under `config/runtime`, `config/policy`, and `config/taxonomy`, while prompt text and CV rendering templates stay outside the config room
+  refs:
+    docs:
+      - docs/FitCV-pipeline.md
+    spec:
+    plan:
+    history:
+      - docs/features/cv_system/history.md
+  keywords:
+    - cv
+    - resume
+    - europass
+    - preset
+    - composition
+    - cv generation
+

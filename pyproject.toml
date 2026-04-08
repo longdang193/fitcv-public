@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fitcv"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "End-to-end pipeline for ingesting job postings, matching against a candidate profile, and generating tailored CVs."
+license = { text = "MIT" }
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "fitcv.tracker"
+warn_unused_ignores = false
+
+[dependency-groups]
+dev = [
+    "fastapi>=0.135.2",
+    "google-cloud-bigquery>=3.40.1",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "pytest>=9.0.2",
+    "pytest-httpx>=0.36.0",
+    "pyyaml>=6.0.3",
+    "redis>=7.4.0",
+    "rq>=2.7.0",
+    "python-multipart",
+    "google-genai>=1.69.0",
+    "google-cloud-aiplatform>=1.143.0",
+    "uvicorn>=0.42.0",
+]

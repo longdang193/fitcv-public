@@ -1,0 +1,10 @@
+prompts:
+  enrich:
+    extraction:
+      prompt_id: enrich.extraction.v1
+  ranking:
+    ai_score:
+      prompt_id: ranking.ai_score.v1
+  cv_generation:
+    structured_write:
+      prompt_id: cv_generation.structured_write.v1

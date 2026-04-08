@@ -1,0 +1,54 @@
+# Generated Discovery — Do not edit manually
+# Source: docs/stages/*.yaml
+# Regenerate when any stage YAML changes
+
+stages:
+  - stage_id: cv_analysis
+    name: CV Analysis
+    depends_on: [ranking]
+    primary_features: [cv_system]
+    related_features: [inspection_debugging, settings_system, trigger_run_management]
+    contract: docs/stages/cv_analysis.yaml
+
+  - stage_id: cv_generation
+    name: CV Generation
+    depends_on: [cv_analysis]
+    primary_features: [cv_system]
+    related_features: [inspection_debugging, trigger_run_management]
+    contract: docs/stages/cv_generation.yaml
+
+  - stage_id: enrich
+    name: Enrich
+    depends_on: [normalize]
+    primary_features: [cv_system]
+    related_features: [trigger_run_management, inspection_debugging]
+    contract: docs/stages/enrich.yaml
+
+  - stage_id: normalize
+    name: Normalize
+    depends_on: []
+    primary_features: [trigger_run_management]
+    related_features: [inspection_debugging]
+    contract: docs/stages/normalize.yaml
+
+  - stage_id: ranking
+    name: Ranking
+    depends_on: [shortlist]
+    primary_features: [cv_system]
+    related_features: [inspection_debugging]
+    contract: docs/stages/ranking.yaml
+
+  - stage_id: rule_filter
+    name: Rule Filter
+    depends_on: [enrich]
+    primary_features: [trigger_run_management]
+    related_features: [inspection_debugging]
+    contract: docs/stages/rule_filter.yaml
+
+  - stage_id: shortlist
+    name: Shortlist
+    depends_on: [rule_filter]
+    primary_features: [inspection_debugging]
+    related_features: [trigger_run_management]
+    contract: docs/stages/shortlist.yaml
+

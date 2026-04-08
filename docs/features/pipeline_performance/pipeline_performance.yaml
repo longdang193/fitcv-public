@@ -1,0 +1,51 @@
+pipeline_performance:
+  name: Pipeline Performance
+  version: 1.11.0
+  status: active
+  type: modify
+  summary: Reduced API costs by filtering jobs before enrichment, using reliable structured output parsing, centralizing enrich prompt management, reusing unchanged enrich results via fingerprints, reusing unchanged shortlist embeddings via a structured signature plus embedding contract, extending bounded semantic lift to the most important `cv_analysis` fit channels, short-circuiting reranker `skip` jobs before expensive `cv_analysis` work, and trimming dead-weight operator-facing payloads, especially by tightening the `results.json` ledger boundary and row-scaled timeline noise.
+  owner: fitcv
+  domains:
+    - pipeline
+    - api_optimization
+  depends_on: []
+  capabilities:
+    - Pre-enrichment global job filters (applications_count_max, max_age_days)
+    - Explicit rejection reasons in rule_filter_results
+    - Gemini structured output with response_schema and Pydantic
+    - Fallback path for unparseable responses
+    - Enrich extraction prompt text now comes from a centralized prompt registry with config-selected prompt IDs
+    - Enrich-stage raw-plus-canonical semantic companions for repeated downstream fields
+    - Canonical skill companion lists and entity payloads for required/preferred skills
+    - Enrich-stage mapping suggestion capture for review/debug surfaces
+    - Fingerprint-based enrich-result reuse happens before LLM enrichment using normalized raw-job inputs
+    - Enrich-contract fingerprinting invalidates reuse automatically when prompt/model/schema behavior changes
+    - Shared `structured_jobs` reuse lookup avoids redundant enrich calls while only fresh rows are upserted back into the shared table
+    - Shortlist now builds a stable structured embedding-input signature before generating `job_summary` vectors
+    - Shortlist reuses the latest stored embedding row for a `job_url` only when both the structured signature and embedding contract fingerprint still match
+    - Fresh shortlist embeddings persist signature metadata so later runs can skip repeated embedding work safely
+    - Operator-facing enriched-job exports now keep canonical semantic fields and fingerprint/reuse provenance while omitting retired raw duplicate classification baggage
+    - Large runs avoid some row-scaled Layer 4 event noise by relying more on aggregate stage summaries plus stage-owned artifacts
+    - "`results.json` now keeps only compact job-ledger fields instead of repeating full job snapshots, heavy score-explanation internals, and full CV bodies already represented elsewhere"
+    - "`cv_analysis` now uses bounded semantic lift for required-skill and role channels instead of reserving semantic work only for domain and responsibility alignment"
+    - "Ranked jobs with authoritative reranker `fit_label = skip` now stop before evidence retrieval, gap computation, and semantic alignment inside `cv_analysis`"
+  refs:
+    docs:
+      - docs/FitCV-pipeline.md
+    spec:
+    plan:
+    history:
+      - docs/features/pipeline_performance/history.md
+  keywords:
+    - performance
+    - enrichment
+    - structured output
+    - global filters
+    - api cost
+    - parallel enrichment
+    - reuse
+    - fingerprint
+    - shortlist
+    - embeddings
+    - signature
+

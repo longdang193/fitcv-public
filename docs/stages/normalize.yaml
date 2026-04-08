@@ -1,0 +1,30 @@
+normalize:
+  stage_id: normalize
+  name: Normalize
+  summary: Normalize raw run inputs into a stable job list, apply deduplication, and hand the surviving normalized rows to downstream filtering and enrichment.
+  boundaries:
+    - raw job input ends here and normalized job rows begin here
+    - deduplication ownership belongs to this stage
+    - downstream stages should only see the normalized, deduplicated candidate job pool produced here
+  inputs:
+    - raw job payloads from file, path, or pasted JSON inputs
+    - run-level input source context from trigger handling
+  outputs:
+    - normalized job rows
+    - deduplicated job decisions
+    - bounded `stage_transition_artifacts.normalize` runtime block with input, output, and changed-state samples
+  depends_on: []
+  primary_features:
+    - trigger_run_management
+  related_features:
+    - inspection_debugging
+  refs:
+    docs: []
+    spec:
+    plan:
+    history: []
+  keywords:
+    - normalize
+    - ingest
+    - deduplication
+    - normalized jobs

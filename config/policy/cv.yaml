@@ -1,0 +1,38 @@
+# CV generation and validation defaults
+# Owned by this file — do not duplicate in env.yaml or pipeline.yaml.
+# Override any key in .env.yaml for environment-specific values.
+
+cv:
+  preset: europass
+  generation:
+    model: gemini-2.5-flash
+    prompt_version: v1
+  composition:
+    summary:
+      enabled: true
+    education:
+      enabled: true
+      include_institution: true
+      include_major: true
+      include_grade: false
+      thesis:
+        mode: "off"
+        relevance_only: true
+    experience:
+      enabled: true
+      require_achievements: true
+    skills:
+      enabled: true
+      display_mode: grouped
+    certifications:
+      enabled: true
+      display_mode: combined_with_skills
+      max_items: 5
+    projects:
+      enabled: true
+    publications:
+      enabled: false
+    languages:
+      enabled: true
+  validation:
+    max_pages: 2

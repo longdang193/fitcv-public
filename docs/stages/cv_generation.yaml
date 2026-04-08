@@ -1,0 +1,37 @@
+cv_generation:
+  stage_id: cv_generation
+  name: CV Generation
+  summary: Convert generation-ready CV-analysis records into accepted or rejected CV artifacts through structured prompt-driven writing, hybrid analysis-grounded validation, repair, and persistence without recomputing analysis or reselecting evidence by default, while emitting stage-owned accepted and validation-failure quality metrics for bottleneck diagnosis.
+  boundaries:
+    - cv-analysis-ready jobs enter and accepted or rejected CV artifacts leave
+    - generation, validation, repair, and persistence ownership belong to this stage
+    - evidence retrieval, gap analysis, and fit-gate ownership do not belong to this stage
+  inputs:
+    - generation-ready analysis records
+    - selected grounded evidence and gap explanation inputs prepared by `cv_analysis`
+    - CV generation settings plus section-visibility controls and warning-only max-pages validation settings
+    - one active structured runtime prompt contract for final-stage generation
+  outputs:
+    - structured CV artifacts
+    - rendered markdown CVs
+    - validation and repair outcomes
+    - final CV generation status
+    - bounded `stage_transition_artifacts.cv_generation` runtime block with input, output, and changed-state samples, including bounded upstream `cv_analysis` inputs, selected evidence context, and hybrid validation provenance for debugging
+    - "`stage_transition_artifacts.cv_generation.decision_summary.quality_metrics` with accepted, validation-failed, generation-failed, and persistence-failed counts and rates"
+  depends_on:
+    - cv_analysis
+  primary_features:
+    - cv_system
+  related_features:
+    - inspection_debugging
+    - trigger_run_management
+  refs:
+    docs: []
+    spec:
+    plan:
+    history: []
+  keywords:
+    - cv generation
+    - validation
+    - repair
+    - structured cv

@@ -1,0 +1,58 @@
+settings_system:
+  name: Settings System
+  version: 2.11.0
+  status: active
+  type: add
+  summary: Admins can view and edit pipeline tuning defaults through a task-first settings UI with clearer current-vs-draft feedback, basic-versus-advanced disclosure, denser CV output controls, and metadata-only treatment for fixed single-option runtime fields, while baseline defaults still resolve from centralized YAML/config ownership, persisted overrides still live in BigQuery, and operator-facing settings-used exports continue to present canonical settings instead of compatibility-era duplicate keys.
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+    - pipeline_config
+  depends_on:
+    - admin_control_plane_core
+  capabilities:
+    - BigQuery-backed pipeline settings store
+    - Settings schema registry
+    - Retrieval settings
+    - Timing and throttling settings
+    - Run lifecycle timeout settings
+    - Global job filters
+    - Ranking settings with six-feature sum-to-one validation
+    - Explicit zero-weight semantics for supported ranking features
+    - Ranking settings copy aligned to semantic role-alignment and weighted preference-alignment runtime semantics
+    - Preference-fit subweights for domain, role-family, and location-type calibration
+    - Fit-label threshold descriptions aligned to AI-reranker label calibration semantics
+    - "`cv_analysis` semantic-alignment enable/model controls"
+    - "`cv_analysis` lexical-vs-semantic weight controls for responsibility and domain alignment"
+    - Validation that each `cv_analysis` lexical/semantic weight pair sums to `1.0`
+    - CV generation settings
+    - CV composition visibility settings
+    - Warning-only CV max-pages validation setting
+    - Task-first admin settings UI sections for Selection, Ranking, CV Output, Run Safety, and Advanced tuning
+    - Basic-versus-advanced disclosure for expert-only tuning knobs
+    - Metadata-only rendering for single-option pseudo-choice controls such as the fixed CV preset and semantic-alignment model
+    - Clearer current-versus-draft and unsaved-change visibility in the settings UI
+    - Denser CV section-visibility matrix instead of repeated long-form cards
+    - Metadata-only CV prompt/template fields retired from the active admin settings surface
+    - Grouped form validation
+    - Per-run overrides
+    - Trigger-time effective settings snapshot
+    - Admin settings defaults now hydrate from the loaded baseline config for supported paths instead of acting as a competing default store
+    - Admin settings default hydration now follows the reorganized config-room layout while preserving flat-path compatibility during the migration window
+    - Operator-facing settings-used exports now keep canonical nested settings as the primary contract and move compatibility-era flat keys into an explicit compatibility block when needed
+  refs:
+    docs:
+      - docs/fitcv-control-plane-setup.md
+    spec:
+    plan:
+    history:
+      - docs/features/settings_system/history.md
+  keywords:
+    - settings
+    - pipeline settings
+    - admin editable settings
+    - config overrides
+    - ranking settings
+    - cv settings
+    - schema registry
+

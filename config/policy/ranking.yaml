@@ -1,0 +1,33 @@
+# Ranking policy — six-feature weights, thresholds, and missing-value defaults.
+# Consumed by: pipeline.py / ranking.py and ai_score.py (fit_label derivation).
+
+# ── Supported ranking weights (must sum to 1.0) ──────────────────────────────
+ranking_weights:
+  ai_score: 0.40
+  must_have_match: 0.20
+  vector_similarity: 0.15
+  title_relevance: 0.10
+  seniority_fit: 0.10
+  preference_fit: 0.05
+
+preference_fit_weights:
+  domain: 0.50
+  role_family: 0.30
+  location_type: 0.20
+
+# ── Fit label thresholds (used by ai_score.py and ranking.py) ─────────────────
+# score >= strong_threshold        → strong
+# score >= stretch_threshold       → stretch
+# score <  stretch_threshold       → skip
+fit_label_thresholds:
+  strong: 0.70
+  stretch: 0.40
+
+# ── Missing-value defaults for supported ranking features ─────────────────────
+missing_value_defaults:
+  ai_score: 0.0            # conservative: failed scoring → unknown fit
+  must_have_match: 0.5     # neutral when required skills are unavailable
+  vector_similarity: 0.0   # conservative: not retrieved → low semantic match
+  title_relevance: 0.5     # neutral when title context is unavailable
+  seniority_fit: 0.5       # neutral when seniority context is unavailable
+  preference_fit: 0.5      # neutral when preference context is unavailable

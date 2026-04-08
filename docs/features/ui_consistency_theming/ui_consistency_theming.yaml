@@ -1,0 +1,33 @@
+ui_consistency_theming:
+  name: UI Consistency & Theming
+  version: 1.0.0
+  status: active
+  type: add
+  summary: Shared design system and dark/light theme toggle across all admin pages.
+  owner: fitcv_cp
+  domains:
+    - admin_ui
+  depends_on:
+    - admin_control_plane_core
+  capabilities:
+    - CSS custom properties design tokens
+    - Shared component classes
+    - Dark/light theme toggle with localStorage persistence
+    - Flash-free theme application
+    - Consistent action hierarchy (primary, secondary, section)
+    - Human-readable section headings
+    - Attached-tab inspection card pattern
+    - Responsive wrapping
+  refs:
+    docs: []
+    spec:
+    plan:
+    history:
+      - docs/features/ui_consistency_theming/history.md
+  keywords:
+    - theming
+    - dark mode
+    - design system
+    - css tokens
+    - consistency
+

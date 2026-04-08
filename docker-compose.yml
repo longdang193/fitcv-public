@@ -1,0 +1,38 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  web:
+    build: .
+    command: uvicorn fitcv_cp.main:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    environment:
+      - GCP_PROJECT=${GCP_PROJECT:-fitcv-491123}
+      - BIGQUERY_DATASET=${BIGQUERY_DATASET:-fitcv}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa_key.json
+    volumes:
+      - ./.env.yaml:/app/.env.yaml:ro
+      - ./config/env.yaml:/app/config/env.yaml:ro
+      - ${GCP_SA_KEY_PATH:-./sa_key.json}:/app/sa_key.json:ro
+      - fitcv_uploads:/app/data/uploads
+    depends_on: [redis]
+
+  worker:
+    build: .
+    command: rq worker fitcv --url redis://redis:6379/0
+    environment:
+      - GCP_PROJECT=${GCP_PROJECT:-fitcv-491123}
+      - BIGQUERY_DATASET=${BIGQUERY_DATASET:-fitcv}
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa_key.json
+    volumes:
+      - ./.env.yaml:/app/.env.yaml:ro
+      - ./config/env.yaml:/app/config/env.yaml:ro
+      - ${GCP_SA_KEY_PATH:-./sa_key.json}:/app/sa_key.json:ro
+      - fitcv_uploads:/app/data/uploads
+    depends_on: [redis]
+
+volumes:
+  fitcv_uploads:

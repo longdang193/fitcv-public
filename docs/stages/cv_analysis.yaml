@@ -1,0 +1,43 @@
+cv_analysis:
+  stage_id: cv_analysis
+  name: CV Analysis
+  summary: Prepare ranked jobs for writing by merging enriched job context, retrieving candidate evidence from the normalized profile through separate required-skill, role, domain, and responsibility channels, scoring domain and responsibility with hybrid lexical-plus-semantic alignment, selecting one bounded coverage-aware evidence bundle, computing grounded gap summaries, reusing exact-match analysis records when the stage-owned fingerprint and contract still match, resolving the final fit gate that decides whether CV generation should run and what evidence bundle downstream validation is allowed to rely on, and emitting stage-owned quality and reuse metrics.
+  boundaries:
+    - ranked jobs enter and generation-ready or analysis-rejected records leave
+    - multi-channel evidence retrieval, final evidence selection, gap analysis, and fit-gate ownership belong to this stage
+    - this stage does not generate, validate, or persist final CV artifacts
+  inputs:
+    - ranked jobs
+    - enriched job context
+    - candidate profile
+    - evidence-selection settings
+    - semantic-alignment settings
+    - gap-analysis settings
+  outputs:
+    - persisted cv-analysis records
+    - generation-ready jobs with selected evidence and gap payloads
+    - skipped-fit-gate or analysis-failed outcomes
+    - bounded `stage_transition_artifacts_v5.cv_analysis` runtime block with retrieval counts, selected-evidence rationale, lexical-vs-semantic evidence subscores, effective hybrid weights, reuse metrics, and changed-state samples that downstream `cv_generation` validation can reuse directly
+    - "`stage_transition_artifacts.cv_analysis.decision_summary.quality_metrics` with ready, skip, and analysis-failure counts and rates"
+    - "`stage_transition_artifacts.cv_analysis.decision_summary.reuse_metrics` with exact-match analysis reuse counts and fresh counts"
+    - row-level `analysis_reuse_status` and `analysis_input_fingerprint` in analysis outputs and exports
+  depends_on:
+    - ranking
+  primary_features:
+    - cv_system
+  related_features:
+    - inspection_debugging
+    - settings_system
+    - trigger_run_management
+  refs:
+    docs: []
+    spec:
+    plan:
+    history: []
+  keywords:
+    - cv analysis
+    - evidence retrieval
+    - evidence selection
+    - semantic alignment
+    - gap analysis
+    - fit gate
