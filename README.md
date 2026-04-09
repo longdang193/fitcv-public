@@ -131,11 +131,11 @@ Operational invariants:
 
 ## Docs
 
-- [FitCV-pipeline.md](/c:/Users/HOANG%20PHI%20LONG%20DANG/repos/JOB-PROJECT/docs/FitCV-pipeline.md)
+- [FitCV-pipeline.md](docs/FitCV-pipeline.md)
   Current-state pipeline architecture, execution flow, and major engineering safeguards.
-- [fitcv-control-plane-setup.md](/c:/Users/HOANG%20PHI%20LONG%20DANG/repos/JOB-PROJECT/docs/fitcv-control-plane-setup.md)
+- [fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
   Local setup, Docker usage, credentials, and troubleshooting.
-- [stage_overview.md](/c:/Users/HOANG%20PHI%20LONG%20DANG/repos/JOB-PROJECT/docs/generated/stage_overview.md)
+- [stage_overview.md](docs/generated/stage_overview.md)
   Summary of active pipeline stage contracts.
 
 ## Source Layout
@@ -155,7 +155,7 @@ assets/           SQL and supporting assets
 
 For setup and local execution, start with:
 
-- [fitcv-control-plane-setup.md](/c:/Users/HOANG%20PHI%20LONG%20DANG/repos/JOB-PROJECT/docs/fitcv-control-plane-setup.md)
+- [fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
 
 Typical Docker startup:
 

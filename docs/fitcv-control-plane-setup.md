@@ -204,7 +204,9 @@ Use one of these:
 Rebuild and restart the containers:
 
 ```powershell
-cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.worktrees\ranking-six-feature-reactivation"
+cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT"
+# or:
+# cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.worktrees\<feature-branch>"
 docker compose down
 docker compose up -d --build redis web worker
 ```
