@@ -65,6 +65,12 @@ The admin control plane then lets operators trigger runs, inspect stage outputs,
 
 ## Control-Plane Preview
 
+**Runs overview**
+
+The runs overview gives operators a batch-level view of recent executions, current statuses, trigger sources, and the fastest path into deeper inspection.
+
+![Runs overview showing pipeline run list and status summaries](data/images/run-overview.png)
+
 **Run details**
 
 The run-details view is the main operator workspace for inspecting stage progress, per-job outcomes, artifact truth, and downloadable diagnostics.
@@ -75,7 +81,7 @@ The run-details view is the main operator workspace for inspecting stage progres
 
 The settings page exposes editable pipeline controls so operators can tune filtering, ranking, CV-generation behavior, and other runtime defaults without changing code.
 
-![Settings page showing editable pipeline configuration controls](data/images/setting-page.png)
+![Settings page showing editable pipeline configuration controls and runtime tuning options](data/images/setting-page.gif)
 
 ## Engineering Highlights
 
