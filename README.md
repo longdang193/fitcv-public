@@ -63,6 +63,20 @@ The admin control plane then lets operators trigger runs, inspect stage outputs,
 - Manage editable pipeline settings through the UI
 - Pause, continue, archive, and cancel runs through lifecycle controls
 
+## Control-Plane Preview
+
+**Run details**
+
+The run-details view is the main operator workspace for inspecting stage progress, per-job outcomes, artifact truth, and downloadable diagnostics.
+
+![Run details view showing stage progress and per-job inspection surfaces](data/images/run-details.gif)
+
+**Settings page**
+
+The settings page exposes editable pipeline controls so operators can tune filtering, ranking, CV-generation behavior, and other runtime defaults without changing code.
+
+![Settings page showing editable pipeline configuration controls](data/images/setting-page.png)
+
 ## Engineering Highlights
 
 The most important system work in this repo is not just “generate CVs.” It is the surrounding reliability, diagnostics, and performance design:
