@@ -1,3 +1,28 @@
+"""
+@meta
+name: fitcv_evidence
+type: utility
+domain: cv_analysis
+responsibility:
+  - Retrieve and score bounded CV-analysis evidence across configured channels.
+  - Apply lexical and semantic lift for required-skill, role, domain, and responsibility support.
+inputs:
+  - candidate profile evidence
+  - ranked job context
+  - cv_analysis semantic alignment settings
+outputs:
+  - selected evidence bundle
+  - channel counts, subscores, and semantic alignment diagnostics
+capabilities:
+  - pipeline_performance.cv-analysis-now-uses-bounded-semantic-lift-for-required-skill-and-role-channels-instead-of-reserving-semantic-work-only-for-domain-and-responsibility-alignment
+  - cv_system.analysis-evidence-selection
+tags:
+  - evidence
+  - cv-analysis
+lifecycle:
+  status: active
+"""
+
 """Evidence retrieval and final evidence selection for CV analysis.
 
 Public API

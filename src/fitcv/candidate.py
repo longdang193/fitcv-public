@@ -39,6 +39,16 @@ _ROLE_NOISE_TOKENS = frozenset(
     }
 )
 _UPPERCASE_ROLE_PARTS = frozenset({"ai", "bi", "dbt", "etl", "llm", "ml", "mlops", "nlp", "sql"})
+_FALLBACK_ROLE_FAMILY_BY_ROLE = {
+    "analytics engineer": "data_engineering",
+    "bi analyst": "analytics",
+    "business intelligence analyst": "analytics",
+    "data analyst": "analytics",
+    "data engineer": "data_engineering",
+    "data scientist": "data_science",
+    "machine learning engineer": "ml_engineering",
+    "ml engineer": "ml_engineering",
+}
 
 _PREFERENCE_TEXT_KEYS = ("target_role", "seniority_target")
 _PREFERENCE_LIST_KEYS = (
@@ -258,17 +268,21 @@ def infer_role_family(
         return normalized_explicit
 
     role_family_by_role = _role_family_map(config)
-    if not role_family_by_role:
-        return None
-
-    canonical_role = canonicalize_role_title(role_text, config)
-    if canonical_role:
-        return role_family_by_role.get(canonical_role)
-
     normalized_role = _normalize_text(role_text)
     if not normalized_role:
         return None
-    return role_family_by_role.get(normalized_role)
+
+    if role_family_by_role:
+        canonical_role = canonicalize_role_title(role_text, config)
+        if canonical_role:
+            configured_family = role_family_by_role.get(canonical_role)
+            if configured_family:
+                return configured_family
+        direct_family = role_family_by_role.get(normalized_role)
+        if direct_family:
+            return direct_family
+
+    return _first_matching_role_alias(normalized_role, _FALLBACK_ROLE_FAMILY_BY_ROLE)
 
 
 def _is_missing_preference(value: Any) -> bool:

@@ -506,6 +506,7 @@ def test_retrieve_evidence_bundle_uses_semantic_alignment_for_paraphrased_matche
 
 
 def test_retrieve_evidence_bundle_uses_semantic_alignment_for_required_skill_support(monkeypatch) -> None:
+    """@proves pipeline_performance.cv-analysis-now-uses-bounded-semantic-lift-for-required-skill-and-role-channels-instead-of-reserving-semantic-work-only-for-domain-and-responsibility-alignment"""
     profile = {
         "projects": [
             {
@@ -567,6 +568,7 @@ def test_retrieve_evidence_bundle_uses_semantic_alignment_for_required_skill_sup
 
 
 def test_retrieve_evidence_bundle_uses_semantic_alignment_for_role_alignment(monkeypatch) -> None:
+    """@proves pipeline_performance.cv-analysis-now-uses-bounded-semantic-lift-for-required-skill-and-role-channels-instead-of-reserving-semantic-work-only-for-domain-and-responsibility-alignment"""
     profile = {
         "experiences": [
             {

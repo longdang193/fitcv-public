@@ -1,4 +1,87 @@
-"""FastAPI admin control plane app."""
+"""
+@meta
+name: fitcv_cp_app
+type: utility
+domain: admin_ui
+responsibility:
+  - Serve run trigger, run detail, and artifact download routes for the admin control plane.
+  - Own run-detail inspection shells, checkpoint controls, and stage-owned export gating.
+inputs:
+  - persisted pipeline runs and events
+  - queued run actions and checkpoint state
+  - operator trigger payloads and settings snapshots
+outputs:
+  - admin HTML responses
+  - run trigger and continue actions
+  - run-owned and stage-owned artifact responses
+capabilities:
+  - admin_control_plane_core.fastapi-web-server
+  - admin_control_plane_core.jinja2-admin-pages
+  - admin_control_plane_core.insert-before-enqueue-invariant
+  - multi_file_job_input.multiple-file-inputs-in-trigger-form
+  - multi_file_job_input.per-file-server-side-validation
+  - multi_file_job_input.canonical-merge-preserving-order
+  - multi_file_job_input.one-immutable-snapshot-stored-per-run
+  - multi_file_job_input.all-or-nothing-rejection-on-validation-failure
+  - run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq
+  - run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue
+  - run_lifecycle_controls.stale-cancellation-repair-endpoint
+  - run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs
+  - run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time
+  - run_lifecycle_controls.archive-and-unarchive-terminal-runs
+  - run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries
+  - inspection_debugging.run-detail-inspection-tabs
+  - inspection_debugging.run-progress-and-checkpoints
+  - inspection_debugging.synonym-overlay-inspection
+  - inspection_debugging.run-owned-artifact-exports
+  - inspection_debugging.stage-artifact-downloads
+  - inspection_debugging.settings-used-export
+  - inspection_debugging.results-ledger-inspection
+  - inspection_debugging.stage-transition-diagnostics
+  - inspection_debugging.prompt-provenance-diagnostics
+  - inspection_debugging.ranking-diagnostics
+  - inspection_debugging.shortlist-diagnostics
+  - inspection_debugging.cv-analysis-diagnostics
+  - inspection_debugging.cv-generation-diagnostics
+  - inspection_debugging.reuse-diagnostics
+  - inspection_debugging.quality-metrics-diagnostics
+  - inspection_debugging.enriched-job-debug-export
+  - inspection_debugging.rule-filter-diagnostics
+  - settings_system.run-safety-settings
+  - settings_system.task-first-settings-ui
+  - settings_system.advanced-settings-disclosure
+  - settings_system.metadata-only-fixed-controls
+  - settings_system.compact-cv-visibility-controls
+  - settings_system.cv-composition-visibility-settings
+  - settings_system.warning-only-cv-max-pages-validation-setting
+  - settings_system.grouped-form-validation
+  - settings_system.per-run-overrides
+  - ui_consistency_theming.consistent-action-hierarchy-primary-secondary-section
+  - ui_consistency_theming.human-readable-section-headings
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.synonym-overlay-replacement
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.run-results-export
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.reranker-fit-authority
+tags:
+  - admin-ui
+  - run-management
+  - lineage-owner
+lifecycle:
+  status: active
+"""
 import dataclasses
 import datetime
 import io

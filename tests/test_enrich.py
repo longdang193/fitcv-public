@@ -1,4 +1,16 @@
-"""Tests for fitcv.enrich — all pure unit tests (no LLM calls)."""
+"""
+@meta
+type: test
+scope: unit
+domain: enrich
+covers:
+  - enrich-stage transformation behavior
+excludes:
+  - live LLM calls
+tags:
+  - fast
+  - ci-safe
+"""
 
 from datetime import datetime, timezone
 import sys
@@ -69,6 +81,7 @@ def test_build_extraction_prompt_uses_effective_prompt_id_from_config() -> None:
 
 
 def test_build_raw_job_fingerprint_is_stable_for_whitespace_and_case_changes() -> None:
+    """@proves pipeline_performance.fingerprint-based-enrich-result-reuse-happens-before-llm-enrichment-using-normalized-raw-job-inputs"""
     job_a = {
         "job_url": "https://example.com/jobs/1",
         "title": "Data Analyst",
@@ -102,6 +115,7 @@ def test_build_raw_job_fingerprint_is_stable_for_whitespace_and_case_changes() -
 def test_build_enrich_contract_fingerprint_changes_when_prompt_contract_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """@proves pipeline_performance.enrich-contract-fingerprinting-invalidates-reuse-automatically-when-prompt-model-schema-behavior-changes"""
     config = {
         "gemini_model": "gemini-2.5-flash",
         "prompts": {"enrich": {"extraction": {"prompt_id": "enrich.extraction.v1"}}},
@@ -127,6 +141,7 @@ def test_build_enrich_contract_fingerprint_changes_when_prompt_contract_changes(
 def test_lookup_reusable_structured_jobs_returns_exact_fingerprint_and_contract_matches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """@proves pipeline_performance.shared-structured-jobs-reuse-lookup-avoids-redundant-enrich-calls-while-only-fresh-rows-are-upserted-back-into-the-shared-table"""
     captured: dict[str, object] = {}
 
     class FakeRow:
@@ -277,6 +292,7 @@ def test_lookup_reusable_structured_jobs_normalises_datetime_enriched_at(
 # ── parse_extraction_response — valid JSON ────────────────────────────────────
 
 def test_parse_extraction_response_valid_json() -> None:
+    """@proves pipeline_performance.gemini-structured-output-with-response-schema-and-pydantic"""
     raw = '{"required_skills": ["SQL", "Python"], "location_type": "hybrid", "job_family": "data_analytics"}'
     result = parse_extraction_response(raw)
     assert result["errors"] == []
@@ -286,6 +302,7 @@ def test_parse_extraction_response_valid_json() -> None:
 
 
 def test_parse_extraction_response_malformed_json() -> None:
+    """@proves pipeline_performance.fallback-path-for-unparseable-responses"""
     result = parse_extraction_response("not json at all")
     assert len(result["errors"]) > 0
     assert result["parsed"] == {}     # empty fallback, not a crash
@@ -419,6 +436,7 @@ def test_merge_scraped_and_enriched_uses_config_model() -> None:
 
 
 def test_enrich_job_renders_prompt_via_prompt_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """@proves pipeline_performance.enrich-extraction-prompt-text-now-comes-from-a-centralized-prompt-registry-with-config-selected-prompt-ids"""
     captured: dict[str, object] = {}
 
     class FakeResponse:
@@ -468,6 +486,7 @@ def test_enrich_job_renders_prompt_via_prompt_registry(monkeypatch: pytest.Monke
 
 
 def test_merge_scraped_and_enriched_preserves_raw_and_canonical_enrich_fields() -> None:
+    """@proves pipeline_performance.enrich-stage-raw-plus-canonical-semantic-companions-for-repeated-downstream-fields"""
     scraped = {"job_url": "url1", "title": "DE"}
     enriched = {
         "required_skills": ["Python programming for data science"],
@@ -608,6 +627,44 @@ def test_enrich_batch_retries_resource_exhausted_once(
     assert result == [{"job_url": "url1"}]
     assert attempts["count"] == 2
     assert sleeps == [1.5, 1.5]  # backoff sleep + success-path global rate-limit sleep
+
+
+def test_enrich_chunk_isolates_single_job_retry_from_following_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """@proves bounded_parallel_enrichment.per-job-failure-isolation"""
+    from fitcv.enrich import enrich_batch
+
+    attempts_by_url = {"url1": 0, "url2": 0}
+
+    class FakeResourceExhausted(Exception):
+        pass
+
+    def fake_enrich_job(job: dict[str, object], config: dict[str, object]) -> dict[str, object]:
+        job_url = str(job["job_url"])
+        attempts_by_url[job_url] += 1
+        if job_url == "url1" and attempts_by_url[job_url] == 1:
+            raise FakeResourceExhausted("quota")
+        return {"job_url": job_url, "enriched": True}
+
+    fake_exceptions = types.SimpleNamespace(ResourceExhausted=FakeResourceExhausted)
+
+    monkeypatch.setattr("fitcv.enrich.enrich_job", fake_enrich_job)
+    monkeypatch.setitem(sys.modules, "google.api_core.exceptions", fake_exceptions)
+    monkeypatch.setattr("time.sleep", lambda secs: None)
+
+    result = enrich_batch(
+        normalized_jobs=[{"job_url": "url1"}, {"job_url": "url2"}],
+        config={
+            "enrichment_batch_size": 2,
+            "enrichment_concurrency": 1,
+            "enrichment_sleep_secs": 0.0,
+            "enrichment_max_retries": 1,
+        },
+    )
+
+    assert [row["job_url"] for row in result] == ["url1", "url2"]
+    assert attempts_by_url == {"url1": 2, "url2": 1}
 
 
 def test_enrich_batch_retries_genai_client_error_429_once(
@@ -1149,6 +1206,9 @@ def test_apply_structured_normalization_strips_whitespace() -> None:
 
 
 def test_apply_structured_normalization_emits_canonical_skill_companions() -> None:
+    """@proves pipeline_performance.canonical-skill-companion-lists-and-entity-payloads-for-required-preferred-skills
+    @proves pipeline_performance.enrich-stage-mapping-suggestion-capture-for-review-debug-surfaces
+    """
     output = EnrichmentOutput(
         required_skills=["GCP", "Python programming for data science"],
         preferred_skills=["PowerBI"],
@@ -1318,6 +1378,7 @@ def test_apply_structured_normalization_uses_conservative_alias_fallback_when_en
 
 
 def test_apply_structured_normalization_preserves_raw_scalar_companions() -> None:
+    """@proves pipeline_performance.enrich-stage-raw-plus-canonical-semantic-companions-for-repeated-downstream-fields"""
     output = EnrichmentOutput(
         location_type="Remote",
         seniority="Senior",
@@ -1386,7 +1447,7 @@ def test_enrich_job_uses_response_parsed() -> None:
 
 
 def test_enrich_job_fallback_when_parsed_is_none(caplog: pytest.LogCaptureFixture) -> None:
-    """Falls back to parse_extraction_response + json_repair when response.parsed is None."""
+    """@proves pipeline_performance.fallback-path-for-unparseable-responses"""
     import logging
     from unittest.mock import MagicMock, patch
 
@@ -1431,7 +1492,7 @@ def _fake_enrich_job(job: dict, config: dict) -> dict:
 
 
 def test_enrich_batch_preserves_input_order_under_parallel_batches() -> None:
-    """Result order must match input order regardless of batch completion order."""
+    """@proves bounded_parallel_enrichment.deterministic-output-order"""
     from unittest.mock import patch
     from fitcv.enrich import enrich_batch
 

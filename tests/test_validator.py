@@ -122,6 +122,7 @@ def test_check_chronology_missing_dates_no_violation() -> None:
 # ── check_employer_grounding ──────────────────────────────────────────────────
 
 def test_check_employer_grounding_catches_invented_employer() -> None:
+    """@proves cv_system.analysis-grounded-validation"""
     cv_text = "Worked at InventedCorp from 2020"
     violations = check_employer_grounding(cv_text, known_employers=["ACME", "TechCo"])
     assert len(violations) > 0

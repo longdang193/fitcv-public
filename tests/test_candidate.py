@@ -200,6 +200,13 @@ def test_infer_effective_preferences_preserves_explicit_preferences() -> None:
     assert result["preference_sources"]["domains"] == "explicit_yaml"
 
 
+def test_infer_role_family_uses_builtin_fallbacks_without_taxonomy_config() -> None:
+    from fitcv.candidate import infer_role_family
+
+    assert infer_role_family("Data Scientist") == "data_science"
+    assert infer_role_family("Business Intelligence Analyst") == "analytics"
+
+
 # ── prepare_profile_rows ──────────────────────────────────────────────────────
 
 def test_prepare_profile_rows_returns_all_tables(sample_profile_path: Path) -> None:
@@ -333,3 +340,16 @@ def test_load_profile_json_text_normalizes_additive_alignment_metadata() -> None
     assert result["projects"][0]["domain_tags"] == ["banking"]
     assert result["projects"][0]["responsibility_themes"] == ["reporting_automation"]
     assert result["achievements"][0]["domain_tags"] == ["banking"]
+"""
+@meta
+type: test
+scope: unit
+domain: candidate
+covers:
+  - candidate model behavior
+excludes:
+  - external persistence
+tags:
+  - fast
+  - ci-safe
+"""

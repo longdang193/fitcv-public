@@ -1,3 +1,16 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+#   - inspection_debugging
+# stages:
+#   - cv_generation
+# capabilities:
+#   - cv_system.config-owned-generation-contract
+#   - inspection_debugging.prompt-provenance-diagnostics
+# role: config
+# canonical: true
+
 prompts:
   enrich:
     extraction:

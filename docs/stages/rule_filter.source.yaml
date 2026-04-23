@@ -1,0 +1,39 @@
+stage_id: rule_filter
+name: Rule Filter
+summary: Apply deterministic eligibility checks to enriched jobs and split them into passed and rejected sets before retrieval and ranking begin.
+boundaries:
+  - deterministic pass/reject ownership belongs to this stage
+  - reject reasons should be finalized here
+  - canonical enrich outputs should be consumed here instead of reinterpreting raw extracted phrases when available
+  - later stages should only consider the passed set as retrieval-eligible
+inputs:
+  - deterministic filter and policy settings
+  - effective skill synonym map, which may include a run-scoped overlay uploaded after `enrich` in manual staged mode
+  - enriched job rows
+outputs:
+  - bounded `stage_transition_artifacts.rule_filter` runtime block with input, output, and changed-state samples
+  - non-blocking marks for failed but unselected deterministic checks
+  - optional manual checkpoint payloads that can resume shortlist/ranking from the passed-job set
+  - passed jobs
+  - reject reasons
+  - rejected jobs
+depends_on:
+  - enrich
+primary_features:
+  - trigger_run_management
+related_features:
+  - inspection_debugging
+refs:
+  docs: []
+  spec:
+  plan:
+  history: []
+keywords:
+  - rule filter
+  - eligibility
+  - reject reasons
+  - marks
+  - selected filters
+  - deterministic gate
+status: active
+purpose: Apply deterministic eligibility checks to enriched jobs and split them into passed and rejected sets before retrieval and ranking begin.

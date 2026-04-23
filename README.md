@@ -155,17 +155,24 @@ Operational invariants:
   Current-state pipeline architecture, execution flow, and major engineering safeguards.
 - [fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
   Local setup, Docker usage, credentials, and troubleshooting.
-- [stage_overview.md](docs/generated/stage_overview.md)
-  Summary of active pipeline stage contracts.
+- [architecture.md](docs/architecture.md)
+  Runtime architecture plus the source/generated Mode B doc shape.
+- [usage.md](docs/usage.md)
+  Operator and engineering workflow entry points.
+- [architecture_dag.yaml](docs/generated/architecture_dag.yaml)
+  Canonical generated topology across managed features, stages, and capability ownership.
+- [capability_lineage.yaml](docs/generated/capability_lineage.yaml)
+  Canonical generated summary of repo-wide capability evidence and completeness.
 
 ## Source Layout
 
 ```text
 src/fitcv_cp/     admin control plane
 src/fitcv/        core pipeline
-docs/features/    feature contracts and history
-docs/stages/      stage contracts
+docs/features/    feature sources, generated contracts, and history
+docs/stages/      stage sources and generated contracts
 docs/generated/   generated discovery docs
+docs/intent/      stable project-purpose docs
 tests/            automated coverage
 config/           runtime and policy configuration
 assets/           SQL and supporting assets
@@ -188,3 +195,7 @@ The admin UI is available at:
 ```text
 http://localhost:8000/admin/runs
 ```
+
+## Repo Hooks
+
+Pushes and pull requests are expected to pass the repo hook workflow, including adapter verification, baseline tests, and the publication-boundary dry check.

@@ -1,41 +1,85 @@
-shortlist:
-  stage_id: shortlist
-  name: Shortlist
-  summary: Turn passed jobs into a retrieval-aware scoring shortlist by building a richer bounded candidate query from the full profile evidence surface, reusing the single shortlist candidate-query embedding and unchanged job-summary embeddings when safe, searching only the latest active embedding row per canonical job URL with the deterministic candidate query vector actually used for retrieval, then capturing raw hits, shortlist transitions, any backfill needed before scoring, and the stage-owned shortlist backfill-rate quality metric.
-  boundaries:
-    - raw retrieval output enters here and the scoring shortlist leaves here
-    - this stage owns the distinction between raw vector hits and the later scoring shortlist
-    - shortlist transition reasons should be explainable here rather than inferred later
-  inputs:
-    - passed jobs
-    - candidate query text, bounded candidate-query components, and one reusable candidate query embedding derived from the profile evidence surface
-    - vector search results
-  outputs:
-    - raw vector hits
-    - scoring shortlist
-    - shortlist transition reasons including any backfill
-    - raw row versus raw unique-job retrieval counts
-    - bounded shortlist candidate-query components and candidate-query reuse provenance for debugging
-    - fresh-versus-reused embedding provenance for passed jobs
-    - bounded candidate-query context for the single retrieval vector used in this stage
-    - bounded `stage_transition_artifacts.shortlist` runtime block with input, output, and changed-state samples
-    - "`stage_transition_artifacts.shortlist.decision_summary.quality_metrics` with shortlist backfill-rate counts and rate"
-  depends_on:
-    - rule_filter
-  primary_features:
-    - inspection_debugging
-  related_features:
-    - trigger_run_management
-  refs:
-    docs: []
-    spec:
-    plan:
-    history: []
-  keywords:
-    - shortlist
-    - vector search
-    - retrieval
-    - backfill
-    - embeddings
-    - reuse
-
+# GENERATED FILE - do not edit directly.
+stage_id: shortlist
+name: Shortlist
+status: active
+purpose: Turn passed jobs into a retrieval-aware scoring shortlist by building a richer bounded candidate query from the full profile evidence surface, reusing the single shortlist candidate-query embedding and unchanged job-summary embeddings when safe, searching only the latest active embedding row per canonical job URL with the deterministic candidate query vector actually used for retrieval, then capturing raw hits, shortlist transitions, any backfill needed before scoring, and the stage-owned shortlist backfill-rate quality metric.
+feature_refs:
+- inspection_debugging
+- trigger_run_management
+capability_refs:
+- inspection_debugging.cv-analysis-diagnostics
+- inspection_debugging.cv-generation-diagnostics
+- inspection_debugging.enriched-job-debug-export
+- inspection_debugging.prompt-provenance-diagnostics
+- inspection_debugging.quality-metrics-diagnostics
+- inspection_debugging.ranking-diagnostics
+- inspection_debugging.results-ledger-inspection
+- inspection_debugging.reuse-diagnostics
+- inspection_debugging.rule-filter-diagnostics
+- inspection_debugging.run-detail-inspection-tabs
+- inspection_debugging.run-owned-artifact-exports
+- inspection_debugging.run-progress-and-checkpoints
+- inspection_debugging.settings-used-export
+- inspection_debugging.shortlist-diagnostics
+- inspection_debugging.stage-artifact-downloads
+- inspection_debugging.stage-transition-diagnostics
+- inspection_debugging.synonym-overlay-inspection
+- pipeline_performance.fresh-shortlist-embeddings-persist-signature-metadata-so-later-runs-can-skip-repeated-embedding-work-safely
+- pipeline_performance.shortlist-now-builds-a-stable-structured-embedding-input-signature-before-generating-job-summary-vectors
+- pipeline_performance.shortlist-reuses-the-latest-stored-embedding-row-for-a-job-url-only-when-both-the-structured-signature-and-embedding-contract-fingerprint-still-match
+- run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs
+- run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue
+- run_lifecycle_controls.full-audit-trail-in-pipeline-run-events
+- run_lifecycle_controls.stale-cancellation-repair-endpoint
+- run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs
+- run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time
+- settings_system.retrieval-settings
+- trigger_run_management.candidate-profile-input-modes
+- trigger_run_management.decision-chain-outcomes
+- trigger_run_management.execution-mode-selection
+- trigger_run_management.job-input-modes
+- trigger_run_management.manual-checkpoints-and-continue
+- trigger_run_management.reranker-fit-authority
+- trigger_run_management.run-detail-actions
+- trigger_run_management.run-health-surface
+- trigger_run_management.run-owned-artifact-exports
+- trigger_run_management.run-results-export
+- trigger_run_management.runs-list-management
+- trigger_run_management.shared-stage-progress
+- trigger_run_management.shortlist-debug-exports
+- trigger_run_management.stage-artifact-downloads
+- trigger_run_management.synonym-overlay-at-trigger
+- trigger_run_management.synonym-overlay-inspection
+- trigger_run_management.synonym-overlay-replacement
+code_refs: []
+test_refs: []
+doc_refs:
+config_refs: []
+component_refs: []
+depends_on:
+- rule_filter
+inputs:
+- candidate query text, bounded candidate-query components, and one reusable candidate query embedding derived from the profile evidence surface
+- passed jobs
+- vector search results
+outputs:
+- '`stage_transition_artifacts.shortlist.decision_summary.quality_metrics` with shortlist backfill-rate counts and rate'
+- bounded `stage_transition_artifacts.shortlist` runtime block with input, output, and changed-state samples
+- bounded candidate-query context for the single retrieval vector used in this stage
+- bounded shortlist candidate-query components and candidate-query reuse provenance for debugging
+- fresh-versus-reused embedding provenance for passed jobs
+- raw row versus raw unique-job retrieval counts
+- raw vector hits
+- scoring shortlist
+- shortlist transition reasons including any backfill
+invariants:
+- raw retrieval output enters here and the scoring shortlist leaves here
+- this stage owns the distinction between raw vector hits and the later scoring shortlist
+- shortlist transition reasons should be explainable here rather than inferred later
+human_notes:
+- shortlist
+- vector search
+- retrieval
+- backfill
+- embeddings
+- reuse

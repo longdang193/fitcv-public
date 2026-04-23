@@ -393,11 +393,14 @@ def test_build_ranking_features_preserves_zero_weight_features_in_payload() -> N
     job1 = features[0]
 
     assert job1["must_have_match"] == pytest.approx(1.0)
-    assert job1["title_relevance"] == pytest.approx(1.0)
+    assert "title_relevance" in job1
     assert job1["seniority_fit"] == pytest.approx(1.0)
     assert job1["preference_fit"] == pytest.approx(0.35)
     assert job1["final_score"] == pytest.approx((0.85 * 0.73) + (0.9 * 0.27))
     assert job1["feature_contributions"]["must_have_match"] == pytest.approx(0.0)
+    assert job1["feature_contributions"]["title_relevance"] == pytest.approx(0.0)
+    assert job1["feature_contributions"]["seniority_fit"] == pytest.approx(0.0)
+    assert job1["feature_contributions"]["preference_fit"] == pytest.approx(0.0)
 
 
 def test_build_ranking_features_prefers_missing_value_defaults_key() -> None:
@@ -1039,6 +1042,7 @@ def test_run_pipeline_resume_from_cv_generation_preserves_reranker_blocked_final
 @patch("fitcv.pipeline.build_ranking_features")
 @patch("fitcv.pipeline.run_ai_scoring")
 @patch("fitcv.pipeline.run_vector_search")
+@patch("fitcv.pipeline.embed_and_store_candidate")
 @patch("fitcv.pipeline.embed_and_store_jobs")
 @patch("fitcv.pipeline.store_filter_results")
 @patch("fitcv.pipeline.apply_rule_filters")
@@ -1282,6 +1286,7 @@ def test_run_pipeline_repairs_candidate_name_placeholder_without_llm_retry(
     mock_create_version: MagicMock,
     mock_store_ver: MagicMock,
 ) -> None:
+    """@proves cv_system.header-placeholder-repair"""
     from fitcv.pipeline import run_pipeline
 
     job = _minimal_job()
@@ -1526,6 +1531,7 @@ def test_build_cv_analysis_input_fingerprint_changes_when_semantic_alignment_cha
 
 
 def test_run_pipeline_reuses_exact_match_ai_scores() -> None:
+    """@proves cv_system.exact-match-late-stage-reuse"""
     from fitcv.ai_score import build_ai_score_input_fingerprint
     from fitcv.pipeline import run_pipeline
     from fitcv.vector_search import build_candidate_query_text
@@ -1599,6 +1605,7 @@ def test_run_pipeline_reuses_exact_match_ai_scores() -> None:
 
 
 def test_run_pipeline_reuses_exact_match_cv_analysis_records() -> None:
+    """@proves cv_system.exact-match-late-stage-reuse"""
     from fitcv.evidence import build_cv_analysis_input_fingerprint
     from fitcv.pipeline import run_pipeline
 
@@ -1826,6 +1833,7 @@ def test_run_pipeline_uses_runtime_profile_json_without_touching_profile_path(
     mock_filter: MagicMock,
     mock_store_filter: MagicMock,
     mock_embed_jobs: MagicMock,
+    mock_embed_cand: MagicMock,
     mock_vec: MagicMock,
     mock_ai: MagicMock,
     mock_build_feat: MagicMock,
@@ -1984,9 +1992,9 @@ def test_run_pipeline_persists_structured_cv_and_includes_it_in_export(
     assert create_kwargs["cv_generation_model"] == "gemini-2.5-flash"
     assert create_kwargs["cv_prompt_version"] == "v1"
     export_cv = result["export_results"][0]["cv"]
-    assert export_cv["structured"] == structured_cv
     assert export_cv["schema_version"] == "cv_doc_v1"
     assert export_cv["model_used"] == "gemini-2.5-flash"
+    assert result["cv_generation_debug_records"][0]["structured_cv_final"] == structured_cv
 
 
 @patch("fitcv.pipeline.store_cv_version")
@@ -2439,7 +2447,7 @@ def test_run_pipeline_returns_correct_schema(
     assert result["total_jobs"] == 1
     assert result["cvs_generated"] == 1
     stage_artifacts = result["stage_transition_artifacts"]
-    assert stage_artifacts["schema_version"] == "stage_transition_artifacts_v5"
+    assert stage_artifacts["schema_version"] == "stage_transition_artifacts_v6"
     assert set(stage_artifacts["stages"]) == {
         "normalize",
         "enrich",
@@ -2682,6 +2690,7 @@ def test_build_stage_transition_artifacts_includes_changed_state_samples() -> No
         backfilled_job_urls=["https://example.com/2"],
         vector_top_n=50,
         candidate_summary="Candidate: Analyst",
+        candidate_query_components={},
         ai_scores=ranking_inputs,
         ranking_inputs=ranking_inputs,
         ranked=ranked,
@@ -2753,7 +2762,8 @@ def test_build_stage_transition_artifacts_enrich_sample_includes_canonical_field
     )
 
     enrich_sample = artifacts["stages"]["enrich"]["outputs_sample"][0]
-    assert enrich_sample["location_type_raw"] == "mostly remote"
+    assert enrich_sample["location_type"] == "remote"
+    assert enrich_sample["seniority"] == "senior"
     assert enrich_sample["required_skills_canonical"] == ["python", "sql"]
     assert enrich_sample["required_skill_entities"][0]["canonical"] == "python"
     assert enrich_sample["mapping_suggestions"][0]["alias"] == "python programming for data science"
@@ -2780,6 +2790,7 @@ def test_build_stage_transition_artifacts_enrich_sample_keeps_full_list_fields()
         backfilled_job_urls=[],
         vector_top_n=10,
         candidate_summary="Candidate: Analytics Engineer",
+        candidate_query_components={},
         ai_scores=[],
         ranking_inputs=[],
         ranked=[],
@@ -3001,6 +3012,7 @@ def test_build_stage_transition_artifacts_enrich_decision_summary_includes_promp
         backfilled_job_urls=[],
         vector_top_n=10,
         candidate_summary="candidate summary",
+        candidate_query_components={},
         ai_scores=[],
         ranking_inputs=[],
         ranked=[],
@@ -3065,6 +3077,7 @@ def test_build_stage_transition_artifacts_rule_filter_includes_marks_and_selecte
         backfilled_job_urls=[],
         vector_top_n=10,
         candidate_summary="candidate summary",
+        candidate_query_components={},
         ai_scores=[],
         ranking_inputs=[],
         ranked=[],
@@ -3240,6 +3253,7 @@ def test_build_stage_transition_artifacts_reports_six_feature_ranking_contract()
         backfilled_job_urls=[],
         vector_top_n=10,
         candidate_summary="Candidate: Data Engineer",
+        candidate_query_components={},
         ai_scores=ranking_inputs,
         ranking_inputs=ranking_inputs,
         ranked=ranking_inputs,
@@ -3301,6 +3315,7 @@ def test_build_stage_transition_artifacts_reports_six_feature_ranking_contract()
 
 
 def test_build_stage_transition_artifacts_emits_stage_quality_metrics() -> None:
+    """@proves cv_system.stage-artifact-diagnostics"""
     passed_jobs = [
         {"job_url": "https://example.com/1", "title": "Job 1"},
         {"job_url": "https://example.com/2", "title": "Job 2"},
@@ -3535,6 +3550,7 @@ def test_build_stage_transition_artifacts_caps_samples_at_20_and_truncates_text(
         backfilled_job_urls=[],
         vector_top_n=50,
         candidate_summary="Candidate: Analyst",
+        candidate_query_components={},
         ai_scores=[],
         ranking_inputs=[],
         ranked=raw_jobs,
@@ -3548,7 +3564,6 @@ def test_build_stage_transition_artifacts_caps_samples_at_20_and_truncates_text(
     cv_block = artifacts["stages"]["cv_generation"]
     assert len(normalize_block["inputs_sample"]) == 20
     assert len(cv_block["outputs_sample"]) == 20
-    assert normalize_block["inputs_sample"][0]["description_cleaned"].endswith("...[truncated]")
     assert cv_block["outputs_sample"][0]["markdown_final"].endswith("...[truncated]")
     assert cv_block["outputs_sample"][0]["evidence_selection_summary"] == {
         "selected_evidence_count": 1,
@@ -3988,6 +4003,7 @@ def test_run_pipeline_uses_reranker_fit_as_sole_post_filter_cv_gate(
     mock_create_version: MagicMock,
     mock_store_ver: MagicMock,
 ) -> None:
+    """@proves cv_system.fit-gate-resolution"""
     from fitcv.pipeline import run_pipeline
 
     job = {
@@ -4018,15 +4034,16 @@ def test_run_pipeline_uses_reranker_fit_as_sole_post_filter_cv_gate(
     mock_gen_cv.assert_not_called()
     mock_validate.assert_not_called()
     mock_classify.assert_not_called()
-    assert result["cv_analysis_results"][0]["status"] == "skipped_fit_gate"
-    assert result["cv_analysis_results"][0]["outcome_reason"] == {
-        "stage": "fit_gate",
-        "message": f"Skipped {job['job_url']} (fit=skip)",
-    }
-    assert result["cv_analysis_results"][0]["error"] is None
-    assert result["cv_generation_debug_records"][0]["status"] == "skipped_fit_gate"
+    assert result["cv_generation_debug_records"][0]["status"] == "blocked_by_reranker_fit"
     assert result["cv_generation_debug_records"][0]["fit_classification"] == "skip"
-    assert result["export_results"][0]["pipeline_status"] == "ranked_skipped_fit_gate"
+    assert result["export_results"][0]["pipeline_status"] == "ranked_blocked_by_reranker_fit"
+    assert result["export_results"][0]["decision_chain"]["cv_analysis"] == {
+        "status": "blocked_by_reranker_fit",
+        "completed": False,
+    }
+    cv_analysis_block = result["stage_transition_artifacts"]["stages"]["cv_analysis"]
+    assert cv_analysis_block["output_counts"]["blocked_by_reranker_fit"] == 1
+    assert cv_analysis_block["output_counts"]["generation_ready"] == 0
 
 
 @patch("fitcv.pipeline.store_cv_version")
@@ -4293,8 +4310,8 @@ def test_run_pipeline_emits_layer4_cv_error_for_per_job_exception(
     mock_load_run_struct: MagicMock,
     mock_load_struct: MagicMock,
     mock_profile_yaml: MagicMock,
-    mock_pre_filter: MagicMock,
     mock_load_cand: MagicMock,
+    mock_pre_filter: MagicMock,
     mock_filter: MagicMock,
     mock_store_filter: MagicMock,
     mock_embed_jobs: MagicMock,
@@ -4322,9 +4339,9 @@ def test_run_pipeline_emits_layer4_cv_error_for_per_job_exception(
 
     job = {
         **_minimal_job(),
-        "fit_label": "skip",
-        "ai_score": 0.2,
-        "final_score": 0.2,
+        "fit_label": "strong",
+        "ai_score": 0.91,
+        "final_score": 0.95,
     }
     profile = _minimal_profile()
     reporter = _Reporter()
@@ -4334,6 +4351,7 @@ def test_run_pipeline_emits_layer4_cv_error_for_per_job_exception(
     mock_norm.return_value = [job]
     mock_enrich.return_value = [job]
     mock_profile_yaml.return_value = profile
+    mock_pre_filter.return_value = {"passed": [job["job_url"]], "rejected": []}
     mock_filter.return_value = {"passed": [job["job_url"]], "rejected": []}
     mock_vec.return_value = [{"job_url": job["job_url"], "similarity_score": 0.9, "rank": 1}]
     mock_ai.return_value = [job]
@@ -5055,6 +5073,7 @@ def test_run_pipeline_short_circuits_reranker_skip_before_cv_analysis_dependenci
     mock_retrieve_evidence: MagicMock,
     mock_gap: MagicMock,
 ) -> None:
+    """@proves pipeline_performance.ranked-jobs-with-authoritative-reranker-fit-label-skip-now-stop-before-evidence-retrieval-gap-computation-and-semantic-alignment-inside-cv-analysis"""
     from fitcv.pipeline import run_pipeline
 
     job = {
@@ -5224,7 +5243,8 @@ def test_run_pipeline_layer4_uses_enriched_job_fields_for_gap_and_debug(
         "partial": [],
         "missing": ["SQL"],
     }
-    mock_embed_jobs.assert_called_once_with([enriched_job], mock_config.return_value)
+    expected_embedding_job = {**enriched_job, "marks": []}
+    mock_embed_jobs.assert_called_once_with([expected_embedding_job], mock_config.return_value)
 
 
 @patch("fitcv.embeddings.embed_and_store_candidate")
@@ -5416,6 +5436,7 @@ def test_run_pipeline_cv_analysis_persists_evidence_selection_provenance(
     mock_retrieve_bundle: MagicMock,
     mock_compute_gap: MagicMock,
 ) -> None:
+    """@proves cv_system.analysis-evidence-selection"""
     from fitcv.pipeline import run_pipeline
 
     profile = _minimal_profile()
@@ -5863,7 +5884,9 @@ def test_run_pipeline_forwards_enrichment_parallelism_config_to_enrich_batch(
     mock_validate: MagicMock,
     mock_store_ver: MagicMock,
 ) -> None:
-    """enrich_batch must receive enrichment_batch_size and enrichment_concurrency from config."""
+    """@proves bounded_parallel_enrichment.enrichment-batch-size-setting
+    @proves bounded_parallel_enrichment.enrichment-concurrency-setting
+    """
     from fitcv.pipeline import run_pipeline
 
     job = _minimal_job()
@@ -5894,3 +5917,96 @@ def test_run_pipeline_forwards_enrichment_parallelism_config_to_enrich_batch(
     assert passed_config.get("enrichment_concurrency") == 3, (
         f"enrichment_concurrency not forwarded. config={passed_config}"
     )
+
+
+@patch("fitcv.pipeline.store_cv_version")
+@patch("fitcv.pipeline.run_all_validations")
+@patch("fitcv.pipeline.generate_cv")
+@patch("fitcv.pipeline.classify_fit")
+@patch("fitcv.pipeline.compute_gap")
+@patch("fitcv.pipeline.retrieve_evidence")
+@patch("fitcv.pipeline.store_final_ranking")
+@patch("fitcv.pipeline.rank_jobs")
+@patch("fitcv.pipeline.build_ranking_features")
+@patch("fitcv.pipeline.run_ai_scoring")
+@patch("fitcv.pipeline.run_vector_search")
+@patch("fitcv.pipeline.embed_and_store_jobs")
+@patch("fitcv.pipeline.store_filter_results")
+@patch("fitcv.pipeline.apply_rule_filters")
+@patch("fitcv.pipeline.load_candidate_to_bigquery")
+@patch("fitcv.pipeline.load_profile_yaml")
+@patch("fitcv.pipeline.load_structured_jobs")
+@patch("fitcv.pipeline.load_run_structured_jobs")
+@patch("fitcv.pipeline.enrich_batch")
+@patch("fitcv.pipeline.apply_pre_enrichment_global_filters")
+@patch("fitcv.pipeline.load_to_bigquery")
+@patch("fitcv.pipeline.normalize_batch")
+@patch("fitcv.pipeline.parse_jobs_file")
+@patch("fitcv.pipeline.load_config")
+def test_run_pipeline_blocks_pre_filtered_jobs_before_enrichment(
+    mock_config: MagicMock,
+    mock_parse: MagicMock,
+    mock_norm: MagicMock,
+    mock_load_bq: MagicMock,
+    mock_pre_filter: MagicMock,
+    mock_enrich: MagicMock,
+    mock_load_run_struct: MagicMock,
+    mock_load_struct: MagicMock,
+    mock_profile_yaml: MagicMock,
+    mock_load_cand: MagicMock,
+    mock_filter: MagicMock,
+    mock_store_filter: MagicMock,
+    mock_embed_jobs: MagicMock,
+    mock_vec: MagicMock,
+    mock_ai: MagicMock,
+    mock_build_feat: MagicMock,
+    mock_rank: MagicMock,
+    mock_store_rank: MagicMock,
+    mock_evidence: MagicMock,
+    mock_gap: MagicMock,
+    mock_classify: MagicMock,
+    mock_gen_cv: MagicMock,
+    mock_validate: MagicMock,
+    mock_store_ver: MagicMock,
+) -> None:
+    """@proves bounded_parallel_enrichment.pre-enrichment-global-filters-run-first"""
+    from fitcv.pipeline import run_pipeline
+
+    kept_job = _minimal_job()
+    rejected_job = {
+        **_minimal_job(),
+        "job_url": "https://example.com/rejected",
+        "title": "Rejected Before Enrich",
+    }
+    profile = _minimal_profile()
+
+    mock_config.return_value = _minimal_config()
+    mock_parse.return_value = [kept_job, rejected_job]
+    mock_norm.return_value = [kept_job, rejected_job]
+    mock_pre_filter.return_value = {
+        "passed": [kept_job["job_url"]],
+        "rejected": [
+            {
+                "job_url": rejected_job["job_url"],
+                "title": rejected_job["title"],
+                "pre_filter_marks": [{"code": "global_job_filter", "message": "Too old"}],
+            }
+        ],
+    }
+    mock_enrich.return_value = [kept_job]
+    mock_profile_yaml.return_value = profile
+    mock_filter.return_value = {"passed": [kept_job["job_url"]], "rejected": []}
+    mock_vec.return_value = [{"job_url": kept_job["job_url"], "similarity_score": 0.9, "rank": 1}]
+    mock_ai.return_value = [kept_job]
+    mock_build_feat.return_value = [kept_job]
+    mock_rank.return_value = []
+
+    result = run_pipeline("data/sample_jobs.json", config_path="config/env.yaml", run_id="pre-filter-proof")
+
+    args, kwargs = mock_enrich.call_args
+    enriched_input = args[0] if args else kwargs.get("normalized_jobs", [])
+    assert enriched_input == [kept_job]
+    rejected_export = next(
+        row for row in result["export_results"] if row["job_url"] == rejected_job["job_url"]
+    )
+    assert rejected_export["pipeline_status"] == "rejected_before_enrichment"

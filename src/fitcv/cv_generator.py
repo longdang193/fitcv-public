@@ -1,31 +1,26 @@
-"""CV generation — prompt assembly, template rendering, and LLM invocation.
-
-Scope
------
-This module is responsible for:
-  1. Assembling the LLM prompt from evidence, gap analysis, and the Jinja2 template
-  2. Rendering the Jinja2 template with selected evidence slots
-  3. Calling the LLM to produce a CV markdown string
-
-All validation (grounding, provenance, structural checks) is owned by validator.py.
-
-Config contract (preset-based)
-------------------------------
-config["cv"]["generation"]["model"]        : LLM model name
-config["cv"]["generation"]["prompt_version"] : version tag (for record only)
-config["cv"]["preset"]                   : preset name — used to resolve template path
-config["cv"]["composition"]             : section composition rules (informative in generator)
-config["cv"]["validation"]              : validation constraints
-
-Template resolution uses cv_presets.get_template_path(config["cv"]["preset"]).
-Direct cv_template_path reads are no longer the primary path.
-
-Public API
-----------
-build_generation_prompt  : assemble the LLM system+user prompt
-render_cv_template       : render a Jinja2 template with selected evidence slots
-select_template_variant  : read job_family from enriched JD and return a template hint
-generate_cv             : call the LLM and return CV markdown (integration)
+"""
+@meta
+name: cv_generator
+type: utility
+domain: cv_generation
+responsibility:
+  - Assemble grounded CV-generation prompts from selected evidence and config.
+  - Produce structured CV payloads and rendered markdown outputs for downstream persistence.
+inputs:
+  - selected analysis evidence
+  - candidate profile data
+  - cv generation config and prompt templates
+outputs:
+  - structured CV payloads
+  - rendered CV markdown
+capabilities:
+  - cv_system.structured-cv-generation
+tags:
+  - cv
+  - generation
+  - lineage-owner
+lifecycle:
+  status: active
 """
 
 import json

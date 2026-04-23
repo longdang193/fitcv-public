@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: pipeline_config
+covers:
+  - control-plane settings schema behavior
+excludes:
+  - live persistence
+tags:
+  - fast
+  - ci-safe
+"""
+
 import pytest
 from fitcv_cp.settings_schema import (
     SETTINGS_SCHEMA,
@@ -10,6 +24,7 @@ from fitcv_cp.settings_schema import (
 # ── schema registry ───────────────────────────────────────────────────────────
 
 def test_all_expected_keys_present():
+    """@proves settings_system.settings-schema-registry"""
     keys = {s["key"] for s in SETTINGS_SCHEMA}
     assert "pipeline.final_top_n" in keys
     assert "cv_analysis.semantic_alignment.enabled" in keys
@@ -91,6 +106,7 @@ def test_fit_label_strong_must_exceed_stretch():
 
 
 def test_ranking_weights_must_sum_to_one():
+    """@proves settings_system.ranking-settings"""
     with pytest.raises(ValidationError, match="ranking_weights"):
         validate_settings({
             "ranking_weights.ai_score": 0.90,
@@ -214,6 +230,7 @@ def test_rule_filter_selected_filters_default_matches_spec() -> None:
 
 
 def test_retrieval_defaults_are_hydrated_from_centralized_pipeline_config() -> None:
+    """@proves settings_system.retrieval-settings"""
     schema_by_key = {s["key"]: s for s in SETTINGS_SCHEMA}
     assert schema_by_key["pipeline.vector_search_top_n"]["default"] == 50
     assert schema_by_key["pipeline.ai_score_top_n"]["default"] == 50
@@ -261,6 +278,7 @@ def test_apply_settings_to_config_rule_filter_selected_filters_nested() -> None:
 
 
 def test_cv_analysis_semantic_alignment_validate_accepts_balanced_weight_pairs() -> None:
+    """@proves settings_system.cv-analysis-alignment-settings"""
     validate_settings({
         "cv_analysis.semantic_alignment.required_skill_lexical_weight": 0.70,
         "cv_analysis.semantic_alignment.required_skill_semantic_weight": 0.30,
@@ -437,12 +455,16 @@ def test_settings_sections_global_job_filters_has_two_keys():
 # ── enrichment parallelism settings ───────────────────────────────────────────
 
 def test_enrichment_parallelism_keys_registered():
+    """@proves bounded_parallel_enrichment.enrichment-batch-size-setting
+    @proves bounded_parallel_enrichment.enrichment-concurrency-setting
+    """
     keys = {s["key"] for s in SETTINGS_SCHEMA}
     assert "enrichment_batch_size" in keys
     assert "enrichment_concurrency" in keys
 
 
 def test_enrichment_parallelism_defaults():
+    """@proves bounded_parallel_enrichment.conservative-defaults-batch-size-10-concurrency-1"""
     schema_by_key = {s["key"]: s for s in SETTINGS_SCHEMA}
     assert schema_by_key["enrichment_batch_size"]["default"] == 10
     assert schema_by_key["enrichment_concurrency"]["default"] == 1
@@ -474,12 +496,14 @@ def test_enrichment_concurrency_validate_accepts_one():
 
 
 def test_enrichment_batch_size_apply_writes_correct_path():
+    """@proves bounded_parallel_enrichment.enrichment-batch-size-setting"""
     config: dict = {}
     apply_settings_to_config(config, {"enrichment_batch_size": 5})
     assert config["enrichment_batch_size"] == 5
 
 
 def test_enrichment_concurrency_apply_writes_correct_path():
+    """@proves bounded_parallel_enrichment.enrichment-concurrency-setting"""
     config: dict = {}
     apply_settings_to_config(config, {"enrichment_concurrency": 3})
     assert config["enrichment_concurrency"] == 3
@@ -825,6 +849,7 @@ def test_apply_settings_to_config_cv_validation_nested():
 
 
 def test_apply_settings_to_config_cv_generation_nested():
+    """@proves settings_system.cv-generation-settings"""
     config: dict = {}
     apply_settings_to_config(config, {
         "cv_generation_model": "gemini-2.5-flash",

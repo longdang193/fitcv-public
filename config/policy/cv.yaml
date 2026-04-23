@@ -1,3 +1,14 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_generation
+# capabilities:
+#   - cv_system.config-owned-generation-contract
+# role: config
+# canonical: true
+
 # CV generation and validation defaults
 # Owned by this file — do not duplicate in env.yaml or pipeline.yaml.
 # Override any key in .env.yaml for environment-specific values.

@@ -15,6 +15,7 @@ mcp_*.log
 start_admin_cp.sh
 *.log
 dump.rdb
+logs/
 .worktrees/
 data/uploads/
 .worktrees/

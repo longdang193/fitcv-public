@@ -1,8 +1,26 @@
+"""
+@meta
+type: test
+scope: unit
+domain: run_orchestration
+covers:
+  - control-plane queue behavior
+excludes:
+  - live RQ workers
+tags:
+  - fast
+  - ci-safe
+"""
+
 from unittest.mock import MagicMock, patch
 from fitcv_cp.queue import enqueue_run
 
 
 def test_enqueue_run_returns_uuid():
+    """@proves admin_control_plane_core.rq-background-worker-integration
+    @proves trigger_run_management.manual-checkpoints-and-continue
+    @proves trigger_run_management.runs-list-management
+    """
     mock_q = MagicMock()
     with patch("fitcv_cp.queue.get_queue", return_value=mock_q):
         run_id = enqueue_run(
@@ -18,6 +36,7 @@ def test_enqueue_run_returns_uuid():
 # ── enqueue_run_with_job_id ──────────────────────────────────────────────────
 
 def test_enqueue_run_with_job_id_returns_tuple():
+    """@proves admin_control_plane_core.rq-background-worker-integration"""
     from fitcv_cp.queue import enqueue_run_with_job_id
     mock_q = MagicMock()
     mock_job = MagicMock()
@@ -54,6 +73,11 @@ def test_enqueue_run_still_returns_str():
 # ── cancel_queued_run ────────────────────────────────────────────────────────
 
 def test_cancel_queued_run_returns_true_when_cancelable():
+    """@proves admin_control_plane_core.rq-background-worker-integration
+    @proves run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq
+    @proves trigger_run_management.manual-checkpoints-and-continue
+    @proves trigger_run_management.run-detail-actions
+    """
     from fitcv_cp.queue import cancel_queued_run
     mock_job = MagicMock()
     with patch("fitcv_cp.queue.Job.fetch", return_value=mock_job):
@@ -63,6 +87,9 @@ def test_cancel_queued_run_returns_true_when_cancelable():
 
 
 def test_cancel_queued_run_returns_false_when_not_found():
+    """@proves run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq
+    @proves trigger_run_management.manual-checkpoints-and-continue
+    """
     from fitcv_cp.queue import cancel_queued_run
     from rq.exceptions import NoSuchJobError
     with patch("fitcv_cp.queue.Job.fetch", side_effect=NoSuchJobError("rq-job-missing")):

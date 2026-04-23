@@ -444,6 +444,7 @@ def test_validate_structured_cv_rejects_malformed_skills_groups() -> None:
 
 
 def test_render_cv_markdown_consumes_structured_cv(tmp_path: Path) -> None:
+    """@proves cv_system.structured-cv-generation"""
     template_path = tmp_path / "cv_template.md"
     template_path.write_text(
         "# {{ candidate.name }}\n"

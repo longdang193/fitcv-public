@@ -161,3 +161,16 @@ def test_fetch_from_apify_raises_on_non_list(sample_jobs_path: Path) -> None:
     with patch("urllib.request.urlopen", return_value=mock_resp):
         with pytest.raises(ValueError, match="JSON array"):
             fetch_from_apify({"apify_dataset_id": "abc123", "apify_token": "fake-tok"})
+"""
+@meta
+type: test
+scope: unit
+domain: ingest
+covers:
+  - ingestion behavior
+excludes:
+  - external network fetches
+tags:
+  - fast
+  - ci-safe
+"""

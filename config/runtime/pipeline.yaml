@@ -1,3 +1,16 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - enrich
+#   - ranking
+#   - cv_analysis
+# capabilities:
+#   - cv_system.analysis-evidence-selection
+# role: config
+# canonical: true
+
 # Pipeline behaviour — limits, model names, batch sizes, rate limits.
 # Consumed by: enrich.py, embeddings.py, vector_search.py, ai_score.py.
 # Override any value in .env.yaml; pipeline.yaml defaults apply otherwise.

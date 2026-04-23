@@ -1,0 +1,823 @@
+# GENERATED FILE - do not edit directly.
+feature_id: inspection_debugging
+source: docs/features/inspection_debugging/feature.source.yaml
+invariants: {}
+capabilities:
+  inspection_debugging.run-detail-inspection-tabs:
+    state: active
+    statement: Show the three-tab inspection surface and client-side tab switching for run detail.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_default_tab_is_enriched
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.run-progress-and-checkpoints:
+    state: active
+    statement: Show execution mode, reached stages, checkpoint state, and run-next-stage controls across run modes.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_awaiting_continue_shows_run_next_stage_and_stop_run
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_run_all_shows_shared_progress_without_checkpoint_controls
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.synonym-overlay-inspection:
+    state: active
+    statement: Surface active and default synonym-overlay state and snapshots during staged inspection flows.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_run_detail_shows_synonym_overlay_card_for_manual_enrich_checkpoint
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.run-owned-artifact-exports:
+    state: active
+    statement: Provide run-scoped downloads such as CVs, artifact bundles, and CV debug exports when owned outputs exist.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_run_detail_shows_exports_card_with_results_link
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_run_artifact_bundle_zip_endpoint_for_partial_run
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.stage-artifact-downloads:
+    state: active
+    statement: Expose stage-owned downloads only after the owning stage has been reached and the artifact exists.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_timeline_shows_stage_download_for_mapped_event
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.settings-used-export:
+    state: active
+    statement: Show canonical operator-facing settings-used exports and compatibility projections when needed.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/bq_store.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_run_detail_shows_download_settings_used_json_button
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_settings_used_json_endpoint_200
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_update_run_settings_used_updates_only_settings_snapshot_field
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_settings_used_json_on_success
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.results-ledger-inspection:
+    state: active
+    statement: Keep `results.json` job-centric while exposing compact decision chains, skip states, and export-ready outcomes.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/bq_store.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_results_json_endpoint_200
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_enriched_shows_pipeline_outcome_for_reranker_blocked_job
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_row_to_run_maps_results_export_json
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_update_run_results_export_uses_parameterized_query
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_results_export_json_on_success
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.stage-transition-diagnostics:
+    state: active
+    statement: Provide aggregate timeline rows and bounded per-stage transition artifacts for major stage handoffs.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/bq_store.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_stage_transition_artifacts_json_endpoint_200
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_update_run_stage_transition_artifacts_updates_only_stage_artifacts_field
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_stage_transition_artifacts_json_on_success
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.prompt-provenance-diagnostics:
+    state: active
+    statement: Surface effective enrich, ranking, and CV-generation prompt identifiers, templates, and models in diagnostics.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_settings_used_json_on_success
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs:
+    - config/runtime/prompts.yaml
+    config_evidence:
+    - path: config/runtime/prompts.yaml
+      confidence: high
+      source:
+      - yaml_architecture
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.ranking-diagnostics:
+    state: active
+    statement: Expose ranking contract details, weighted contributions, fit thresholds, and reranker reuse state.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_zero_cvs_and_zero_ranked_shows_ranking_threshold_message
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.shortlist-diagnostics:
+    state: active
+    statement: Show shortlist retrieval facts, raw-hit visibility, candidate-query inputs, and embedding reuse provenance.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_run_artifact_bundle_zip_endpoint_for_succeeded_run
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.cv-analysis-diagnostics:
+    state: active
+    statement: Expose analysis outcomes, selected evidence, hybrid alignment details, and analysis reuse visibility.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_renders_run_health_when_late_stage_reuse_metrics_available
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_run_health_marks_unreached_metrics_as_pending_and_zero_denominator_reached_metrics_as_na
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.cv-generation-diagnostics:
+    state: active
+    statement: Expose CV-writing outcomes, grounding and support validation detail, and authoritative fit context.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_hides_cv_generation_quality_metrics_when_absent
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_renders_cv_generation_quality_metrics
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.reuse-diagnostics:
+    state: active
+    statement: Surface late-stage reuse snapshots and exact-match reuse counters across ranking and analysis flows.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_hides_late_stage_reuse_metrics_when_absent
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_renders_run_health_when_late_stage_reuse_metrics_available
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_moves_late_stage_reuse_snapshots_under_diagnostic_support
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.quality-metrics-diagnostics:
+    state: active
+    statement: Show compact stage-level quality metrics across shortlist, ranking, analysis, and generation stages.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/worker_job.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_renders_run_health_when_quality_metrics_available
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_cv_generation_debug_coverage_for_reranker_blocked_rows
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.enriched-job-debug-export:
+    state: active
+    statement: Include enriched-job inspection exports with canonical skill companions, mapping suggestions, and enrich provenance.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/bq_store.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_run_detail_shows_enriched_jobs_section
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_list_run_structured_jobs_parses_canonical_json_companions
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  inspection_debugging.rule-filter-diagnostics:
+    state: active
+    statement: Show active blocking filters, mark-code counts, and separate pre-enrichment reject visibility.
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_shows_marks_for_passed_jobs
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_list_filter_results_for_run_parses_marks_json
+    docs:
+    - docs/features/inspection_debugging/history.md
+    docs_evidence:
+    - path: docs/features/inspection_debugging/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+timeline:
+- completed_at: '2026-04-22T00:07:00+02:00'
+  change_id: 2026-04-22-option-b-phase-2-rollout
+  summary: Option B Phase 2 Rollout Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 2 rollout.
+- completed_at: '2026-04-22T00:32:00+02:00'
+  change_id: 2026-04-22-option-b-phase-3-cleanup
+  summary: Option B Phase 3 Cleanup Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 3 cleanup.
+- completed_at: '2026-04-22T01:35:00+02:00'
+  change_id: 2026-04-22-phase-4-required-metadata-correction
+  summary: Phase 4 Required Metadata Correction Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 4 required metadata correction.
+- completed_at: '2026-04-22T12:09:00+02:00'
+  change_id: 2026-04-22-phase-7-direct-evidence-backfill
+  summary: Phase 7 Direct Evidence Backfill Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 7 direct evidence backfill.
+- completed_at: '2026-04-22T12:20:00+02:00'
+  change_id: 2026-04-22-phase-5-evidence-oriented-lineage-alignment
+  summary: Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 5 evidence-oriented lineage alignment.
+- completed_at: '2026-04-22T13:18:00+02:00'
+  change_id: 2026-04-22-phase-9-trigger-inspection-evidence-completion
+  summary: Phase 9 Trigger And Inspection Evidence Completion Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 9 trigger and inspection evidence work.
+- completed_at: '2026-04-22T13:25:00+02:00'
+  change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+  summary: Phase 6 Lineage Evidence Hydration Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 6 lineage evidence hydration.
+- completed_at: '2026-04-22T18:20:00+02:00'
+  change_id: 2026-04-22-phase-14-inspection-diagnostics-completion
+  summary: Phase 14 Inspection Diagnostics Completion Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 14 inspection diagnostics work.
+- completed_at: '2026-04-23T16:57:09+02:00'
+  change_id: 2026-04-23-double-entry-truth-cleanup-batch-a
+  summary: Double-Entry Truth Cleanup Batch A Implementation Plan
+  capabilities: []
+  verification:
+  - python scripts/sync_architecture_docs.py --check
+  - python scripts/validate_adoption_shape.py
+  - python scripts/validate_repo_contracts.py --fast
+  - git diff --check
+  outcome: Removed manual downstream changelog truth from the `cv_system` and `inspection_debugging` history files while preserving generated chronology.
+- completed_at: '2026-04-23T17:03:52+02:00'
+  change_id: 2026-04-23-double-entry-truth-cleanup-batch-b
+  summary: Double-Entry Truth Cleanup Batch B Implementation Plan
+  capabilities: []
+  verification:
+  - python scripts/sync_architecture_docs.py --check
+  - python scripts/validate_adoption_shape.py
+  - python scripts/validate_repo_contracts.py --fast
+  - git diff --check
+  outcome: Reframed `docs/FitCV-pipeline.md` as an explainer and updated `docs/pipeline.md` to point at it as a non-authoritative mental-model doc.
+- completed_at: '2026-04-23T17:08:00+02:00'
+  change_id: 2026-04-23-double-entry-truth-cleanup-batch-c
+  summary: Double-Entry Truth Cleanup Batch C Implementation Plan
+  capabilities: []
+  verification:
+  - python scripts/sync_architecture_docs.py --check
+  - python scripts/validate_adoption_shape.py
+  - python scripts/validate_repo_contracts.py --fast
+  - git diff --check
+  outcome: Reduced generated-history placeholder noise by omitting empty capabilities, verification, and generic outcome sections while preserving real plan-derived signal.

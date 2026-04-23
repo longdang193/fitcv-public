@@ -1,13 +1,27 @@
-"""Generate and store semantic embeddings for jobs and candidate evidence.
-
-Public API
-----------
-build_job_summary_text    : deterministic labelled-section text for one job
-build_job_summary_chunk   : one-element list with chunk_type="job_summary"
-build_candidate_chunks    : evidence chunks (one per project/bullet/achievement)
-generate_embedding        : call Vertex AI text-embedding-005 (integration)
-embed_and_store_jobs      : batch embed jobs → job_embeddings (integration)
-embed_and_store_candidate : batch embed candidate → candidate_embeddings (integration)
+"""
+@meta
+name: fitcv_embeddings
+type: utility
+domain: shortlist
+responsibility:
+  - Build stable shortlist job summary signatures and embedding payloads.
+  - Reuse cached shortlist embeddings when signature and contract fingerprints match.
+inputs:
+  - structured job dictionaries
+  - candidate evidence chunks
+  - embedding config and BigQuery metadata
+outputs:
+  - embedding records
+  - shortlist embedding reuse metadata
+capabilities:
+  - pipeline_performance.shortlist-now-builds-a-stable-structured-embedding-input-signature-before-generating-job-summary-vectors
+  - pipeline_performance.shortlist-reuses-the-latest-stored-embedding-row-for-a-job-url-only-when-both-the-structured-signature-and-embedding-contract-fingerprint-still-match
+  - pipeline_performance.fresh-shortlist-embeddings-persist-signature-metadata-so-later-runs-can-skip-repeated-embedding-work-safely
+tags:
+  - embeddings
+  - shortlist
+lifecycle:
+  status: active
 """
 
 import hashlib

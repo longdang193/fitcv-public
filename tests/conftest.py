@@ -55,3 +55,20 @@ def config() -> dict[str, object]:
     """Loaded project config from .env.yaml."""
     from fitcv.config import load_config
     return load_config(Path(__file__).parent.parent / ".env.yaml")
+"""
+@meta
+name: test_shared_fixtures
+type: utility
+domain: testing
+responsibility:
+  - Provide shared pytest fixtures and test support helpers.
+inputs:
+  - test configuration
+outputs:
+  - reusable pytest fixtures
+tags:
+  - test-support
+  - ci-safe
+lifecycle:
+  status: active
+"""

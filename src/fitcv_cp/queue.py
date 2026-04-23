@@ -1,4 +1,30 @@
-"""RQ queue setup for background pipeline execution."""
+"""
+@meta
+name: fitcv_cp_queue
+type: utility
+domain: run_orchestration
+responsibility:
+  - Own queue enqueue and cancel helpers for control-plane run execution.
+  - Bridge manual continue requests into queued worker execution safely on Windows.
+inputs:
+  - queued run IDs and config paths
+  - redis connection settings
+outputs:
+  - enqueued RQ jobs
+  - queue cancellation outcomes
+capabilities:
+  - admin_control_plane_core.rq-background-worker-integration
+  - run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.manual-checkpoints-and-continue
+tags:
+  - queue
+  - orchestration
+  - lineage-owner
+lifecycle:
+  status: active
+"""
 import importlib
 import multiprocessing
 import sys

@@ -1,4 +1,16 @@
-"""Tests for config loading."""
+"""
+@meta
+type: test
+scope: unit
+domain: config
+covers:
+  - configuration loading and validation
+excludes:
+  - external service connectivity
+tags:
+  - fast
+  - ci-safe
+"""
 import shutil
 import uuid
 import os
@@ -118,6 +130,7 @@ def test_load_config_accepts_legacy_config_env_path_with_warning() -> None:
 
 
 def test_load_config_prefers_reorganized_config_subfolders_over_legacy_flat_files(tmp_path: Path) -> None:
+    """@proves settings_system.baseline-default-hydration"""
     env_yaml = tmp_path / ".env.yaml"
     env_yaml.write_text(
         "gcp_project: test\n"
@@ -185,7 +198,7 @@ def test_load_config_prefers_reorganized_config_subfolders_over_legacy_flat_file
 
 
 def test_load_config_includes_cv_defaults() -> None:
-    """cv defaults are present after loading the full config."""
+    """@proves settings_system.cv-generation-settings"""
     cfg = load_config()
     assert cfg["cv_generation_model"] == "gemini-2.5-flash"
     assert cfg["cv"]["generation"]["model"] == "gemini-2.5-flash"
@@ -465,6 +478,7 @@ def test_load_config_nested_cv_has_preset() -> None:
 
 
 def test_load_config_nested_cv_generation_has_model_and_prompt_version() -> None:
+    """@proves settings_system.cv-generation-settings"""
     cfg = load_config()
     assert "generation" in cfg["cv"]
     assert "model" in cfg["cv"]["generation"]
@@ -513,7 +527,10 @@ def test_load_config_compatibility_projection_required_cv_sections() -> None:
 
 
 def test_load_config_nested_cv_validation_max_pages_positive(tmp_path: Path) -> None:
-    """max_pages in the nested validation block must be a positive integer."""
+    """@proves settings_system.warning-only-cv-max-pages-validation-setting
+
+    max_pages in the nested validation block must be a positive integer.
+    """
     env_yaml = tmp_path / ".env.yaml"
     env_yaml.write_text(
         "gcp_project: test\nbigquery_dataset: ds\nservice_account_key: /dev/null\n"
@@ -608,6 +625,7 @@ def test_validate_composition_rejects_unknown_section() -> None:
 
 
 def test_validate_composition_accepts_valid_europass() -> None:
+    """@proves settings_system.cv-composition-visibility-settings"""
     from fitcv import cv_presets
     valid_composition = {
         "summary": {"enabled": True, "style": "concise"},
@@ -637,7 +655,7 @@ def test_validate_composition_rejects_unknown_preset() -> None:
 # ── Task 6: compatibility shim guard ───────────────────────────────────────────
 
 def test_load_config_compatibility_flat_keys_work_after_nested_migration() -> None:
-    """After migration to nested cv, flat keys are still projected for control-plane compatibility."""
+    """@proves settings_system.baseline-default-hydration"""
     cfg = load_config()
     # These are the keys the control plane (settings_schema) still reads
     assert cfg["cv_generation_model"] == cfg["cv"]["generation"]["model"]
@@ -740,6 +758,7 @@ def test_load_config_adds_default_ranking_and_cv_generation_prompt_ids() -> None
 
 
 def test_load_config_builds_prompts_runtime_for_all_major_stages() -> None:
+    """@proves cv_system.config-owned-generation-contract"""
     cfg = load_config()
 
     assert cfg["prompts_runtime"]["enrich"]["extraction"]["prompt_id"] == "enrich.extraction.v1"
@@ -748,6 +767,7 @@ def test_load_config_builds_prompts_runtime_for_all_major_stages() -> None:
 
 
 def test_config_accessors_resolve_centralized_prompt_ids_and_model_defaults() -> None:
+    """@proves pipeline_performance.enrich-extraction-prompt-text-now-comes-from-a-centralized-prompt-registry-with-config-selected-prompt-ids"""
     cfg = load_config()
 
     assert get_gemini_model(cfg) == "gemini-2.5-flash"
@@ -756,6 +776,7 @@ def test_config_accessors_resolve_centralized_prompt_ids_and_model_defaults() ->
 
 
 def test_load_config_exposes_only_active_cv_generation_prompt_contract() -> None:
+    """@proves cv_system.config-owned-generation-contract"""
     cfg = load_config()
 
     assert "write" not in cfg["prompts"]["cv_generation"]

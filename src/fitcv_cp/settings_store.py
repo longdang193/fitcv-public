@@ -1,7 +1,24 @@
-"""BigQuery persistence for pipeline_settings table.
-
-All reads use a single query that returns the latest value per key (ORDER BY updated_at DESC).
-No in-process caching — reads hit BQ each time. This is acceptable for an internal admin tool.
+"""
+@meta
+name: control_plane_settings_store
+type: utility
+domain: pipeline_config
+responsibility:
+  - Persist admin settings overrides to the pipeline_settings BigQuery table.
+  - Load latest active settings per key without in-process caching.
+inputs:
+  - pipeline_settings BigQuery rows
+  - admin settings update payloads
+outputs:
+  - appended settings rows
+  - active settings dictionaries
+capabilities:
+  - settings_system.bigquery-backed-pipeline-settings-store
+tags:
+  - settings
+  - bigquery
+lifecycle:
+  status: active
 """
 import datetime
 import json

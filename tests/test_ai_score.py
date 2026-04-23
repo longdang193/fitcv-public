@@ -337,3 +337,16 @@ def test_score_job_integration(config: dict) -> None:
     )
     assert 0.0 <= result["ai_score"] <= 1.0
     assert result["fit_label"] in ("strong", "stretch", "skip")
+"""
+@meta
+type: test
+scope: unit
+domain: ranking
+covers:
+  - AI scoring behavior
+excludes:
+  - live model calls
+tags:
+  - fast
+  - ci-safe
+"""

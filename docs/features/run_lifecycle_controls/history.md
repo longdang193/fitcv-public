@@ -1,5 +1,89 @@
 # Run Lifecycle Controls — History
 
+<!-- GENERATED HISTORY START -->
+
+## 2026-04-22
+
+### Option B Phase 2 Rollout Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the Option B phase 2 rollout.
+
+### Option B Phase 3 Cleanup Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the Option B phase 3 cleanup.
+
+### Phase 4 Required Metadata Correction Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the phase 4 required metadata correction.
+
+### Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the phase 5 evidence-oriented lineage alignment.
+
+### Phase 6 Lineage Evidence Hydration Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the phase 6 lineage evidence hydration.
+
+### Phase 11 Control Plane Evidence Completion Implementation Plan
+
+
+Verification:
+- `See plan body closeout verification notes.`
+
+Outcome:
+Completed the phase 11 control-plane evidence work.
+
+
+## 2026-04-23
+
+### Run Lifecycle Stage Participation Implementation Plan
+
+
+Affected capabilities:
+- `run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs`
+- `run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue`
+- `run_lifecycle_controls.stale-cancellation-repair-endpoint`
+- `run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs`
+- `run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time`
+- `run_lifecycle_controls.full-audit-trail-in-pipeline-run-events`
+
+Verification:
+- `python scripts/sync_architecture_docs.py --check`
+- `python scripts/validate_adoption_shape.py`
+- `python scripts/validate_repo_contracts.py --fast`
+
+Outcome:
+Run lifecycle controls now declare supporting stage participation across runtime stages.
+
+<!-- GENERATED HISTORY END -->
+
+## Human Notes
+
 ## Changelog
 
 ### 1.4.0 — active
@@ -44,4 +128,3 @@
 - All capabilities from the contract are implemented and tested
 - Cooperative cancellation pattern checks BigQuery for `cancel_requested_at` at each checkpoint
 - Three-tier stop logic: queue cancel → pre-claim cancel → cooperative cancelling
-

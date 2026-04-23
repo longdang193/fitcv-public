@@ -1,4 +1,24 @@
 #!/usr/bin/env python3
+"""
+@meta
+name: download_cvs
+type: script
+domain: export
+responsibility:
+  - Export recently generated CV markdown documents from BigQuery.
+  - Materialize operator-readable CV files under the local output folder.
+inputs:
+  - .env.yaml
+  - BigQuery cv_versions rows
+outputs:
+  - data/output/cvs/*.md
+tags:
+  - export
+  - bigquery
+lifecycle:
+  status: active
+"""
+
 import os
 import yaml
 from google.cloud import bigquery

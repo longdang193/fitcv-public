@@ -1,5 +1,7 @@
 """Tests for fitcv.rule_filter — all pure unit tests (no cloud calls)."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from fitcv.rule_filter import (
@@ -31,6 +33,11 @@ def _prefs(**kwargs) -> dict:
     return {**defaults, **kwargs}
 
 
+def _recent_iso_date(days_ago: int = 7) -> str:
+    """Return a date inside freshness windows without depending on wall-clock year."""
+    return (datetime.now(tz=timezone.utc) - timedelta(days=days_ago)).date().isoformat()
+
+
 def _job(**kwargs) -> dict:
     """Build a job dict with sensible defaults."""
     defaults = {
@@ -40,7 +47,7 @@ def _job(**kwargs) -> dict:
         "contract_type": "Full-time",
         "experience_level": "Entry level",
         "required_skills": ["SQL"],
-        "published_at": "2026-03-10",  # recent enough for 30-day window
+        "published_at": _recent_iso_date(),  # recent enough for 30-day window
         "domain": "data_engineering",
     }
     return {**defaults, **kwargs}
@@ -57,7 +64,10 @@ def test_apply_rule_filters_returns_passed_and_rejected() -> None:
 
 
 def test_rejected_jobs_include_reasons() -> None:
-    """Each rejected job must include a non-empty reasons list."""
+    """@proves pipeline_performance.explicit-rejection-reasons-in-rule-filter-results
+
+    Each rejected job must include a non-empty reasons list.
+    """
     # lead is 2 steps above mid → must be rejected by seniority check
     result = apply_rule_filters([_job(seniority="lead")], _prefs())
     assert len(result["rejected"]) > 0
@@ -159,7 +169,10 @@ def test_selected_and_unselected_failures_split_between_reasons_and_marks() -> N
 
 
 def test_multiple_rejection_reasons_accumulated() -> None:
-    """A job that fails two checks should accumulate both reasons."""
+    """@proves pipeline_performance.explicit-rejection-reasons-in-rule-filter-results
+
+    A job that fails two checks should accumulate both reasons.
+    """
     # lead is 2+ above mid (seniority_mismatch) AND Internship is excluded (contract_type_excluded)
     job = _job(seniority="lead", contract_type="Internship")
     result = apply_rule_filters([job], _prefs())
@@ -327,7 +340,7 @@ def _gs(**kwargs) -> dict:
 
 
 def test_freshness_accepts_recent_job() -> None:
-    assert check_freshness(_job(published_at="2026-03-20"), _gs(max_age_days=30))
+    assert check_freshness(_job(published_at=_recent_iso_date()), _gs(max_age_days=30))
 
 
 def test_freshness_rejects_stale_job() -> None:
@@ -349,7 +362,7 @@ def test_freshness_uses_global_settings_not_prefs() -> None:
 
 def test_freshness_falls_back_to_30_days_when_no_global_settings() -> None:
     """global_settings=None → hard-coded default of 30 days applies."""
-    recent = _job(published_at="2026-03-20")
+    recent = _job(published_at=_recent_iso_date())
     assert check_freshness(recent, global_settings=None)
     stale = _job(published_at="2025-01-01")
     assert not check_freshness(stale, global_settings=None)
@@ -577,7 +590,10 @@ def test_apply_rule_filters_global_settings_rejects_high_count() -> None:
 # ── end-to-end: apply_settings_to_config → apply_rule_filters ────────────────
 
 def test_admin_setting_reaches_filter_via_apply_settings_to_config() -> None:
-    """Proves the full settings→config→filter chain: an admin setting reaches the filter."""
+    """@proves settings_system.global-job-filters
+
+    Proves the full settings->config->filter chain: an admin setting reaches the filter.
+    """
     from fitcv_cp.settings_schema import apply_settings_to_config
 
     config: dict = {}
@@ -617,6 +633,7 @@ def test_pre_filter_no_global_settings_passes_all():
 
 
 def test_pre_filter_rejects_stale_job():
+    """@proves pipeline_performance.pre-enrichment-global-job-filters-applications-count-max-max-age-days"""
     from datetime import datetime, timedelta, timezone
     old = (datetime.now(tz=timezone.utc) - timedelta(days=60)).date().isoformat()
     jobs = [_normalized_job("http://stale", published_at=old)]
@@ -626,6 +643,7 @@ def test_pre_filter_rejects_stale_job():
 
 
 def test_pre_filter_rejects_high_count_job_using_applications_count_int():
+    """@proves pipeline_performance.pre-enrichment-global-job-filters-applications-count-max-max-age-days"""
     jobs = [_normalized_job("http://busy", applications_count_int=500)]
     result = apply_pre_enrichment_global_filters(jobs, _gs(applications_count_max=100))
     assert result["passed"] == []
@@ -668,3 +686,16 @@ def test_apply_rule_filters_ignores_prefs_max_age_days():
     stale_job = _job(job_url="http://stale2", published_at=old)
     result = apply_rule_filters([stale_job], prefs={"max_age_days": 1})
     assert "http://stale2" in result["passed"]
+"""
+@meta
+type: test
+scope: unit
+domain: rule_filter
+covers:
+  - rule-filter behavior
+excludes:
+  - end-to-end pipeline execution
+tags:
+  - fast
+  - ci-safe
+"""

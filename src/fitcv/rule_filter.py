@@ -1,3 +1,30 @@
+"""
+@meta
+name: fitcv_rule_filter
+type: utility
+domain: rule_filter
+responsibility:
+  - Apply deterministic pre-enrichment and rule-filter policies before semantic ranking.
+  - Return explicit rejection reasons and non-blocking marks for operator diagnostics.
+inputs:
+  - normalized job records
+  - candidate preferences
+  - global job filter and selected rule-filter settings
+outputs:
+  - passed job URLs
+  - rejected job records with explicit reasons
+  - filter marks for non-selected rule signals
+capabilities:
+  - settings_system.global-job-filters
+  - pipeline_performance.pre-enrichment-global-job-filters-applications-count-max-max-age-days
+  - pipeline_performance.explicit-rejection-reasons-in-rule-filter-results
+tags:
+  - rule-filter
+  - pipeline
+lifecycle:
+  status: active
+"""
+
 """Rule-based job filtering — deterministic policy layer before semantic retrieval.
 
 Public API

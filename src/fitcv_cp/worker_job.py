@@ -1,13 +1,39 @@
-"""RQ job: execute one pipeline run and persist lifecycle state.
-
-Worker lifecycle order:
-1. update run status → running
-2. read current run row (check cancel_requested_at)
-3. if already cancelled: mark cancelled, append run_cancelled, exit early
-4. otherwise: run pipeline with cancellation_check callback
-5. on PipelineCancelled: mark cancelled, append run_cancelled
-6. on success: mark succeeded
-7. on unexpected exception: mark failed, append pipeline_failed event
+"""
+@meta
+name: control_plane_worker_job
+type: script
+domain: run_orchestration
+responsibility:
+  - Execute one queued pipeline run and persist lifecycle state.
+  - Persist run-scoped settings-used and compact results snapshots.
+inputs:
+  - queued run id and pipeline paths
+  - control-plane BigQuery run state
+outputs:
+  - run lifecycle updates
+  - settings-used and results-export snapshots
+capabilities:
+  - admin_control_plane_core.pipelinereporter-integration
+  - run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs
+  - run_lifecycle_controls.full-audit-trail-in-pipeline-run-events
+  - inspection_debugging.settings-used-export
+  - inspection_debugging.results-ledger-inspection
+  - inspection_debugging.stage-transition-diagnostics
+  - inspection_debugging.prompt-provenance-diagnostics
+  - inspection_debugging.reuse-diagnostics
+  - inspection_debugging.quality-metrics-diagnostics
+  - settings_system.settings-used-exports
+  - pipeline_performance.large-runs-avoid-some-row-scaled-layer-4-event-noise-by-relying-more-on-aggregate-stage-summaries-plus-stage-owned-artifacts
+  - pipeline_performance.results-json-now-keeps-only-compact-job-ledger-fields-instead-of-repeating-full-job-snapshots-heavy-score-explanation-internals-and-full-cv-bodies-already-represented-elsewhere
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.reranker-fit-authority
+tags:
+  - worker
+  - control-plane
+lifecycle:
+  status: active
 """
 import datetime
 import json

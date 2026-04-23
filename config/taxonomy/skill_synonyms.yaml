@@ -1,3 +1,15 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_analysis
+#   - cv_generation
+# capabilities:
+#   - cv_system.analysis-grounded-validation
+# role: config
+# canonical: true
+
 # Skill synonym map: alias (lowercase) → canonical form (lowercase).
 # Consumed by: rule_filter.py (check_must_have_skills), ranking.py (compute_must_have_match).
 # Both alias and canonical are normalised to lowercase at load time.

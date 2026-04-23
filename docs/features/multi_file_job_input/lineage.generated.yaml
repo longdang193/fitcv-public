@@ -1,0 +1,298 @@
+# GENERATED FILE - do not edit directly.
+feature_id: multi_file_job_input
+source: docs/features/multi_file_job_input/feature.source.yaml
+invariants: {}
+capabilities:
+  multi_file_job_input.multiple-file-inputs-in-trigger-form:
+    state: active
+    statement: Multiple file inputs in trigger form
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_merges_multiple_job_files
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_upload_mode_no_files_rejected
+    docs:
+    - docs/features/multi_file_job_input/history.md
+    docs_evidence:
+    - path: docs/features/multi_file_job_input/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  multi_file_job_input.per-file-server-side-validation:
+    state: active
+    statement: Per-file server-side validation
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_all_empty_arrays_rejected
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_multi_file_non_array_rejected
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_one_invalid_file_rejects_entire_request
+    docs:
+    - docs/features/multi_file_job_input/history.md
+    docs_evidence:
+    - path: docs/features/multi_file_job_input/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  multi_file_job_input.canonical-merge-preserving-order:
+    state: active
+    statement: Canonical merge preserving order
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_merges_multiple_job_files
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_multi_file_preserves_order
+    docs:
+    - docs/features/multi_file_job_input/history.md
+    docs_evidence:
+    - path: docs/features/multi_file_job_input/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  multi_file_job_input.one-immutable-snapshot-stored-per-run:
+    state: active
+    statement: One immutable snapshot stored per run
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/bq_store.py
+      confidence: high
+      source:
+      - python_meta
+    - path: src/fitcv_cp/models.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_merges_multiple_job_files
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_path_mode_stores_jobs_snapshot
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_insert_run_includes_input_metadata_params
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_insert_run_input_metadata_none_values_are_included
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_row_to_run_handles_missing_input_metadata_fields
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_row_to_run_maps_input_metadata_fields
+    - path: tests/test_fitcv_cp/test_models.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_pipeline_run_fields
+    docs:
+    - docs/features/multi_file_job_input/history.md
+    docs_evidence:
+    - path: docs/features/multi_file_job_input/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+  multi_file_job_input.all-or-nothing-rejection-on-validation-failure:
+    state: active
+    statement: All-or-nothing rejection on validation failure
+    satisfies: []
+    code:
+    - path: src/fitcv_cp/app.py
+      confidence: high
+      source:
+      - python_meta
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_all_empty_arrays_rejected
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_multi_file_non_array_rejected
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_upload_trigger_one_invalid_file_rejects_entire_request
+    docs:
+    - docs/features/multi_file_job_input/history.md
+    docs_evidence:
+    - path: docs/features/multi_file_job_input/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps: []
+    allowed_evidence_gaps: []
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: complete
+timeline:
+- completed_at: '2026-04-22T00:07:00+02:00'
+  change_id: 2026-04-22-option-b-phase-2-rollout
+  summary: Option B Phase 2 Rollout Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 2 rollout.
+- completed_at: '2026-04-22T00:32:00+02:00'
+  change_id: 2026-04-22-option-b-phase-3-cleanup
+  summary: Option B Phase 3 Cleanup Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 3 cleanup.
+- completed_at: '2026-04-22T01:35:00+02:00'
+  change_id: 2026-04-22-phase-4-required-metadata-correction
+  summary: Phase 4 Required Metadata Correction Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 4 required metadata correction.
+- completed_at: '2026-04-22T12:20:00+02:00'
+  change_id: 2026-04-22-phase-5-evidence-oriented-lineage-alignment
+  summary: Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 5 evidence-oriented lineage alignment.
+- completed_at: '2026-04-22T13:25:00+02:00'
+  change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+  summary: Phase 6 Lineage Evidence Hydration Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 6 lineage evidence hydration.
+- completed_at: '2026-04-22T16:10:00+02:00'
+  change_id: 2026-04-22-phase-12-ui-input-evidence-completion
+  summary: Phase 12 UI And Input Evidence Completion Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 12 UI input evidence work.

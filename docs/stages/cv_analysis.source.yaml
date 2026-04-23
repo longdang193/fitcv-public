@@ -1,0 +1,37 @@
+stage_id: cv_analysis
+name: CV Analysis
+summary: Prepare ranked jobs for writing by merging enriched context, retrieving and scoring candidate evidence across required-skill, role, domain, and responsibility channels, selecting one bounded final evidence bundle, computing grounded gap summaries, and resolving the fit gate that determines whether `cv_generation` should run.
+boundaries:
+  - ranked jobs enter and generation-ready or analysis-rejected records leave
+  - evidence retrieval, final evidence selection, gap analysis, and fit-gate ownership belong to this stage
+  - this stage does not generate or persist final CV artifacts
+inputs:
+  - candidate profile
+  - enriched job context
+  - evidence-selection settings
+  - gap-analysis settings
+  - ranked jobs
+  - semantic-alignment settings
+outputs:
+  - generation-ready jobs with selected evidence and gap payloads
+  - persisted cv-analysis records
+  - skipped-fit-gate or analysis-failed outcomes
+  - stage-owned quality and reuse metrics
+depends_on:
+  - ranking
+primary_features:
+  - cv_system
+related_features:
+  - inspection_debugging
+  - settings_system
+  - trigger_run_management
+refs:
+  spec:
+  plan:
+keywords:
+  - cv analysis
+  - evidence retrieval
+  - evidence selection
+  - fit gate
+status: active
+purpose: Prepare ranked jobs for writing by merging enriched context, retrieving and scoring candidate evidence across required-skill, role, domain, and responsibility channels, selecting one bounded final evidence bundle, computing grounded gap summaries, and resolving the fit gate that determines whether `cv_generation` should run.

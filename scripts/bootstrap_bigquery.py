@@ -1,4 +1,24 @@
 #!/usr/bin/env python3
+"""
+@meta
+name: bootstrap_bigquery
+type: script
+domain: infrastructure
+responsibility:
+  - Bootstrap the FitCV BigQuery dataset and tables from checked-in SQL assets.
+  - Create missing tables in dependency order for local setup and integration testing.
+inputs:
+  - assets/bigquery/*.sql
+  - GOOGLE_APPLICATION_CREDENTIALS
+outputs:
+  - BigQuery dataset and tables
+tags:
+  - setup
+  - bigquery
+lifecycle:
+  status: active
+"""
+
 """Bootstrap BigQuery dataset and all tables for FitCV.
 
 Run once before integration tests:

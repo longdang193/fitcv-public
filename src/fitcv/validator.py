@@ -1,36 +1,27 @@
-"""CV validation — structural and grounding checks for generated CV markdown.
-
-Ownership
----------
-This module is the **single owner of all CV validation**.
-cv_generator.py does not validate; it only generates.
-All grounding, provenance, and structural checks live here.
-
-Scope
------
-Basic structural + grounding validation (not a full hallucination guard).
-Catches: invented employers, non-existent projects, out-of-scope skills.
-Does NOT catch subtle factual errors in bullet text.
-
-Public API
-----------
-validate_output          : check section presence, length, format
-check_length_constraints : page-length estimate (lines-per-page heuristic)
-check_chronology         : verify date ordering in source profile experiences (not CV text)
-check_employer_grounding : every employer in CV must appear in known_employers
-check_project_existence  : every project name in CV must appear in known_projects
-check_skill_provenance   : validate the Skills section against candidate_skills
-run_all_validations      : aggregate all checks; returns the full output schema
-
-Output schema (run_all_validations)
-------------------------------------
-{
-    "valid": bool,
-    "missing_sections": list[str],
-    "grounding_violations": list[str],
-    "skill_violations": list[str],
-    "warnings": list[str],
-}
+"""
+@meta
+name: validator
+type: utility
+domain: cv_validation
+responsibility:
+  - Own deterministic and soft-claim validation for generated CV outputs.
+  - Enforce grounding, placeholder rejection, and required-section checks before acceptance.
+inputs:
+  - rendered or structured CV output
+  - candidate profile data
+  - analysis grounding context
+  - cv validation config
+outputs:
+  - validation result payloads
+  - grounding and support violation lists
+capabilities:
+  - cv_system.analysis-grounded-validation
+tags:
+  - cv
+  - validation
+  - lineage-owner
+lifecycle:
+  status: active
 """
 
 import re

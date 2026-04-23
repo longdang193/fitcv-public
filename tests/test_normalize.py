@@ -237,3 +237,16 @@ def test_normalize_batch_with_exclusions_tracks_removed_duplicates() -> None:
         "near_duplicate_job_posting",
     ]
     assert [row["input_index"] for row in excluded] == [1, 2]
+"""
+@meta
+type: test
+scope: unit
+domain: normalize
+covers:
+  - normalization behavior
+excludes:
+  - full pipeline orchestration
+tags:
+  - fast
+  - ci-safe
+"""

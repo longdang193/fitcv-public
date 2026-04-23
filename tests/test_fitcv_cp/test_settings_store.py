@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: pipeline_config
+covers:
+  - control-plane settings store behavior
+excludes:
+  - live BigQuery access
+tags:
+  - fast
+  - ci-safe
+"""
+
 import datetime
 from unittest.mock import MagicMock
 
@@ -17,6 +31,7 @@ def _make_bq_row(key: str, value_json: str, updated_at: str) -> dict:
 
 
 def test_save_setting_calls_bq():
+    """@proves settings_system.bigquery-backed-pipeline-settings-store"""
     bq = MagicMock()
     save_setting("pipeline.final_top_n", 5, updated_by="admin",
                  bq=bq, project="p", dataset="d")
@@ -27,6 +42,7 @@ def test_save_setting_calls_bq():
 
 
 def test_load_active_settings_returns_latest_per_key():
+    """@proves settings_system.bigquery-backed-pipeline-settings-store"""
     bq = MagicMock()
     # Two rows for the same key — different timestamps. Latest should win.
     rows = [

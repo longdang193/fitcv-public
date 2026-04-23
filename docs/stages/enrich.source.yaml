@@ -1,0 +1,45 @@
+stage_id: enrich
+name: Enrich
+summary: Filter normalized jobs through pre-enrichment global checks, then enrich surviving jobs into a shared downstream contract where required/preferred skills keep raw phrases, canonical skill entities, and reuse provenance when unchanged jobs can safely skip a fresh LLM call.
+boundaries:
+  - normalized jobs enter and enriched job rows leave
+  - pre-enrichment global filter ownership belongs to this stage in the current runtime flow
+  - extraction prompt text and metadata are centrally managed via the prompt registry, while enrich keeps ownership of schemas, parsing, and post-processing
+  - canonical downstream skill fields are limited to `required_skills` and `preferred_skills`, and are represented as canonical skill entities plus flattened canonical skill labels
+  - manual staged runs may attach a run-scoped synonym overlay after this stage and before continuing into `rule_filter`
+  - enrich reuse is decided before LLM invocation from normalized raw-job fingerprints plus the effective enrich-contract fingerprint
+  - downstream scoring and CV work should rely on the enriched contract rather than raw input shape
+inputs:
+  - normalized job rows
+  - pre-enrichment global filter settings from runtime config
+outputs:
+  - bounded `stage_transition_artifacts.enrich` runtime block with input, output, and changed-state samples
+  - enrich prompt provenance and fresh-vs-reused enrich counts in stage decision summaries when available
+  - enrich-stage mapping suggestions for review/debug export
+  - enriched job rows
+  - optional enrich-checkpoint upload of a run-scoped synonym overlay for downstream matching
+  - optional manual checkpoint payloads that can resume downstream rule filtering without rerunning normalize/enrich
+  - pre-enrichment rejects with reasons
+  - raw job fields plus canonical skill outputs for `required_skills` and `preferred_skills`
+  - raw-job and enrich-contract fingerprint fields plus `enrich_reuse_status` provenance on enriched rows
+depends_on:
+  - normalize
+primary_features:
+  - cv_system
+related_features:
+  - trigger_run_management
+  - inspection_debugging
+refs:
+  docs: []
+  spec:
+  plan:
+  history: []
+keywords:
+  - enrich
+  - pre-enrichment
+  - required skills
+  - years experience
+  - reuse
+  - fingerprint
+status: active
+purpose: Filter normalized jobs through pre-enrichment global checks, then enrich surviving jobs into a shared downstream contract where required/preferred skills keep raw phrases, canonical skill entities, and reuse provenance when unchanged jobs can safely skip a fresh LLM call.

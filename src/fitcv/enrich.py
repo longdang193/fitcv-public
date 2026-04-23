@@ -1,14 +1,33 @@
-"""Enrich raw LinkedIn job postings with LLM-extracted structured fields.
-
-Public API
-----------
-build_extraction_prompt      : build prompt asking LLM to extract structured fields
-parse_extraction_response    : parse LLM JSON with strict fallback contract
-merge_scraped_and_enriched   : combine scraper metadata + LLM parsed dict
-enrich_job                   : call Gemini for one job (integration)
-enrich_batch                 : batch enrichment with rate limiting (integration)
-load_structured_jobs         : MERGE upsert into fitcv.structured_jobs (integration)
-load_run_structured_jobs     : append run-scoped rows into fitcv.run_structured_jobs (integration)
+"""
+@meta
+name: fitcv_enrich
+type: utility
+domain: enrich
+responsibility:
+  - Parse structured job extraction responses and normalize enriched job records.
+  - Fingerprint raw jobs and enrich contracts for safe structured job reuse.
+inputs:
+  - scraped job records
+  - enrich prompt/config contracts
+  - structured LLM extraction responses
+outputs:
+  - enriched structured job records
+  - reusable structured-job lookup and persistence payloads
+capabilities:
+  - pipeline_performance.gemini-structured-output-with-response-schema-and-pydantic
+  - pipeline_performance.fallback-path-for-unparseable-responses
+  - pipeline_performance.enrich-extraction-prompt-text-now-comes-from-a-centralized-prompt-registry-with-config-selected-prompt-ids
+  - pipeline_performance.enrich-stage-raw-plus-canonical-semantic-companions-for-repeated-downstream-fields
+  - pipeline_performance.canonical-skill-companion-lists-and-entity-payloads-for-required-preferred-skills
+  - pipeline_performance.enrich-stage-mapping-suggestion-capture-for-review-debug-surfaces
+  - pipeline_performance.fingerprint-based-enrich-result-reuse-happens-before-llm-enrichment-using-normalized-raw-job-inputs
+  - pipeline_performance.enrich-contract-fingerprinting-invalidates-reuse-automatically-when-prompt-model-schema-behavior-changes
+  - pipeline_performance.shared-structured-jobs-reuse-lookup-avoids-redundant-enrich-calls-while-only-fresh-rows-are-upserted-back-into-the-shared-table
+tags:
+  - enrich
+  - reuse
+lifecycle:
+  status: active
 """
 
 import json
@@ -1073,6 +1092,8 @@ def _enrich_chunk(
 ) -> list[dict[str, Any]]:
     """Enrich one bounded chunk of normalized jobs with global rate limiting and retry.
 
+    @capability bounded_parallel_enrichment.per-job-failure-isolation
+
     Uses the module-level _ENRICH_RATE_LOCK to serialize API calls across all
     concurrent chunks. This makes enrichment_sleep_secs a true global rate limit
     rather than a per-thread-only delay, regardless of enrichment_concurrency.
@@ -1117,6 +1138,8 @@ def enrich_batch(
     config: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Enrich a batch of normalized jobs with bounded parallel execution.
+
+    @capability bounded_parallel_enrichment.deterministic-output-order
 
     Splits normalized_jobs into chunks of enrichment_batch_size, then submits
     up to enrichment_concurrency chunks in parallel via ThreadPoolExecutor.

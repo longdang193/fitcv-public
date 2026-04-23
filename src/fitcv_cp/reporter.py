@@ -1,4 +1,26 @@
-"""Lightweight event reporter injected into run_pipeline() by the worker."""
+"""
+@meta
+name: control_plane_reporter
+type: utility
+domain: run_orchestration
+responsibility:
+  - Emit control-plane run events through the shared reporter adapter.
+  - Serialize optional event payloads before they are persisted.
+inputs:
+  - run ids and event payloads
+  - BigQuery-backed event persistence adapter
+outputs:
+  - pipeline_run_events writes
+capabilities:
+  - admin_control_plane_core.pipelinereporter-integration
+  - run_lifecycle_controls.full-audit-trail-in-pipeline-run-events
+tags:
+  - reporter
+  - control-plane
+  - lineage-owner
+lifecycle:
+  status: active
+"""
 import datetime
 import json
 import logging

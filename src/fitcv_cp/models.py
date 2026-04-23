@@ -1,3 +1,26 @@
+"""
+@meta
+name: control_plane_models
+type: utility
+domain: run_orchestration
+responsibility:
+  - Define the shared pipeline run and event contracts used by the control plane.
+  - Standardize run status enums for queue, worker, and admin surfaces.
+inputs:
+  - control-plane lifecycle and event fields
+outputs:
+  - typed run and event records
+capabilities:
+  - admin_control_plane_core.pipeline-runs-bigquery-table
+  - admin_control_plane_core.pipeline-run-events-bigquery-table
+  - multi_file_job_input.one-immutable-snapshot-stored-per-run
+tags:
+  - models
+  - control-plane
+  - lineage-owner
+lifecycle:
+  status: active
+"""
 import dataclasses
 import datetime
 from enum import Enum

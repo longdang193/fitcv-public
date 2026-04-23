@@ -1,15 +1,37 @@
-"""Registry of admin-editable pipeline settings.
-
-Each entry defines:
-  key         Dotted name used in pipeline_settings BQ table and POST /runs overrides
-  type        "int" or "float"
-  default     YAML baseline default (for display purposes; source of truth is config/**/*.yaml)
-  label       Human-readable display name shown in the admin UI
-  group       UI section: "retrieval" | "timing" | "ranking"
-  config_path List of keys to traverse when applying to a config dict
-              e.g. ["pipeline", "final_top_n"] → config["pipeline"]["final_top_n"]
-
-Validation rules are enforced by validate_settings().
+"""
+@meta
+name: control_plane_settings_schema
+type: utility
+domain: pipeline_config
+responsibility:
+  - Register admin-editable pipeline settings and grouped settings controls.
+  - Validate and apply settings overrides into canonical runtime config paths.
+inputs:
+  - baseline config from fitcv.config.load_config
+  - admin-provided settings override payloads
+outputs:
+  - SETTINGS_SCHEMA and grouped settings registries
+  - validated config updates
+capabilities:
+  - settings_system.run-safety-settings
+  - settings_system.global-job-filters
+  - settings_system.settings-schema-registry
+  - settings_system.retrieval-settings
+  - settings_system.ranking-settings
+  - settings_system.preference-fit-calibration
+  - settings_system.cv-analysis-alignment-settings
+  - settings_system.cv-generation-settings
+  - settings_system.cv-composition-visibility-settings
+  - settings_system.warning-only-cv-max-pages-validation-setting
+  - settings_system.grouped-form-validation
+  - bounded_parallel_enrichment.enrichment-batch-size-setting
+  - bounded_parallel_enrichment.enrichment-concurrency-setting
+  - bounded_parallel_enrichment.conservative-defaults-batch-size-10-concurrency-1
+tags:
+  - settings
+  - admin-ui
+lifecycle:
+  status: active
 """
 from __future__ import annotations
 

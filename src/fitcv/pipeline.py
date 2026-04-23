@@ -1,3 +1,30 @@
+"""
+@meta
+name: fitcv_pipeline
+type: utility
+domain: pipeline
+responsibility:
+  - Orchestrate FitCV stages from ingestion through ranking, CV analysis, and CV generation.
+  - Build run-owned stage artifacts, compact exports, and reranker skip short-circuit records.
+inputs:
+  - jobs JSON
+  - candidate profile
+  - effective runtime config
+outputs:
+  - ranked jobs, generated CVs, results ledger, diagnostics, and stage artifacts
+capabilities:
+  - pipeline_performance.pre-enrichment-global-job-filters-applications-count-max-max-age-days
+  - pipeline_performance.operator-facing-enriched-job-exports-now-keep-canonical-semantic-fields-and-fingerprint-reuse-provenance-while-omitting-retired-raw-duplicate-classification-baggage
+  - pipeline_performance.large-runs-avoid-some-row-scaled-layer-4-event-noise-by-relying-more-on-aggregate-stage-summaries-plus-stage-owned-artifacts
+  - pipeline_performance.cv-analysis-now-uses-bounded-semantic-lift-for-required-skill-and-role-channels-instead-of-reserving-semantic-work-only-for-domain-and-responsibility-alignment
+  - pipeline_performance.ranked-jobs-with-authoritative-reranker-fit-label-skip-now-stop-before-evidence-retrieval-gap-computation-and-semantic-alignment-inside-cv-analysis
+tags:
+  - pipeline
+  - orchestration
+lifecycle:
+  status: active
+"""
+
 """Full pipeline orchestrator — wires all FitCV pipeline stages end-to-end.
 
 Stage order
@@ -1137,6 +1164,7 @@ def _repair_candidate_name_placeholder(
     profile: dict[str, Any],
     config: dict[str, Any],
 ) -> tuple[dict[str, Any], str]:
+    """@capability cv_system.header-placeholder-repair"""
     repaired_structured_cv = deepcopy(structured_cv)
     sections = repaired_structured_cv.setdefault("sections", {})
     header = sections.setdefault("header", {})
@@ -1790,6 +1818,7 @@ def _build_stage_transition_artifacts(
     config: dict[str, Any],
     candidate_query_debug: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """@capability cv_system.stage-artifact-diagnostics"""
     candidate_query_debug = dict(candidate_query_debug or {})
     cv_analysis_results = list(cv_analysis_results or [])
     shortlist_reached = len(passed_jobs) > 0
@@ -2419,6 +2448,10 @@ def run_pipeline(
     stage_progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Run the full FitCV candidate pipeline end-to-end.
+
+    @capability bounded_parallel_enrichment.pre-enrichment-global-filters-run-first
+    @capability cv_system.fit-gate-resolution
+    @capability cv_system.exact-match-late-stage-reuse
 
     Parameters
     ----------

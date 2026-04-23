@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: ranking
+covers:
+  - ranking behavior
+excludes:
+  - live reranker APIs
+tags:
+  - fast
+  - ci-safe
+"""
+
 import pytest
 
 from fitcv.ranking import (
@@ -296,11 +310,11 @@ def test_compute_title_relevance_uses_semantic_role_alignment() -> None:
 def test_compute_preference_fit():
     prefs = {"domains": ["fintech", "health"], "location_types": ["remote"]}
     config = {"preference_fit_weights": {"domain": 0.5, "role_family": 0.3, "location_type": 0.2}}
-    assert compute_preference_fit({"domain": "fintech", "location_type": "remote"}, prefs, config) == 0.85
-    assert compute_preference_fit({"domain": "fintech", "location_type": "onsite"}, prefs, config) == 0.65
-    assert compute_preference_fit({"domain": "retail", "location_type": "onsite"}, prefs, config) == 0.15
+    assert compute_preference_fit({"domain": "fintech", "location_type": "remote"}, prefs, config) == pytest.approx(0.85)
+    assert compute_preference_fit({"domain": "fintech", "location_type": "onsite"}, prefs, config) == pytest.approx(0.65)
+    assert compute_preference_fit({"domain": "retail", "location_type": "onsite"}, prefs, config) == pytest.approx(0.15)
     # no preferences = 0.5 neutral
-    assert compute_preference_fit({"domain": "fintech"}, {}, config) == 0.5
+    assert compute_preference_fit({"domain": "fintech"}, {}, config) == pytest.approx(0.5)
 
 
 def test_compute_preference_fit_weights_domain_role_family_and_location_separately() -> None:
@@ -384,3 +398,16 @@ def test_rank_jobs_assigns_final_rank():
     ranked = rank_jobs(jobs, top_n=2)
     assert ranked[0]["final_rank"] == 1
     assert ranked[1]["final_rank"] == 2
+"""
+@meta
+type: test
+scope: unit
+domain: ranking
+covers:
+  - ranking behavior
+excludes:
+  - live reranker APIs
+tags:
+  - fast
+  - ci-safe
+"""

@@ -1,4 +1,16 @@
-"""Tests for fitcv.embeddings — all pure unit tests (no cloud calls)."""
+"""
+@meta
+type: test
+scope: unit
+domain: embeddings
+covers:
+  - embedding generation and normalization helpers
+excludes:
+  - live embedding APIs
+tags:
+  - fast
+  - ci-safe
+"""
 
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -70,6 +82,7 @@ class TestBuildJobSummaryText:
 
 class TestBuildJobSummarySignaturePayload:
     def test_prefers_canonical_skill_lists_and_sorts_them(self) -> None:
+        """@proves pipeline_performance.shortlist-now-builds-a-stable-structured-embedding-input-signature-before-generating-job-summary-vectors"""
         jd = {
             "title": "Senior Data Analyst",
             "location_type": "remote",
@@ -107,6 +120,7 @@ class TestBuildJobSummarySignaturePayload:
 
 class TestBuildJobSummarySignatureRecord:
     def test_signature_is_stable_when_skill_order_changes(self) -> None:
+        """@proves pipeline_performance.shortlist-now-builds-a-stable-structured-embedding-input-signature-before-generating-job-summary-vectors"""
         first = {
             "title": "Data Engineer",
             "location_type": "remote",
@@ -304,6 +318,9 @@ def test_embed_and_store_jobs_reuses_matching_latest_embeddings_and_only_inserts
     mock_from_service_account_file: object,
     mock_bigquery_client: object,
 ) -> None:
+    """@proves pipeline_performance.shortlist-reuses-the-latest-stored-embedding-row-for-a-job-url-only-when-both-the-structured-signature-and-embedding-contract-fingerprint-still-match
+    @proves pipeline_performance.fresh-shortlist-embeddings-persist-signature-metadata-so-later-runs-can-skip-repeated-embedding-work-safely
+    """
     from fitcv.embeddings import embed_and_store_jobs
 
     client = mock_bigquery_client.return_value

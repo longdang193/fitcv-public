@@ -424,3 +424,16 @@ def test_run_vector_search_prefers_nested_pipeline_top_n_over_legacy_flat_key() 
     rendered_query = client.query.call_args.args[0]
     assert "top_k => 7" in rendered_query
     assert "top_k => 99" not in rendered_query
+"""
+@meta
+type: test
+scope: unit
+domain: shortlist
+covers:
+  - vector search behavior
+excludes:
+  - external vector services
+tags:
+  - fast
+  - ci-safe
+"""

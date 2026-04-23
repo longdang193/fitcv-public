@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: admin_ui
+covers:
+  - BigQuery-backed control-plane store behavior
+excludes:
+  - live BigQuery access
+tags:
+  - fast
+  - ci-safe
+"""
+
 from unittest.mock import MagicMock
 from fitcv_cp.bq_store import insert_run, update_run_status, append_event, get_run, list_runs, get_events, list_cvs_for_run, get_cv_markdown, list_run_structured_jobs, list_filter_results_for_run, update_run_results_export, update_run_cv_generation_debug, update_run_stage_transition_artifacts, update_run_settings_used, update_run_checkpoint, update_run_mapping_suggestions, update_run_effective_settings
 from fitcv_cp.models import PipelineRun, RunEvent, RunStatus
@@ -15,6 +29,7 @@ def _make_run() -> PipelineRun:
 
 
 def test_insert_run_calls_bq():
+    """@proves admin_control_plane_core.pipeline-runs-bigquery-table"""
     bq = MagicMock()
     insert_run(_make_run(), bq, project="p", dataset="d")
     bq.query.assert_called_once()
@@ -49,6 +64,9 @@ def test_update_run_status_retries_on_pipeline_runs_concurrent_update(monkeypatc
 
 
 def test_append_event_calls_bq():
+    """@proves admin_control_plane_core.pipeline-run-events-bigquery-table
+    @proves run_lifecycle_controls.full-audit-trail-in-pipeline-run-events
+    """
     bq = MagicMock()
     ev = RunEvent(run_id="rid", event_id=str(uuid.uuid4()), stage="ingest",
                   level="info", message="done", created_at=datetime.datetime.now(datetime.timezone.utc))
@@ -63,6 +81,9 @@ def test_get_run_returns_none_when_not_found():
 
 
 def test_list_runs_returns_list():
+    """@proves trigger_run_management.runs-list-management
+    @proves admin_control_plane_core.pipeline-runs-bigquery-table
+    """
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     assert isinstance(list_runs(bq, project="p", dataset="d"), list)
@@ -222,6 +243,7 @@ def test_list_run_structured_jobs_queries_correct_table():
 
 
 def test_list_run_structured_jobs_parses_canonical_json_companions():
+    """@proves inspection_debugging.enriched-job-debug-export"""
     bq = MagicMock()
 
     class FakeRow:
@@ -258,6 +280,7 @@ def test_list_run_structured_jobs_parses_canonical_json_companions():
 
 
 def test_list_filter_results_for_run_parses_marks_json() -> None:
+    """@proves inspection_debugging.rule-filter-diagnostics"""
     bq = MagicMock()
 
     class FakeRow:
@@ -334,6 +357,7 @@ def test_list_filter_results_for_run_falls_back_when_marks_json_missing() -> Non
 
 
 def test_list_run_structured_jobs_preserves_reuse_provenance_fields() -> None:
+    """@proves pipeline_performance.operator-facing-enriched-job-exports-now-keep-canonical-semantic-fields-and-fingerprint-reuse-provenance-while-omitting-retired-raw-duplicate-classification-baggage"""
     bq = MagicMock()
 
     class FakeRow:
@@ -358,7 +382,10 @@ def test_list_run_structured_jobs_preserves_reuse_provenance_fields() -> None:
 # ── Task 1: run-scoped input metadata fields ──────────────────────────────────
 
 def test_insert_run_includes_input_metadata_params() -> None:
-    """insert_run sends all 4 new input metadata fields as query parameters."""
+    """@proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    insert_run sends all 4 new input metadata fields as query parameters.
+    """
     bq = MagicMock()
     run = _make_run()
     run.jobs_input_source = "paste"
@@ -398,7 +425,10 @@ def test_insert_run_includes_manual_checkpoint_params() -> None:
 
 
 def test_insert_run_input_metadata_none_values_are_included() -> None:
-    """insert_run includes None input metadata params (not silently omitted)."""
+    """@proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    insert_run includes None input metadata params (not silently omitted).
+    """
     bq = MagicMock()
     run = _make_run()  # all 4 new fields default to None
     insert_run(run, bq, project="p", dataset="d")
@@ -413,7 +443,10 @@ def test_insert_run_input_metadata_none_values_are_included() -> None:
 
 
 def test_row_to_run_maps_input_metadata_fields() -> None:
-    """_row_to_run correctly maps all 4 new fields from a BQ row."""
+    """@proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    _row_to_run correctly maps all 4 new fields from a BQ row.
+    """
     from fitcv_cp.bq_store import _row_to_run
     import datetime
     row = {
@@ -463,7 +496,10 @@ def test_row_to_run_maps_manual_checkpoint_fields() -> None:
 
 
 def test_row_to_run_handles_missing_input_metadata_fields() -> None:
-    """_row_to_run returns None for new fields absent from old BQ rows."""
+    """@proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    _row_to_run returns None for new fields absent from old BQ rows.
+    """
     from fitcv_cp.bq_store import _row_to_run
     import datetime
     row = {
@@ -548,7 +584,10 @@ def test_update_run_cv_generation_debug_updates_only_debug_snapshot_field() -> N
 
 
 def test_update_run_stage_transition_artifacts_updates_only_stage_artifacts_field() -> None:
-    """Dedicated helper updates stage_transition_artifacts_json without reusing other snapshot fields."""
+    """@proves inspection_debugging.stage-transition-diagnostics
+
+    Dedicated helper updates stage_transition_artifacts_json without reusing other snapshot fields.
+    """
     bq = MagicMock()
     update_run_stage_transition_artifacts(
         "rid",
@@ -569,7 +608,10 @@ def test_update_run_stage_transition_artifacts_updates_only_stage_artifacts_fiel
 
 
 def test_update_run_settings_used_updates_only_settings_snapshot_field() -> None:
-    """Dedicated helper updates settings_used_json without touching other snapshot fields."""
+    """@proves inspection_debugging.settings-used-export
+
+    Dedicated helper updates settings_used_json without touching other snapshot fields.
+    """
     bq = MagicMock()
     update_run_settings_used(
         "rid",
@@ -611,6 +653,7 @@ def test_update_run_mapping_suggestions_updates_only_mapping_snapshot_field() ->
 
 
 def test_update_run_effective_settings_updates_only_effective_settings_field() -> None:
+    """@proves settings_system.trigger-time-effective-settings-snapshot"""
     bq = MagicMock()
     update_run_effective_settings(
         "run-123",
@@ -633,6 +676,7 @@ def test_update_run_effective_settings_updates_only_effective_settings_field() -
 # ── Lifecycle fields ────────────────────────────────────────────────────────
 
 def test_row_to_run_maps_lifecycle_fields():
+    """@proves admin_control_plane_core.pipeline-runs-bigquery-table"""
     from fitcv_cp.bq_store import _row_to_run
     row = {
         "run_id": "r1",
@@ -666,6 +710,9 @@ def test_insert_run_includes_queue_job_id():
 
 
 def test_update_run_results_export_uses_parameterized_query() -> None:
+    """@proves trigger_run_management.run-results-export
+    @proves inspection_debugging.results-ledger-inspection
+    """
     bq = MagicMock()
     update_run_results_export("rid", '{"results":[]}', bq, project="p", dataset="d")
     bq.query.assert_called_once()
@@ -675,6 +722,9 @@ def test_update_run_results_export_uses_parameterized_query() -> None:
 
 
 def test_row_to_run_maps_results_export_json() -> None:
+    """@proves trigger_run_management.run-results-export
+    @proves inspection_debugging.results-ledger-inspection
+    """
     from fitcv_cp.bq_store import _row_to_run
 
     row = {
@@ -730,6 +780,7 @@ def test_update_run_checkpoint_uses_parameterized_query() -> None:
 
 
 def test_request_run_cancel_sets_cancel_fields():
+    """@proves run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs"""
     from fitcv_cp.bq_store import request_run_cancel
     bq = MagicMock()
     request_run_cancel("rid", "admin", "cancelling", bq, project="p", dataset="d")
@@ -739,6 +790,7 @@ def test_request_run_cancel_sets_cancel_fields():
 
 
 def test_archive_run_uses_parameterized_query():
+    """@proves run_lifecycle_controls.archive-and-unarchive-terminal-runs"""
     from fitcv_cp.bq_store import archive_run
     bq = MagicMock()
     archive_run("rid", "admin", bq, project="p", dataset="d")
@@ -748,6 +800,7 @@ def test_archive_run_uses_parameterized_query():
 
 
 def test_unarchive_run_uses_parameterized_query():
+    """@proves run_lifecycle_controls.archive-and-unarchive-terminal-runs"""
     from fitcv_cp.bq_store import unarchive_run
     bq = MagicMock()
     unarchive_run("rid", bq, project="p", dataset="d")
@@ -759,6 +812,7 @@ def test_unarchive_run_uses_parameterized_query():
 # ──  list_runs archive filter ───────────────────────────────────────────────
 
 def test_list_runs_active_filters_archived():
+    """@proves admin_control_plane_core.pipeline-runs-bigquery-table"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     list_runs(bq, project="p", dataset="d", include_archived=False)
@@ -767,6 +821,7 @@ def test_list_runs_active_filters_archived():
 
 
 def test_list_runs_archived_only():
+    """@proves admin_control_plane_core.pipeline-runs-bigquery-table"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     list_runs(bq, project="p", dataset="d", archived_only=True)
@@ -775,6 +830,7 @@ def test_list_runs_archived_only():
 
 
 def test_list_runs_include_all():
+    """@proves admin_control_plane_core.pipeline-runs-bigquery-table"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     list_runs(bq, project="p", dataset="d", include_archived=True)

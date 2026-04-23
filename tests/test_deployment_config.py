@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: deployment
+covers:
+  - deployment configuration behavior
+excludes:
+  - live deployment provisioning
+tags:
+  - fast
+  - ci-safe
+"""
+
 from pathlib import Path
 
 import yaml
@@ -22,3 +36,16 @@ def test_docker_compose_mounts_runtime_config_files() -> None:
 def test_dockerfile_copies_templates_directory() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "COPY templates/ ./templates/" in dockerfile
+"""
+@meta
+type: test
+scope: unit
+domain: deployment
+covers:
+  - deployment configuration behavior
+excludes:
+  - live deployment provisioning
+tags:
+  - fast
+  - ci-safe
+"""

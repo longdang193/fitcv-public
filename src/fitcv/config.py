@@ -1,33 +1,29 @@
-"""Load project configuration from .env.yaml and config/**/*.yaml policy files.
-
-Load order
-----------
-1. .env.yaml                           — infrastructure secrets (GCP project, SA key, etc.)
-2. config/taxonomy/taxonomy.yaml       — seniority ladder, allowed enum values
-3. config/taxonomy/skill_synonyms.yaml — skill alias → canonical mapping
-4. config/runtime/pipeline.yaml        — model names, top_n limits, batch/sleep settings
-5. config/policy/ranking.yaml          — ranking weights, fit-label thresholds, missing defaults
-6. config/policy/cv_analysis.yaml      — cv_analysis semantic alignment and evidence-selection policy
-7. config/runtime/prompts.yaml         — stage prompt ids
-8. config/policy/cv.yaml               — CV generation and validation defaults (nested preset-based)
-
-Later files do NOT override .env.yaml keys. They only add new top-level keys.
-Missing config/**/*.yaml files → warning logged, not a crash (safe degradation).
-
-CV config contract (preset-based, v2)
--------------------------------------
-config["cv"] is the canonical nested object:
-  - cv.preset             : preset name string
-  - cv.generation.model    : LLM model name
-  - cv.generation.prompt_version : version tag
-  - cv.composition.<section>.enabled : bool
-  - cv.validation.max_pages : int
-
-Backward-compatibility projection (TEMPORARY — remove after plan 2 lands)
-  config["cv_generation_model"]   → cv.generation.model
-  config["prompt_version"]        → cv.generation.prompt_version
-  config["cv_max_pages"]           → cv.validation.max_pages
-  config["required_cv_sections"]   → list derived from composition (enabled:true)
+"""
+@meta
+name: fitcv_config
+type: utility
+domain: pipeline_config
+responsibility:
+  - Load infrastructure, taxonomy, runtime, policy, prompt, and CV config files.
+  - Hydrate canonical nested settings plus temporary compatibility projections.
+inputs:
+  - .env.yaml or config/env.yaml
+  - config/**/*.yaml policy files
+outputs:
+  - merged runtime configuration dictionaries
+capabilities:
+  - settings_system.baseline-default-hydration
+  - settings_system.cv-analysis-alignment-settings
+  - settings_system.cv-generation-settings
+  - settings_system.cv-composition-visibility-settings
+  - settings_system.warning-only-cv-max-pages-validation-setting
+  - pipeline_performance.enrich-extraction-prompt-text-now-comes-from-a-centralized-prompt-registry-with-config-selected-prompt-ids
+  - cv_system.config-owned-generation-contract
+tags:
+  - config
+  - settings
+lifecycle:
+  status: active
 """
 
 import logging

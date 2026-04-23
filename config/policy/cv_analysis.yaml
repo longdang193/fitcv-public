@@ -1,3 +1,15 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_analysis
+# capabilities:
+#   - cv_system.analysis-evidence-selection
+#   - cv_system.fit-gate-resolution
+# role: config
+# canonical: true
+
 cv_analysis:
   semantic_alignment:
     enabled: false

@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: run_orchestration
+covers:
+  - worker job behavior in the control plane
+excludes:
+  - live queue workers
+tags:
+  - fast
+  - ci-safe
+"""
+
 from unittest.mock import MagicMock, patch
 import datetime
 import json
@@ -20,6 +34,10 @@ def test_worker_marks_succeeded_on_success():
 
 
 def test_worker_persists_results_export_json_on_success():
+    """@proves pipeline_performance.results-json-now-keeps-only-compact-job-ledger-fields-instead-of-repeating-full-job-snapshots-heavy-score-explanation-internals-and-full-cv-bodies-already-represented-elsewhere
+    @proves trigger_run_management.run-results-export
+    @proves inspection_debugging.results-ledger-inspection
+    """
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock(effective_settings_json=None)
@@ -60,6 +78,7 @@ def test_worker_persists_results_export_json_on_success():
 
 
 def test_worker_persists_compact_cv_fields_in_results_export_json():
+    """@proves trigger_run_management.run-owned-artifact-exports"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock(effective_settings_json=None)
@@ -151,6 +170,7 @@ def test_worker_excludes_stage_quality_metrics_from_results_export_json():
 
 
 def test_worker_moves_late_stage_reuse_snapshots_under_diagnostic_support():
+    """@proves inspection_debugging.reuse-diagnostics"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock(effective_settings_json=None)
@@ -369,6 +389,9 @@ def test_worker_persists_cv_generation_debug_coverage_accounting():
 
 
 def test_worker_persists_cv_generation_debug_coverage_for_reranker_blocked_rows():
+    """@proves trigger_run_management.reranker-fit-authority
+    @proves inspection_debugging.quality-metrics-diagnostics
+    """
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock(effective_settings_json=None)
@@ -434,6 +457,10 @@ def test_worker_persists_cv_generation_debug_coverage_for_reranker_blocked_rows(
 
 
 def test_worker_persists_stage_transition_artifacts_json_on_success():
+    """@proves trigger_run_management.shared-stage-progress
+    @proves inspection_debugging.stage-transition-diagnostics
+    @proves pipeline_performance.large-runs-avoid-some-row-scaled-layer-4-event-noise-by-relying-more-on-aggregate-stage-summaries-plus-stage-owned-artifacts
+    """
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock(effective_settings_json=None)
@@ -490,6 +517,10 @@ def test_worker_persists_stage_transition_artifacts_json_on_success():
 
 
 def test_worker_persists_settings_used_json_on_success():
+    """@proves settings_system.settings-used-exports
+    @proves inspection_debugging.settings-used-export
+    @proves inspection_debugging.prompt-provenance-diagnostics
+    """
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock()
@@ -535,6 +566,7 @@ def test_worker_persists_settings_used_json_on_success():
 
 
 def test_worker_settings_used_export_canonicalizes_legacy_compatibility_keys():
+    """@proves settings_system.settings-used-exports"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock()
@@ -922,6 +954,7 @@ def test_worker_manual_staged_normalize_checkpoint_does_not_persist_mapping_sugg
 
 
 def test_worker_run_all_persists_stage_progress_without_checkpoint_state() -> None:
+    """@proves trigger_run_management.shared-stage-progress"""
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
     mock_run = MagicMock()
@@ -1084,7 +1117,10 @@ def test_worker_manual_resume_uses_uploaded_run_scoped_synonym_overlay() -> None
 # ── cooperative cancellation ─────────────────────────────────────────────────
 
 def test_worker_marks_cancelled_when_cancel_already_requested():
-    """Worker should check cancel_requested_at after RUNNING update and exit early."""
+    """@proves run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs
+
+    Worker should check cancel_requested_at after RUNNING update and exit early.
+    """
     import datetime
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
@@ -1119,7 +1155,11 @@ def test_worker_marks_cancelled_when_cancel_already_requested():
 
 
 def test_worker_cancellation_event_appended_on_early_exit():
-    """Worker must append a run_cancelled event when exiting early due to cancel."""
+    """@proves run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs
+    @proves run_lifecycle_controls.full-audit-trail-in-pipeline-run-events
+
+    Worker must append a run_cancelled event when exiting early due to cancel.
+    """
     import datetime
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])
@@ -1142,7 +1182,10 @@ def test_worker_cancellation_event_appended_on_early_exit():
 
 
 def test_worker_pipeline_cancelled_exception_marks_cancelled():
-    """PipelineCancelled raised during execution should produce cancelled status."""
+    """@proves run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs
+
+    PipelineCancelled raised during execution should produce cancelled status.
+    """
     from fitcv.pipeline import PipelineCancelled
     bq = MagicMock()
     bq.query.return_value.result.return_value = iter([])

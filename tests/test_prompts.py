@@ -125,3 +125,16 @@ def test_render_prompt_raises_for_missing_required_variables() -> None:
 def test_get_prompt_definition_rejects_unknown_prompt_id() -> None:
     with pytest.raises(KeyError):
         get_prompt_definition("enrich.extraction.v999")
+"""
+@meta
+type: test
+scope: unit
+domain: prompts
+covers:
+  - prompt registry and prompt-loading behavior
+excludes:
+  - live model inference
+tags:
+  - fast
+  - ci-safe
+"""

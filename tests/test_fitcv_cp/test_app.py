@@ -1,3 +1,17 @@
+"""
+@meta
+type: test
+scope: unit
+domain: admin_ui
+covers:
+  - FitCV control-plane app behavior
+excludes:
+  - live HTTP deployment
+tags:
+  - fast
+  - ci-safe
+"""
+
 from unittest.mock import MagicMock, patch
 import io
 import json
@@ -13,7 +27,10 @@ def _app():
 
 
 def test_post_runs_inserts_before_enqueue():
-    """BQ insert must happen before enqueue to ensure DB is source of truth."""
+    """@proves admin_control_plane_core.insert-before-enqueue-invariant
+
+    BQ insert must happen before enqueue to ensure DB is source of truth.
+    """
     call_order = []
 
     def fake_insert(*args, **kwargs):
@@ -43,6 +60,7 @@ def test_post_runs_rejects_empty_jobs_path():
 
 
 def test_post_runs_persists_manual_staged_mode() -> None:
+    """@proves trigger_run_management.execution-mode-selection"""
     captured = {}
 
     def _capture_insert(run, *args, **kwargs):
@@ -68,6 +86,7 @@ def test_post_runs_persists_manual_staged_mode() -> None:
 
 
 def test_get_runs_returns_list():
+    """@proves trigger_run_management.runs-list-management"""
     with patch("fitcv_cp.app.list_runs", return_value=[]):
         resp = TestClient(_app()).get("/runs")
     assert resp.status_code == 200
@@ -133,10 +152,14 @@ def test_post_settings_key_rejects_unknown_key():
 
 
 def test_post_runs_with_config_overrides():
-    """POST /runs with per-run overrides snapshot effective settings."""
+    """@proves settings_system.per-run-overrides
+
+    POST /runs with per-run overrides snapshot effective settings.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}), \
          patch("fitcv_cp.app.insert_run"), \
-         patch("fitcv_cp.app.enqueue_run", return_value="run-123"), \
+         patch("fitcv_cp.app.enqueue_run_with_job_id", return_value=("run-123", "rq-job-abc")), \
+         patch("fitcv_cp.app.update_run_queue_job_id"), \
          patch("fitcv_cp.app.load_config", return_value={
              "gcp_project": "p", "bigquery_dataset": "d", "service_account_key": "k",
              "pipeline": {"final_top_n": 10}
@@ -150,6 +173,7 @@ def test_post_runs_with_config_overrides():
 
 
 def test_post_runs_rejects_invalid_config_overrides():
+    """@proves settings_system.per-run-overrides"""
     resp = TestClient(_app()).post("/runs", json={
         "jobs_path": "data/sample_jobs.json",
         "config_overrides": {"pipeline.final_top_n": 0},  # violates >= 1
@@ -158,7 +182,7 @@ def test_post_runs_rejects_invalid_config_overrides():
 
 
 def test_admin_upload_trigger_success(tmp_path):
-    """Test POST /admin/upload-trigger saves file and calls trigger logic."""
+    """@proves trigger_run_management.job-input-modes"""
     with patch("fitcv_cp.app.load_active_settings", return_value={}), \
          patch("fitcv_cp.app.insert_run"), \
          patch("fitcv_cp.app.enqueue_run_with_job_id", return_value=("run-123", "rq-job-abc")), \
@@ -184,6 +208,7 @@ def test_admin_upload_trigger_success(tmp_path):
 
 
 def test_admin_upload_trigger_persists_run_scoped_synonym_overlay() -> None:
+    """@proves trigger_run_management.synonym-overlay-at-trigger"""
     captured = {}
 
     def _capture_insert(run, *args, **kwargs):
@@ -228,6 +253,7 @@ def test_admin_upload_trigger_persists_run_scoped_synonym_overlay() -> None:
 
 
 def test_admin_continue_run_requeues_manual_paused_run() -> None:
+    """@proves trigger_run_management.manual-checkpoints-and-continue"""
     paused_run = MagicMock()
     paused_run.run_id = "run-123"
     paused_run.run_mode = "manual_staged"
@@ -254,6 +280,9 @@ def test_admin_continue_run_requeues_manual_paused_run() -> None:
 
 
 def test_admin_run_detail_shows_synonym_overlay_card_for_manual_enrich_checkpoint() -> None:
+    """@proves inspection_debugging.synonym-overlay-inspection
+    @proves trigger_run_management.synonym-overlay-inspection
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -420,6 +449,7 @@ def test_admin_run_detail_shows_default_synonym_yaml_snapshot(tmp_path) -> None:
 
 
 def test_admin_upload_synonym_overlay_updates_run_effective_settings() -> None:
+    """@proves trigger_run_management.synonym-overlay-replacement"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -531,7 +561,12 @@ def _upload_patches():
 
 
 def test_admin_upload_trigger_merges_multiple_job_files():
-    """Two valid JSON files → 201, merged snapshot contains both jobs."""
+    """@proves multi_file_job_input.multiple-file-inputs-in-trigger-form
+    @proves multi_file_job_input.canonical-merge-preserving-order
+    @proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    Two valid JSON files → 201, merged snapshot contains both jobs.
+    """
     file1 = b'[{"title": "Engineer", "job_url": "http://a.com"}]'
     file2 = b'[{"title": "Analyst", "job_url": "http://b.com"}]'
     captured = {}
@@ -560,7 +595,10 @@ def test_admin_upload_trigger_merges_multiple_job_files():
 
 
 def test_admin_upload_trigger_multi_file_preserves_order():
-    """Merged snapshot preserves file order (file1 rows first, then file2)."""
+    """@proves multi_file_job_input.canonical-merge-preserving-order
+
+    Merged snapshot preserves file order (file1 rows first, then file2).
+    """
     file1 = b'[{"job_url": "http://first.com"}]'
     file2 = b'[{"job_url": "http://second.com"}]'
     captured = {}
@@ -586,7 +624,11 @@ def test_admin_upload_trigger_multi_file_preserves_order():
 
 
 def test_admin_upload_trigger_one_invalid_file_rejects_entire_request():
-    """One file with invalid JSON → 422; run must NOT be created."""
+    """@proves multi_file_job_input.per-file-server-side-validation
+    @proves multi_file_job_input.all-or-nothing-rejection-on-validation-failure
+
+    One file with invalid JSON → 422; run must NOT be created.
+    """
     file1 = b'[{"job_url": "http://good.com"}]'
     file2 = b'THIS IS NOT JSON'
     p = _upload_patches()
@@ -605,7 +647,11 @@ def test_admin_upload_trigger_one_invalid_file_rejects_entire_request():
 
 
 def test_admin_upload_trigger_all_empty_arrays_rejected():
-    """Two files both containing empty arrays → 422 (total merged is empty)."""
+    """@proves multi_file_job_input.per-file-server-side-validation
+    @proves multi_file_job_input.all-or-nothing-rejection-on-validation-failure
+
+    Two files both containing empty arrays → 422 (total merged is empty).
+    """
     file1 = b'[]'
     file2 = b'[]'
     p = _upload_patches()
@@ -622,7 +668,10 @@ def test_admin_upload_trigger_all_empty_arrays_rejected():
 
 
 def test_admin_upload_trigger_upload_mode_no_files_rejected():
-    """Upload mode with neither jobs_file nor jobs_files → 422."""
+    """@proves multi_file_job_input.multiple-file-inputs-in-trigger-form
+
+    Upload mode with neither jobs_file nor jobs_files → 422.
+    """
     p = _upload_patches()
     with p[0], p[1], p[2], p[3], p[4]:
         resp = TestClient(_app()).post(
@@ -633,7 +682,11 @@ def test_admin_upload_trigger_upload_mode_no_files_rejected():
 
 
 def test_admin_upload_trigger_multi_file_non_array_rejected():
-    """A file whose top-level is not a JSON array → 422."""
+    """@proves multi_file_job_input.per-file-server-side-validation
+    @proves multi_file_job_input.all-or-nothing-rejection-on-validation-failure
+
+    A file whose top-level is not a JSON array → 422.
+    """
     file1 = b'{"title": "not an array"}'
     p = _upload_patches()
     with p[0], p[1], p[2], p[3], p[4]:
@@ -708,6 +761,9 @@ def test_admin_run_detail_success_banner():
 
 
 def test_admin_run_detail_shows_exports_card_with_results_link():
+    """@proves trigger_run_management.run-owned-artifact-exports
+    @proves inspection_debugging.run-owned-artifact-exports
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -791,6 +847,7 @@ def test_admin_run_detail_shows_bundle_zip_export_link():
 
 
 def test_admin_run_detail_shows_download_settings_used_json_button():
+    """@proves inspection_debugging.settings-used-export"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -861,6 +918,9 @@ def test_admin_run_detail_hides_mapping_suggestions_export_before_enrich_stage()
 
 
 def test_run_detail_timeline_shows_stage_download_for_mapped_event():
+    """@proves inspection_debugging.stage-artifact-downloads
+    @proves trigger_run_management.stage-artifact-downloads
+    """
     from fitcv_cp.models import PipelineRun, RunStatus, RunEvent
     from datetime import datetime, timezone
 
@@ -1108,6 +1168,9 @@ def test_download_cv_endpoint_404():
 
 
 def test_download_results_json_endpoint_200():
+    """@proves trigger_run_management.run-results-export
+    @proves inspection_debugging.results-ledger-inspection
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1168,6 +1231,7 @@ def test_download_results_json_endpoint_404_if_snapshot_missing():
 
 
 def test_download_stage_transition_artifacts_json_endpoint_200():
+    """@proves inspection_debugging.stage-transition-diagnostics"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1228,6 +1292,7 @@ def test_download_stage_transition_artifacts_json_endpoint_404_if_snapshot_missi
 
 
 def test_download_mapping_suggestions_json_endpoint_200() -> None:
+    """@proves pipeline_performance.enrich-stage-mapping-suggestion-capture-for-review-debug-surfaces"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1311,6 +1376,7 @@ def test_download_aggregate_mapping_suggestions_json_endpoint_200() -> None:
 
 
 def test_download_settings_used_json_endpoint_200():
+    """@proves inspection_debugging.settings-used-export"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1455,6 +1521,9 @@ def test_download_cv_debug_json_endpoint_404_if_snapshot_missing():
 
 
 def test_download_run_artifact_bundle_zip_endpoint_for_partial_run() -> None:
+    """@proves trigger_run_management.run-owned-artifact-exports
+    @proves inspection_debugging.run-owned-artifact-exports
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1508,6 +1577,9 @@ def test_download_run_artifact_bundle_zip_endpoint_for_partial_run() -> None:
 
 
 def test_download_run_artifact_bundle_zip_endpoint_for_succeeded_run() -> None:
+    """@proves trigger_run_management.shortlist-debug-exports
+    @proves inspection_debugging.shortlist-diagnostics
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1596,7 +1668,7 @@ def test_download_run_artifact_bundle_zip_endpoint_404_if_no_artifacts_available
 # ── enriched jobs on run detail ──────────────────────────────────────────────
 
 def test_admin_run_detail_shows_enriched_jobs_section():
-    """Run detail page renders Enriched Jobs section when rows are returned."""
+    """@proves inspection_debugging.enriched-job-debug-export"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1703,7 +1775,7 @@ def _run_detail_base_patches(run_obj):
 
 
 def test_run_detail_default_tab_is_enriched():
-    """Enriched Jobs pane must be active by default on page load."""
+    """@proves inspection_debugging.run-detail-inspection-tabs"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1827,6 +1899,9 @@ def test_run_detail_event_timeline_appears_after_tab_panes():
 
 
 def test_run_detail_renders_run_health_when_quality_metrics_available():
+    """@proves trigger_run_management.run-health-surface
+    @proves inspection_debugging.quality-metrics-diagnostics
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1912,6 +1987,9 @@ def test_run_detail_hides_run_health_when_quality_metrics_absent():
 
 
 def test_run_detail_renders_run_health_when_late_stage_reuse_metrics_available():
+    """@proves inspection_debugging.cv-analysis-diagnostics
+    @proves inspection_debugging.reuse-diagnostics
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -1967,6 +2045,7 @@ def test_run_detail_renders_run_health_when_late_stage_reuse_metrics_available()
 
 
 def test_run_detail_run_health_marks_unreached_metrics_as_pending_and_zero_denominator_reached_metrics_as_na():
+    """@proves inspection_debugging.cv-analysis-diagnostics"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -2021,6 +2100,7 @@ def test_run_detail_run_health_marks_unreached_metrics_as_pending_and_zero_denom
 
 
 def test_run_detail_hides_late_stage_reuse_metrics_when_absent():
+    """@proves inspection_debugging.reuse-diagnostics"""
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -2041,6 +2121,102 @@ def test_run_detail_hides_late_stage_reuse_metrics_when_absent():
     assert resp.status_code == 200
     assert "Ranking AI-Score Reuse Rate" not in resp.text
     assert "CV Analysis Reuse Rate" not in resp.text
+
+
+def test_run_detail_renders_cv_generation_quality_metrics():
+    """@proves inspection_debugging.cv-generation-diagnostics"""
+    from fitcv_cp.models import PipelineRun, RunStatus
+    from datetime import datetime, timezone
+
+    run = PipelineRun(
+        run_id="cv-generation-metrics-1",
+        status=RunStatus.SUCCEEDED,
+        jobs_path="data/sample_jobs.json",
+        triggered_by="admin",
+        trigger_source="web",
+        config_path=".env.yaml",
+        created_at=datetime.now(timezone.utc),
+        stage_transition_artifacts_json=json.dumps(
+            {
+                "artifacts": {
+                    "stages": {
+                        "cv_generation": {
+                            "decision_summary": {
+                                "quality_metrics": {
+                                    "accepted_rate": 0.5,
+                                    "accepted": 2,
+                                    "validation_fail_rate": 0.25,
+                                    "validation_failed": 1,
+                                    "generation_failed_rate": 0.25,
+                                    "generation_failed": 1,
+                                    "persistence_failed_rate": 0.0,
+                                    "persistence_failed": 0,
+                                    "total_attempted": 4,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ),
+    )
+    p = _run_detail_base_patches(run)
+    with p[0], p[1], p[2], p[3], p[4]:
+        resp = TestClient(_app()).get("/admin/runs/cv-generation-metrics-1")
+
+    assert resp.status_code == 200
+    html = resp.text
+    assert "CV Generation Accepted Rate" in html
+    assert "CV Generation Validation-Fail Rate" in html
+    assert "CV Generation Failure Rate" in html
+    assert "CV Generation Persistence-Fail Rate" in html
+    assert "50%" in html
+    assert "25%" in html
+    assert "2 / 4" in html
+    assert "0 / 4" in html
+
+
+def test_run_detail_hides_cv_generation_quality_metrics_when_absent():
+    """@proves inspection_debugging.cv-generation-diagnostics"""
+    from fitcv_cp.models import PipelineRun, RunStatus
+    from datetime import datetime, timezone
+
+    run = PipelineRun(
+        run_id="cv-generation-metrics-2",
+        status=RunStatus.SUCCEEDED,
+        jobs_path="data/sample_jobs.json",
+        triggered_by="admin",
+        trigger_source="web",
+        config_path=".env.yaml",
+        created_at=datetime.now(timezone.utc),
+        stage_transition_artifacts_json=json.dumps(
+            {
+                "artifacts": {
+                    "stages": {
+                        "cv_analysis": {
+                            "decision_summary": {
+                                "quality_metrics": {
+                                    "skip_rate": 0.5,
+                                    "skipped_fit_gate": 1,
+                                    "total_processed": 2,
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ),
+    )
+    p = _run_detail_base_patches(run)
+    with p[0], p[1], p[2], p[3], p[4]:
+        resp = TestClient(_app()).get("/admin/runs/cv-generation-metrics-2")
+
+    assert resp.status_code == 200
+    assert "CV Analysis Skip Rate" in resp.text
+    assert "CV Generation Accepted Rate" not in resp.text
+    assert "CV Generation Validation-Fail Rate" not in resp.text
+    assert "CV Generation Failure Rate" not in resp.text
+    assert "CV Generation Persistence-Fail Rate" not in resp.text
 
 
 # ── grouped settings endpoint ─────────────────────────────────────────────────
@@ -2098,7 +2274,10 @@ def test_grouped_save_weights_error_preserved_in_response():
 
 
 def test_grouped_save_fit_label_thresholds_valid():
-    """strong > stretch → 303 redirect; 2 keys saved."""
+    """@proves settings_system.preference-fit-calibration
+
+    strong > stretch -> 303 redirect; 2 keys saved.
+    """
     with patch("fitcv_cp.app.save_settings_group") as mock_group_save, \
          patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app(), follow_redirects=False).post(
@@ -2113,7 +2292,10 @@ def test_grouped_save_fit_label_thresholds_valid():
 
 
 def test_grouped_save_fit_label_thresholds_invalid_order():
-    """stretch > strong → 422; no write."""
+    """@proves settings_system.grouped-form-validation
+
+    stretch > strong -> 422; no write.
+    """
     with patch("fitcv_cp.app.save_settings_group") as mock_group_save, \
          patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).post(
@@ -2338,6 +2520,9 @@ def _make_run_mock(status="queued", archived_at=None, queue_job_id="rq-job-1"):
 
 
 def test_admin_stop_queued_run_returns_json():
+    """@proves admin_control_plane_core.fastapi-web-server
+    @proves run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq
+    """
     run = _make_run_mock(status="queued")
     with patch("fitcv_cp.app.get_run", return_value=run), \
          patch("fitcv_cp.app.cancel_queued_run", return_value=True), \
@@ -2362,6 +2547,7 @@ def test_admin_stop_queued_run_without_worker_claim_marks_cancelled() -> None:
 
 
 def test_admin_stop_claimed_run_falls_back_to_cancelling() -> None:
+    """@proves run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs"""
     import datetime
 
     run = _make_run_mock(status="queued")
@@ -2384,6 +2570,7 @@ def test_admin_stop_succeeded_run_returns_409():
 
 
 def test_admin_stop_awaiting_continue_run_returns_cancelled() -> None:
+    """@proves run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue"""
     run = _make_run_mock(status="awaiting_continue")
     with patch("fitcv_cp.app.get_run", return_value=run), \
          patch("fitcv_cp.app.update_run_status") as mock_update_status, \
@@ -2402,6 +2589,7 @@ def test_admin_stop_unknown_run_returns_404():
 
 
 def test_admin_repair_cancellation_stale_run_returns_cancelled() -> None:
+    """@proves run_lifecycle_controls.stale-cancellation-repair-endpoint"""
     run = _make_run_mock(status="cancelling")
     run.started_at = None
     run.finished_at = None
@@ -2415,6 +2603,7 @@ def test_admin_repair_cancellation_stale_run_returns_cancelled() -> None:
 
 
 def test_admin_repair_cancellation_started_stale_run_returns_cancelled() -> None:
+    """@proves run_lifecycle_controls.stale-cancellation-repair-endpoint"""
     import datetime
 
     run = _make_run_mock(status="cancelling")
@@ -2432,6 +2621,7 @@ def test_admin_repair_cancellation_started_stale_run_returns_cancelled() -> None
 
 
 def test_admin_repair_cancellation_running_run_returns_409() -> None:
+    """@proves run_lifecycle_controls.stale-cancellation-repair-endpoint"""
     run = _make_run_mock(status="running")
     with patch("fitcv_cp.app.get_run", return_value=run):
         resp = TestClient(_app()).post("/admin/runs/run-lifecycle-1/repair-cancellation")
@@ -2439,6 +2629,7 @@ def test_admin_repair_cancellation_running_run_returns_409() -> None:
 
 
 def test_admin_archive_succeeded_run_returns_json():
+    """@proves run_lifecycle_controls.archive-and-unarchive-terminal-runs"""
     run = _make_run_mock(status="succeeded")
     with patch("fitcv_cp.app.get_run", return_value=run), \
          patch("fitcv_cp.app.archive_run"), \
@@ -2455,6 +2646,7 @@ def test_admin_archive_running_run_returns_409():
 
 
 def test_admin_unarchive_archived_run_returns_json():
+    """@proves run_lifecycle_controls.archive-and-unarchive-terminal-runs"""
     import datetime
     run = _make_run_mock(status="succeeded", archived_at=datetime.datetime.now(datetime.timezone.utc))
     with patch("fitcv_cp.app.get_run", return_value=run), \
@@ -2472,6 +2664,9 @@ def test_admin_unarchive_non_archived_run_returns_409():
 
 
 def test_admin_bulk_cancel_mixed_eligibility_returns_processed_and_skipped_summary():
+    """@proves trigger_run_management.runs-list-management
+    @proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries
+    """
     run1 = _make_full_run_mock(status="queued", run_id="run-bulk-1")
     run2 = _make_full_run_mock(status="succeeded", run_id="run-bulk-2")
 
@@ -2499,6 +2694,9 @@ def test_admin_bulk_cancel_mixed_eligibility_returns_processed_and_skipped_summa
 
 
 def test_admin_bulk_cancel_awaiting_continue_run_directly_cancels():
+    """@proves run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue
+    @proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries
+    """
     run = _make_full_run_mock(status="awaiting_continue", run_id="run-bulk-awaiting")
 
     with patch("fitcv_cp.app.get_run", return_value=run), \
@@ -2520,6 +2718,7 @@ def test_admin_bulk_cancel_awaiting_continue_run_directly_cancels():
 
 
 def test_admin_bulk_archive_terminal_runs_only():
+    """@proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries"""
     run1 = _make_full_run_mock(status="succeeded", run_id="run-archive-1")
     run2 = _make_full_run_mock(status="running", run_id="run-archive-2")
 
@@ -2544,6 +2743,7 @@ def test_admin_bulk_archive_terminal_runs_only():
 
 
 def test_admin_bulk_unarchive_archived_runs_only():
+    """@proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries"""
     import datetime
 
     run1 = _make_full_run_mock(
@@ -2574,11 +2774,13 @@ def test_admin_bulk_unarchive_archived_runs_only():
 
 
 def test_admin_bulk_lifecycle_rejects_empty_run_ids():
+    """@proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries"""
     resp = TestClient(_app()).post("/admin/runs/bulk/cancel", json={"run_ids": []})
     assert resp.status_code == 422
 
 
 def test_admin_bulk_lifecycle_rejects_unknown_run_ids():
+    """@proves run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries"""
     with patch("fitcv_cp.app.get_run", return_value=None):
         resp = TestClient(_app()).post(
             "/admin/runs/bulk/archive",
@@ -2627,6 +2829,7 @@ def _make_full_run_mock(status="queued", archived_at=None, run_id="run-ui-1"):
 
 
 def test_runs_list_shows_active_all_archived_filter_tabs():
+    """@proves admin_control_plane_core.jinja2-admin-pages"""
     with patch("fitcv_cp.app.list_runs", return_value=[]):
         resp = TestClient(_app()).get("/admin/runs")
     assert resp.status_code == 200
@@ -2659,6 +2862,9 @@ def test_runs_list_renders_bulk_selection_checkboxes():
 
 
 def test_runs_list_renders_bulk_action_bar_hooks():
+    """@proves admin_control_plane_core.jinja2-admin-pages
+    @proves ui_consistency_theming.consistent-action-hierarchy-primary-secondary-section
+    """
     run = _make_full_run_mock(status="queued", run_id="run-bulk-ui-1")
     with patch("fitcv_cp.app.list_runs", return_value=[run]):
         resp = TestClient(_app()).get("/admin/runs")
@@ -2712,6 +2918,7 @@ def test_runs_list_jobs_path_is_truncated_with_full_title():
 
 
 def test_settings_page_renders_run_lifecycle_section() -> None:
+    """@proves settings_system.run-safety-settings"""
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -2721,6 +2928,9 @@ def test_settings_page_renders_run_lifecycle_section() -> None:
 
 
 def test_admin_runs_timeouts_running_runs_to_failed() -> None:
+    """@proves run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs
+    @proves run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time
+    """
     import datetime
 
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -2742,6 +2952,9 @@ def test_admin_runs_timeouts_running_runs_to_failed() -> None:
 
 
 def test_admin_runs_timeouts_awaiting_continue_runs_to_cancelled() -> None:
+    """@proves run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs
+    @proves run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time
+    """
     import datetime
 
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -2765,6 +2978,7 @@ def test_admin_runs_timeouts_awaiting_continue_runs_to_cancelled() -> None:
 
 
 def test_run_detail_queued_shows_stop_run():
+    """@proves trigger_run_management.run-detail-actions"""
     import datetime
     run = _make_full_run_mock(status="queued")
     with patch("fitcv_cp.app.get_run", return_value=run), \
@@ -2778,6 +2992,9 @@ def test_run_detail_queued_shows_stop_run():
 
 
 def test_run_detail_awaiting_continue_shows_run_next_stage_and_stop_run():
+    """@proves inspection_debugging.run-progress-and-checkpoints
+    @proves admin_control_plane_core.jinja2-admin-pages
+    """
     run = _make_full_run_mock(status="awaiting_continue")
     run.run_mode = "manual_staged"
     run.next_stage = "ranking"
@@ -2793,6 +3010,9 @@ def test_run_detail_awaiting_continue_shows_run_next_stage_and_stop_run():
 
 
 def test_run_detail_run_all_shows_shared_progress_without_checkpoint_controls():
+    """@proves inspection_debugging.run-progress-and-checkpoints
+    @proves trigger_run_management.shared-stage-progress
+    """
     run = _make_full_run_mock(status="running")
     run.run_mode = "run_all"
     run.last_completed_stage = "enrich"
@@ -2820,6 +3040,7 @@ def test_run_detail_run_all_shows_shared_progress_without_checkpoint_controls():
 
 
 def test_run_detail_succeeded_shows_archive_run():
+    """@proves trigger_run_management.run-detail-actions"""
     run = _make_full_run_mock(status="succeeded")
     with patch("fitcv_cp.app.get_run", return_value=run), \
          patch("fitcv_cp.app.get_events", return_value=[]), \
@@ -2832,6 +3053,7 @@ def test_run_detail_succeeded_shows_archive_run():
 
 
 def test_run_detail_archived_shows_unarchive_and_badge():
+    """@proves admin_control_plane_core.jinja2-admin-pages"""
     import datetime
     run = _make_full_run_mock(status="succeeded", archived_at=datetime.datetime(2026, 3, 26, 13, 0, 0, tzinfo=datetime.timezone.utc))
     with patch("fitcv_cp.app.get_run", return_value=run), \
@@ -2846,6 +3068,9 @@ def test_run_detail_archived_shows_unarchive_and_badge():
 
 
 def test_run_detail_stale_cancelling_shows_repair_status() -> None:
+    """@proves run_lifecycle_controls.stale-cancellation-repair-endpoint
+    @proves admin_control_plane_core.jinja2-admin-pages
+    """
     run = _make_full_run_mock(status="cancelling")
     run.started_at = None
     run.finished_at = None
@@ -2860,6 +3085,9 @@ def test_run_detail_stale_cancelling_shows_repair_status() -> None:
 
 
 def test_run_detail_started_stale_cancelling_shows_repair_status() -> None:
+    """@proves run_lifecycle_controls.stale-cancellation-repair-endpoint
+    @proves admin_control_plane_core.jinja2-admin-pages
+    """
     import datetime
 
     run = _make_full_run_mock(status="cancelling")
@@ -2934,6 +3162,7 @@ def test_run_detail_shows_deduplicated_before_enrichment_section():
 
 
 def test_run_detail_shows_marks_for_passed_jobs() -> None:
+    """@proves inspection_debugging.rule-filter-diagnostics"""
     patches = _run_detail_patches(
         enriched_jobs=[
             {
@@ -3047,6 +3276,10 @@ def test_run_detail_enriched_shows_pipeline_outcome_for_ranked_fit_skip_job():
 
 
 def test_run_detail_enriched_shows_pipeline_outcome_for_reranker_blocked_job():
+    """@proves trigger_run_management.decision-chain-outcomes
+    @proves trigger_run_management.reranker-fit-authority
+    @proves inspection_debugging.results-ledger-inspection
+    """
     import json as _json
 
     export_payload = _json.dumps({
@@ -3161,6 +3394,7 @@ def test_run_detail_cv_versions_fallback_when_no_title():
 
 
 def test_run_detail_zero_cvs_and_zero_ranked_shows_ranking_threshold_message():
+    """@proves inspection_debugging.ranking-diagnostics"""
     import datetime as _dt
     from fitcv_cp.models import PipelineRun, RunStatus
 
@@ -3352,7 +3586,10 @@ def test_settings_ranking_group_forms_have_save_buttons_with_correct_form_target
 
 
 def test_run_detail_inspection_area_wrapped_in_inspection_card():
-    """The inspection area must be wrapped in .inspection-card, with tab bar inside."""
+    """@proves ui_consistency_theming.attached-tab-inspection-card-pattern
+
+    The inspection area must be wrapped in .inspection-card, with tab bar inside.
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
     run = PipelineRun(
@@ -3381,7 +3618,10 @@ def test_run_detail_inspection_area_wrapped_in_inspection_card():
 
 
 def test_run_detail_tab_bar_uses_attached_modifier():
-    """The tab bar must use .tab-bar--attached (not the old .tab-bar)."""
+    """@proves ui_consistency_theming.attached-tab-inspection-card-pattern
+
+    The tab bar must use .tab-bar--attached (not the old .tab-bar).
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
     run = PipelineRun(
@@ -3454,6 +3694,55 @@ def test_run_detail_no_page_local_tab_style_inside_inspection_area():
     )
 
 
+def test_base_template_bootstraps_saved_theme_before_styles():
+    """@proves ui_consistency_theming.dark-light-theme-toggle-with-localstorage-persistence
+    @proves ui_consistency_theming.flash-free-theme-application
+    """
+    from pathlib import Path
+
+    html = Path("src/fitcv_cp/templates/base.html").read_text(encoding="utf-8")
+
+    script_pos = html.index("<script>")
+    style_pos = html.index("<style>")
+
+    assert script_pos < style_pos
+    assert "localStorage.getItem('fitcv-theme') || 'dark'" in html
+    assert "document.documentElement.setAttribute('data-theme', t);" in html
+
+
+def test_base_template_defines_theme_tokens_and_shared_classes():
+    """@proves ui_consistency_theming.css-custom-properties-design-tokens
+    @proves ui_consistency_theming.shared-component-classes
+    """
+    from pathlib import Path
+
+    html = Path("src/fitcv_cp/templates/base.html").read_text(encoding="utf-8")
+
+    assert ':root[data-theme="dark"]' in html
+    assert ':root[data-theme="light"]' in html
+    for token in ("--bg:", "--surface-1:", "--accent:", "--divider:"):
+        assert token in html
+    for shared_class in (".card, .section-card", ".sub-card", ".inspection-card", ".pane-container"):
+        assert shared_class in html
+
+
+def test_base_template_uses_wrapping_rules_for_shared_layout_surfaces():
+    """@proves ui_consistency_theming.responsive-wrapping"""
+    from pathlib import Path
+
+    html = Path("src/fitcv_cp/templates/base.html").read_text(encoding="utf-8")
+
+    page_header_start = html.index(".page-header {")
+    page_header_end = html.index("}", page_header_start)
+    page_header_block = html[page_header_start:page_header_end]
+    assert "flex-wrap: wrap;" in page_header_block
+
+    section_actions_start = html.index(".section-actions {")
+    section_actions_end = html.index("}", section_actions_start)
+    section_actions_block = html[section_actions_start:section_actions_end]
+    assert "flex-wrap: wrap;" in section_actions_block
+
+
 # ── Task 1: path-mode snapshot capture ──────────────────────────────────────
 
 
@@ -3474,7 +3763,10 @@ def _path_mode_patches(profile_path: str = "/tmp/dummy_profile.yaml"):
 
 
 def test_admin_upload_trigger_path_mode_stores_jobs_snapshot(tmp_path):
-    """path mode: trigger must read the file and store its JSON in jobs_input_json."""
+    """@proves multi_file_job_input.one-immutable-snapshot-stored-per-run
+
+    path mode: trigger must read the file and store its JSON in jobs_input_json.
+    """
     jobs_file = tmp_path / "jobs.json"
     jobs_file.write_text('[{"job_url": "http://a.com"}]', encoding="utf-8")
     profile_file = tmp_path / "profile.yaml"
@@ -3590,7 +3882,10 @@ preferences:
 
 
 def test_admin_upload_trigger_default_config_stores_profile_snapshot(tmp_path):
-    """default_config mode: trigger must load the configured profile and store snapshot."""
+    """@proves trigger_run_management.candidate-profile-input-modes
+
+    default_config mode: trigger must load the configured profile and store snapshot.
+    """
     profile_path = tmp_path / "profile.yaml"
     profile_path.write_text(_minimal_valid_profile_yaml(), encoding="utf-8")
 
@@ -3714,7 +4009,10 @@ def test_run_detail_tab2_legacy_fallback_does_not_mention_path_mode_limitation()
 
 
 def test_run_detail_tab3_shows_snapshot_for_default_config_source():
-    """Tab 3 shows snapshot content when candidate_profile_json is present for default_config."""
+    """@proves trigger_run_management.candidate-profile-input-modes
+
+    Tab 3 shows snapshot content when candidate_profile_json is present for default_config.
+    """
     from fitcv_cp.models import PipelineRun, RunStatus
     from datetime import datetime, timezone
 
@@ -3863,7 +4161,12 @@ def test_get_settings_page_includes_cv_groups():
 # ── CV settings page rendering ────────────────────────────────────────────────
 
 def test_settings_page_renders_task_first_sections():
-    """Settings page is organized around operator tasks, not only raw schema buckets."""
+    """@proves settings_system.task-first-settings-ui
+    @proves ui_consistency_theming.consistent-action-hierarchy-primary-secondary-section
+    @proves ui_consistency_theming.human-readable-section-headings
+
+    Settings page is organized around operator tasks, not only raw schema buckets.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3876,7 +4179,10 @@ def test_settings_page_renders_task_first_sections():
 
 
 def test_settings_page_renders_cv_sub_cards():
-    """CV Output keeps the meaningful output-focused sub-surfaces."""
+    """@proves settings_system.compact-cv-visibility-controls
+
+    CV Output keeps the meaningful output-focused sub-surfaces.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3888,7 +4194,10 @@ def test_settings_page_renders_cv_sub_cards():
 
 
 def test_settings_page_renders_single_option_controls_as_metadata():
-    """Single-option pseudo-choice controls are shown as metadata, not editable inputs."""
+    """@proves settings_system.metadata-only-fixed-controls
+
+    Single-option pseudo-choice controls are shown as metadata, not editable inputs.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3903,6 +4212,7 @@ def test_settings_page_renders_single_option_controls_as_metadata():
 
 
 def test_settings_page_uses_advanced_disclosure_for_expert_controls() -> None:
+    """@proves settings_system.advanced-settings-disclosure"""
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3942,7 +4252,10 @@ def test_settings_page_cv_sections_no_raw_yaml():
 
 
 def test_settings_page_cv_max_pages_is_numeric_input():
-    """cv_max_pages renders as a numeric input."""
+    """@proves settings_system.warning-only-cv-max-pages-validation-setting
+
+    cv_max_pages renders as a numeric input.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3953,7 +4266,10 @@ def test_settings_page_cv_max_pages_is_numeric_input():
 # ── Preset-based CV settings page rendering ──────────────────────────────────────
 
 def test_settings_page_renders_cv_preset_section():
-    """CV Output includes the template/model card."""
+    """@proves ui_consistency_theming.human-readable-section-headings
+
+    CV Output includes the template/model card.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3963,7 +4279,10 @@ def test_settings_page_renders_cv_preset_section():
 
 
 def test_settings_page_renders_cv_composition_section():
-    """CV Output includes the visibility-focused composition block."""
+    """@proves ui_consistency_theming.human-readable-section-headings
+
+    CV Output includes the visibility-focused composition block.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -3972,7 +4291,10 @@ def test_settings_page_renders_cv_composition_section():
 
 
 def test_settings_page_renders_cv_visibility_matrix() -> None:
-    """Composition settings render in a denser visibility matrix."""
+    """@proves settings_system.cv-composition-visibility-settings
+
+    Composition settings render in a denser visibility matrix.
+    """
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -4015,6 +4337,7 @@ def test_settings_page_renders_cv_model_as_select_with_supported_options() -> No
 
 
 def test_settings_page_uses_shared_cv_setting_row_class_across_blocks() -> None:
+    """@proves settings_system.compact-cv-visibility-controls"""
     with patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).get("/admin/settings")
     assert resp.status_code == 200
@@ -4328,7 +4651,10 @@ def test_grouped_save_cv_preset_invalid_does_not_partial_save():
 
 
 def test_grouped_save_cv_composition_invalid_does_not_partial_save():
-    """Invalid cv_composition → 422; no partial write of any field."""
+    """@proves settings_system.grouped-form-validation
+
+    Invalid cv_composition -> 422; no partial write of any field.
+    """
     with patch("fitcv_cp.app.save_settings_group") as mock_save, \
          patch("fitcv_cp.app.load_active_settings", return_value={}):
         resp = TestClient(_app()).post(
@@ -4346,3 +4672,16 @@ def test_grouped_save_cv_composition_invalid_does_not_partial_save():
         )
     assert resp.status_code == 422
     mock_save.assert_not_called()
+"""
+@meta
+type: test
+scope: unit
+domain: admin_ui
+covers:
+  - FitCV control-plane app behavior
+excludes:
+  - live HTTP deployment
+tags:
+  - fast
+  - ci-safe
+"""

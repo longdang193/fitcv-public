@@ -2,15 +2,16 @@
 
 ## Purpose
 
-FitCV turns noisy raw job postings into a smaller set of high-confidence opportunities and grounded CV outputs.
+FitCV turns noisy raw job postings into a smaller set of grounded, reviewable
+outputs that an operator can inspect, trust, and act on.
 
-The pipeline is designed to do three things well:
+This document is an explainer, not the editable stage contract. Canonical stage
+and feature truth lives in:
 
-- understand jobs through structured enrichment
-- narrow the candidate set before expensive work
-- generate CV outputs that are inspectable, evidence-grounded, and operationally traceable
-
-This document describes the current pipeline architecture, not the historical design notebook that led to it.
+- [docs/stages](stages/)
+- [docs/features](features/)
+- [architecture_dag.yaml](generated/architecture_dag.yaml)
+- [capability_lineage.yaml](generated/capability_lineage.yaml)
 
 ## End-to-End Flow
 
@@ -26,285 +27,131 @@ Input jobs
   -> persisted outputs and run artifacts
 ```
 
-The control plane wraps that flow with:
+The control plane wraps that flow with run creation, settings snapshots,
+artifact persistence, inspection, and lifecycle actions.
 
-- run creation and queueing
-- immutable settings snapshots
-- run-scoped artifact persistence
-- run inspection and lifecycle actions
+## What The Pipeline Is Trying To Do
+
+The easiest way to understand FitCV is as a staged narrowing and grounding
+system:
+
+- first, make raw job inputs stable enough for automation
+- then, remove obviously weak paths before expensive work
+- then, spend deeper analysis and generation effort only where the evidence is
+  strong enough
+- finally, persist enough artifacts that an operator can inspect what happened
+
+This mental model matters more here than individual stage-level contract
+details, because those details are owned elsewhere.
 
 ## Who The Pipeline Serves
 
-The pipeline is meant for an operator who needs to:
+The pipeline is designed for an operator who needs to:
 
 - process many jobs in one run
-- inspect why jobs passed or failed
+- understand why rows passed, failed, or stopped
 - trust the difference between weak and strong matches
-- generate CVs only when the evidence is good enough
-- debug and tune the workflow without guesswork
+- generate CV outputs only when the evidence is good enough
+- inspect artifacts without reverse-engineering internal state
 
-## Stage Responsibilities
+## The Four-Layer Mental Model
 
-### 1. `normalize`
+### 1. Understand The Job
 
-Purpose:
+The front of the pipeline converts noisy job text into a more stable internal
+representation that later stages can reason about consistently.
 
-- clean incoming job inputs
-- standardize fields
-- deduplicate repeated postings
-- produce a stable run-scoped job list
+Canonical ownership:
 
-Why it matters:
+- stage contracts in [docs/stages](stages/)
+- cross-stage feature ownership in [docs/features](features/)
 
-- downstream stages should never have to reason about raw input noise directly
+### 2. Narrow The Candidate Set
 
-### 2. `enrich`
+The middle of the pipeline keeps expensive downstream work focused on the most
+plausible jobs instead of treating late stages as cleanup for weak candidates.
 
-Purpose:
+That is the core cost-control idea in FitCV: narrowing should happen in layers,
+with more expensive work reserved for better candidates.
 
-- extract structured job fields such as title, seniority, domain, location type, skills, and responsibilities
-- convert raw postings into a stable downstream contract
-- reuse prior enrich output safely when unchanged jobs and unchanged enrich contracts still match
+Canonical ownership:
 
-Why it matters:
+- [rule_filter.source.yaml](stages/rule_filter.source.yaml)
+- [shortlist.source.yaml](stages/shortlist.source.yaml)
+- [ranking.source.yaml](stages/ranking.source.yaml)
 
-- later filtering, retrieval, ranking, and CV generation depend on structured job understanding, not raw text alone
+### 3. Personalize Safely
 
-### 3. `rule_filter`
+The late stages analyze whether a ranked job is genuinely ready for CV work,
+then generate and validate outputs under bounded evidence rules.
 
-Purpose:
+This is where FitCV tries to be useful without becoming hand-wavy: generation
+is downstream of analysis, and accepted outputs are meant to stay grounded to
+owned evidence surfaces.
 
-- apply deterministic eligibility checks before expensive retrieval and ranking work
-- separate clearly rejected jobs from jobs that may proceed
+Canonical ownership:
 
-Current role:
+- [cv_analysis.source.yaml](stages/cv_analysis.source.yaml)
+- [cv_generation.source.yaml](stages/cv_generation.source.yaml)
+- [cv_system feature source](features/cv_system/feature.source.yaml)
 
-- this is the first strong cost-control boundary in the pipeline
-- it keeps obvious mismatches out of later LLM- and retrieval-backed stages
+### 4. Operate And Inspect
 
-### 4. `shortlist`
+FitCV is not only a scoring pipeline. It is also an operator workflow with
+execution controls, checkpoints, artifact downloads, and run-history surfaces.
 
-Purpose:
+That is what turns the pipeline into a debuggable system instead of a black-box
+batch job.
 
-- retrieve the most plausible jobs from the passed set
-- build a bounded candidate query from the candidate profile
-- reuse shortlist inputs when the deterministic contract still matches
+Canonical ownership:
 
-Why it matters:
-
-- retrieval is used for recall, not final judgment
-- the goal is to reduce the passed set to a smaller, plausible ranking set
-
-### 5. `ranking`
-
-Purpose:
-
-- apply the authoritative post-filter fit judgment
-- combine stricter fit logic with shortlist outputs
-- select the ranked jobs that are still eligible to continue
-
-Important current behavior:
-
-- ranking is the stage that decides the authoritative reranker fit label
-- jobs marked `skip` here are no longer allowed to consume expensive downstream CV-analysis work
-
-### 6. `cv_analysis`
-
-Purpose:
-
-- retrieve candidate evidence for the strongest ranked jobs
-- evaluate required-skill, role, domain, and responsibility support
-- compute grounded gap summaries
-- decide whether a ranked job is generation-ready
-
-Important current behavior:
-
-- reranker `skip` jobs are short-circuited before expensive evidence retrieval
-- only jobs that survive ranking fit are analyzed deeply
-- analyzed jobs are explicitly distinguished from jobs blocked before analysis
-
-### 7. `cv_generation`
-
-Purpose:
-
-- generate structured and markdown CV outputs
-- validate them against selected evidence
-- repair narrowly safe failures when deterministic correction is possible
-- persist accepted outputs and debug artifacts
-
-Important current behavior:
-
-- generation is constrained by analysis-selected evidence
-- validation is part of the pipeline contract, not an optional afterthought
-
-## Pipeline Safeguards
-
-### Deterministic narrowing before expensive work
-
-The system narrows jobs in multiple layers:
-
-- normalization and deduplication
-- deterministic rule filtering
-- shortlist retrieval
-- ranking fit authority
-- CV-analysis fit readiness
-
-That prevents the most expensive stages from becoming a cleanup layer for obviously weak candidates.
-
-### Reranker short-circuit before expensive CV analysis
-
-One of the biggest delivered improvements is that reranker `skip` jobs are now stopped before expensive CV-analysis evidence retrieval.
-
-That means:
-
-- ranking remains the authoritative fit decision after filtering
-- weak ranked jobs do not consume unnecessary analysis work
-- artifacts still record those jobs truthfully as reranker-blocked rather than collapsing them into vague not-run states
-
-### Grounded generation and validation
-
-CV generation is not treated as free-form writing. It is bounded by:
-
-- selected evidence bundles
-- fit analysis outputs
-- validation rules
-- deterministic repair only for a narrow class of low-risk failures
-
-This keeps the output more trustworthy and easier to debug.
-
-## Control-Plane Integration
-
-The control plane is not separate from the pipeline story. It is how the system becomes operable.
-
-The control plane provides:
-
-- trigger surfaces for job inputs
-- settings snapshots at run start
-- persisted run records and event timelines
-- stage-local artifact downloads
-- compact results ledgers and deeper stage diagnostics
-- lifecycle controls for active and completed runs
-
-Without that layer, the pipeline would still exist, but it would be much harder to operate, inspect, and tune.
+- [trigger_run_management feature source](features/trigger_run_management/feature.source.yaml)
+- [inspection_debugging feature source](features/inspection_debugging/feature.source.yaml)
+- [run_lifecycle_controls feature source](features/run_lifecycle_controls/feature.source.yaml)
 
 ## Execution Modes
 
-The same stage order supports two execution policies:
+The same pipeline order supports two operating styles:
 
 - `Run All`
 - `Stage by Stage`
 
-### `Run All`
+This document intentionally avoids restating the precise checkpoint contract.
+What matters here is the operator-facing distinction:
 
-- executes continuously through the stage order
-- best for normal batch operation
+- one mode prioritizes continuous batch execution
+- the other prioritizes pause, review, and controlled continuation
 
-### `Stage by Stage`
-
-- pauses after each major stage
-- persists checkpoint state between stages
-- allows stage-local review before continuing
-
-Why this matters:
-
-- it turns the pipeline into a debuggable operator workflow, not just a background batch job
+Use the stage and feature sources when exact checkpoint semantics matter.
 
 ## Artifact Model
 
-The pipeline now exposes a clearer artifact contract than earlier versions.
+The pipeline exposes a layered artifact model so readers do not need one file to
+serve every purpose.
 
-### Compact ledger
+- compact run ledgers summarize per-job outcomes
+- stage-owned artifacts carry deeper stage diagnostics
+- heavier debug payloads remain available when operators need them
 
-`results.json` is the compact per-job ledger:
+The design goal is separation of concerns: small summary surfaces for everyday
+inspection, deeper artifacts for detailed debugging, and explicit ownership for
+where each kind of truth belongs.
 
-- high-level job outcome
-- fit path
-- CV status
-- concise decision-chain facts
+For the current generated view of the architecture and evidence graph, use:
 
-### Stage diagnostics
+- [architecture_dag.yaml](generated/architecture_dag.yaml)
+- [capability_lineage.yaml](generated/capability_lineage.yaml)
 
-Heavy stage detail lives in:
+## Why The Staged Model Matters
 
-- `stage-artifacts.json`
-- per-stage artifact files
-- `cv-debug.json`
+The main value of FitCV is not just that it can generate a CV. It is that it
+does so through a staged process that:
 
-This separation matters because it keeps the main results export usable while still preserving deep debugging detail.
+- narrows expensive work instead of spraying it everywhere
+- keeps late-stage work grounded to upstream evidence
+- exposes artifacts that help operators understand outcomes
+- supports both routine throughput and deliberate inspection
 
-### Truthful outcome distinctions
-
-A major debugging cleanup in the project was making artifact truth explicit about late-stage outcomes, especially the difference between:
-
-- reranker-blocked rows
-- analyzed-and-skipped rows
-- generation-attempted rows
-- accepted vs rejected generation outputs
-
-That work makes inspection much more trustworthy.
-
-## Biggest Engineering Improvements Delivered
-
-### 1. Better cost control before late stages
-
-- deterministic rule filtering ahead of expensive work
-- reranker short-circuiting before CV-analysis evidence retrieval
-
-### 2. Better observability
-
-- stage-local artifacts
-- run health and stage diagnostics
-- exportable artifact bundles
-- compact results ledgers plus deeper debug artifacts
-
-### 3. Better artifact truth
-
-- clearer status semantics across ranking, analysis, and generation
-- run-mode-aware exported artifacts
-- explicit handling for reranker-blocked rows and analyzed outcomes
-
-### 4. Better reuse and performance
-
-- enrich reuse
-- shortlist input reuse
-- ranking reuse
-- CV-analysis reuse
-- execution-aware reuse diagnostics
-
-### 5. Better generation safety
-
-- validation against selected evidence
-- deterministic repair for specific safe failures
-- reduced risk of low-quality or misleading accepted outputs
-
-## Mental Model
-
-The cleanest way to think about FitCV is:
-
-### Layer 1: understand the job
-
-- normalize
-- enrich
-
-### Layer 2: narrow the candidate set
-
-- rule_filter
-- shortlist
-- ranking
-
-### Layer 3: personalize safely
-
-- cv_analysis
-- cv_generation
-- validation and repair
-
-### Layer 4: operate and inspect
-
-- trigger runs
-- inspect stage outputs
-- download artifacts
-- tune settings
-- manage lifecycle actions
-
-That is the main value of the system: not just generating a CV, but doing it through a staged, inspectable, and increasingly reliable pipeline.
-
+That is the durable story this document should tell. The exact active contract
+for any stage, feature, or artifact belongs in the owning source and generated
+views linked above.
