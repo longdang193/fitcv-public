@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Promote Synonyms - {{ run.run_id }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 style="margin:0 0 0.4rem">Promote Synonyms to Global Policy</h1>
+    <div class="meta">Run: <code>{{ run.run_id }}</code></div>
+  </div>
+  <a class="btn-secondary" href="/admin/runs/{{ run.run_id }}">Back to Run Detail</a>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 0.6rem">Preview Summary</h3>
+  <div class="meta" style="margin-bottom:0.8rem">
+    Selected={{ preview.selected_count }},
+    new={{ preview.counts.new_aliases }},
+    unchanged={{ preview.counts.unchanged_aliases }},
+    overridden={{ preview.counts.overridden_aliases }},
+    conflict={{ preview.counts.conflict }},
+    skip={{ preview.counts.skip }}.
+  </div>
+  <div class="meta" style="margin-bottom:0.8rem">
+    This promotion is a merge/overlay into the global synonym map, not a full replacement.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Proposal</th>
+        <th>Status</th>
+        <th>Diff</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in preview.rows %}
+      <tr>
+        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.diff_type }}</td>
+        <td>{{ row.reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 0.6rem">Confirm Promotion</h3>
+  {% if preview.counts.conflict > 0 %}
+  <div class="error-box">
+    <strong>Promotion blocked</strong>
+    Resolve conflicts in the selected set, then preview again.
+  </div>
+  {% endif %}
+  <form method="post" action="/admin/runs/{{ run.run_id }}/synonym-proposals/promote-commit" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">
+    <input type="hidden" name="selected_ids_csv" value="{{ selected_ids_csv }}">
+    <input type="text" name="acted_by" value="admin" placeholder="actor" style="max-width:12rem">
+    <input type="hidden" name="note" value="ui:promote-to-global">
+    <button class="btn-primary" type="submit" {% if preview.counts.conflict > 0 %}disabled{% endif %}>Confirm Promote to Global</button>
+  </form>
+</div>
+{% endblock %}

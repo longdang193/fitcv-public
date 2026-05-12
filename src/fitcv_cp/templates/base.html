@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+{# @architecture
+owner: ui_consistency_theming
+features:
+  - ui_consistency_theming
+capabilities:
+  - ui_consistency_theming.css-custom-properties-design-tokens
+  - ui_consistency_theming.shared-component-classes
+  - ui_consistency_theming.dark-light-theme-toggle-with-localstorage-persistence
+  - ui_consistency_theming.flash-free-theme-application
+  - ui_consistency_theming.attached-tab-inspection-card-pattern
+  - ui_consistency_theming.responsive-wrapping
+role: template
+canonical: true
+#}
+<html lang="en">
+<head>
+  <!-- Apply saved theme before CSS renders — prevents flash -->
+  <script>
+    (function() {
+      var t = localStorage.getItem('fitcv-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FitCV Admin{% endblock %}</title>
+  <style>
+    /* ── CSS Custom Properties (tokens) ──────────────────────────────────── */
+    :root[data-theme="dark"] {
+      --bg:          #0f1117;
+      --surface-1:   #1a1d2e;
+      --surface-2:   #1e2235;
+      --border:      #2d3148;
+      --border-soft: #1e2235;
+      --text-primary:   #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted:     #64748b;
+      --accent:      #6366f1;
+      --accent-hover:#4f46e5;
+      --accent-dim:  #312e81;
+      --accent-text: #a5b4fc;
+      --success-fg:  #4ade80;
+      --badge-success-bg: #14532d; --badge-success-fg: #4ade80;
+      --badge-error-bg:   #450a0a; --badge-error-fg:   #f87171;
+      --badge-warning-bg: #422006; --badge-warning-fg: #fb923c;
+      --badge-info-bg:    #1e3a5f; --badge-info-fg:    #60a5fa;
+      --badge-neutral-bg: #334155; --badge-neutral-fg: #94a3b8;
+      --table-header-bg: var(--surface-2);
+      --table-row-hover: #1a1e30;
+      --input-bg:    var(--surface-2);
+      --code-bg:     #0f0f1a;
+      --code-color:  #c7d2fe;
+      --code-border: #312e81;
+      --divider:     #1e293b;
+    }
+    :root[data-theme="light"] {
+      --bg:          #f8fafc;
+      --surface-1:   #ffffff;
+      --surface-2:   #f1f5f9;
+      --border:      #e2e8f0;
+      --border-soft: #f1f5f9;
+      --text-primary:   #0f172a;
+      --text-secondary: #475569;
+      --text-muted:     #94a3b8;
+      --accent:      #4f46e5;
+      --accent-hover:#3730a3;
+      --accent-dim:  #e0e7ff;
+      --accent-text: #4338ca;
+      --success-fg:  #166534;
+      --badge-success-bg: #dcfce7; --badge-success-fg: #166534;
+      --badge-error-bg:   #fee2e2; --badge-error-fg:   #991b1b;
+      --badge-warning-bg: #ffedd5; --badge-warning-fg: #9a3412;
+      --badge-info-bg:    #dbeafe; --badge-info-fg:    #1e40af;
+      --badge-neutral-bg: #f1f5f9; --badge-neutral-fg: #475569;
+      --table-header-bg: #f8fafc;
+      --table-row-hover: #f1f5f9;
+      --input-bg:    #ffffff;
+      --code-bg:     #f1f5f9;
+      --code-color:  #4338ca;
+      --code-border: #c7d2fe;
+      --divider:     #e2e8f0;
+    }
+
+    /* ── Reset & base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Navigation ───────────────────────────────────────────────────────── */
+    nav {
+      background: var(--surface-1);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    nav a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    nav a:hover { color: var(--text-primary); }
+    .brand { color: var(--accent); font-weight: 700; font-size: 1.05rem; }
+    .nav-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem; }
+    h2 { font-size: 1.1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 1rem; }
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .page-header h1 { margin-bottom: 0; }
+
+    /* ── Card & section ───────────────────────────────────────────────────── */
+    .card, .section-card {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .section-title  { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+    .section-helper { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .section-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 1rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* ── Sub-card (grouped sibling forms inside a section-card) ─────────────── */
+    /* Used by the three ranking groups inside the Ranking section.              */
+    .sub-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-1);
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    /* Last sub-card in a group: no bottom margin (flush with section bottom) */
+    .sub-card:last-child {
+      margin-bottom: 0;
+    }
+    .sub-card-header {
+      padding: 0.75rem 1rem 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .sub-card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .sub-card-helper {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+    .sub-card-body {
+      padding: 0.75rem 1rem;
+    }
+    /* Pairs label + value in a row (scoped to sub-card internals — does not
+       override the existing .kv shared rule used by run-detail metadata grids) */
+    .sub-card .kv { display: grid; grid-template-columns: 12rem 1fr; gap: 0.25rem 0.5rem; font-size: 0.8rem; }
+    .sub-card-footer {
+      padding: 0.75rem 1rem;
+      border-top: 1px solid var(--border-soft);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    /* ── Inspection card with attached tab bar ────────────────────────────────── */
+    /* Used by the run-detail inspection area.                                      */
+    /* One shared container for tab bar + pane body.                               */
+    .inspection-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-1);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Tab bar sits flush on the top edge of the inspection card.                   */
+    .tab-bar--attached {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-1);
+      padding: 0 0.75rem;
+    }
+    .tab-bar--attached .tab-btn {
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;    /* overlaps the card top border */
+    }
+    .tab-bar--attached .tab-btn:hover {
+      color: var(--text-primary);
+    }
+    .tab-bar--attached .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Pane container — one consistent border/radius/padding for all three panes.  */
+    .pane-container {
+      border: none;
+      border-top: none;
+      background: var(--surface-1);
+      padding: 1rem;
+    }
+    /* Default: hidden; .active: shown */
+    .pane-container.tab-pane {
+      display: none;
+    }
+    .pane-container.tab-pane.active {
+      display: block;
+    }
+    .pane-container .card { padding: 0; border: none; }
+    /* ── Table ────────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th {
+      background: var(--table-header-bg);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+    td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); }
+    tr:hover td { background: var(--table-row-hover); }
+    .empty-row td { color: var(--text-muted); text-align: center; padding: 2rem; }
+
+    /* ── Links ────────────────────────────────────────────────────────────── */
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    /* Primary — main CTA (Trigger Run, grouped ranking saves) */
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* Secondary — supporting actions (Refresh, theme toggle, mode tabs) */
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-secondary[data-active="true"] {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+
+    /* Section — settings section saves (Save Retrieval Settings, etc.) */
+    .btn-section {
+      background: var(--surface-2);
+      color: var(--accent);
+      border: 1px solid var(--border);
+      padding: 0.45rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-section:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Legacy fallback — default button style (same as primary) */
+    button { background: var(--accent); color: #fff; border: none; padding: 0.5rem 1.1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    button:hover { background: var(--accent-hover); }
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 99px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-queued    { background: var(--badge-neutral-bg); color: var(--badge-neutral-fg); }
+    .badge-running   { background: var(--badge-info-bg);    color: var(--badge-info-fg); }
+    .badge-succeeded { background: var(--badge-success-bg); color: var(--badge-success-fg); }
+    .badge-failed    { background: var(--badge-error-bg);   color: var(--badge-error-fg); }
+    .badge-info      { background: var(--badge-info-bg);    color: var(--badge-info-fg); }
+    .badge-warning   { background: var(--badge-warning-bg); color: var(--badge-warning-fg); }
+    .badge-error     { background: var(--badge-error-bg);   color: var(--badge-error-fg); }
+
+    /* ── Forms & inputs ───────────────────────────────────────────────────── */
+    input[type="text"],
+    input[type="number"],
+    input[type="file"],
+    textarea,
+    select {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      outline: none;
+    }
+    input[type="text"]   { width: 360px; }
+    input[type="number"] { width: 96px; }
+    textarea { width: 100%; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Code ─────────────────────────────────────────────────────────────── */
+    code, .code-area {
+      background: var(--code-bg);
+      color: var(--code-color);
+      border: 1px solid var(--code-border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: monospace;
+    }
+    code { padding: 0.1rem 0.35rem; }
+    .code-area { padding: 0.5rem; }
+
+    /* ── State helpers ────────────────────────────────────────────────────── */
+    .meta          { font-size: 0.8rem; color: var(--text-muted); }
+    .current-value { color: var(--success-fg); font-weight: 600; }
+    .empty-value   { color: var(--text-muted); }
+    .field-error   { font-size: 0.78rem; color: var(--badge-error-fg); margin-top: 0.2rem; }
+
+    /* ── Error box ──────────────────────────────────────────────────────────*/
+    .error-box {
+      background: var(--badge-error-bg);
+      border: 1px solid var(--badge-error-fg);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .error-box strong { color: var(--badge-error-fg); display: block; margin-bottom: 0.35rem; }
+
+    /* ── KV grid ──────────────────────────────────────────────────────────── */
+    .kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; font-size: 0.875rem; }
+    .kv .k { color: var(--text-muted); }
+    .kv .v { color: var(--text-primary); font-weight: 500; }
+
+    /* ── Divider ──────────────────────────────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--divider); margin: 1rem 0; }
+
+    /* ── Details / summary ────────────────────────────────────────────────── */
+    /* Hide browser-native disclosure triangle — we use our own ▾ character. */
+    details > summary { list-style: none; cursor: pointer; }
+    details > summary::-webkit-details-marker { display: none; }
+
+    /* ── Tab bar ──────────────────────────────────────────────────────────── */
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 0; border-bottom: 2px solid var(--border); padding-bottom: 0; }
+    .tab-btn {
+      background: var(--surface-2); color: var(--text-muted);
+      border: 1px solid var(--border); border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer;
+      transition: all 0.15s; position: relative; top: 2px;
+    }
+    .tab-btn:hover { background: var(--surface-1); color: var(--text-primary); }
+    .tab-btn.active { background: var(--surface-1); color: var(--accent-text); border-color: var(--accent); border-bottom-color: var(--surface-1); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .tab-pane > .card { border-top-left-radius: 0; border-top: none; }
+
+    /* ── Results card ─────────────────────────────────────────────────────── */
+    .results-card {
+      background: var(--accent-dim); border: 1px solid var(--accent);
+      border-radius: 10px; padding: 1.5rem; margin-bottom: 2rem;
+    }
+    .results-card h3 { color: var(--accent-text); font-size: 1.05rem; margin: 0 0 0.5rem; }
+    .cv-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface-1); border: 1px solid var(--accent);
+      padding: 0.6rem 0.8rem; border-radius: 6px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      .page-header { flex-direction: column; align-items: flex-start; }
+      nav { padding: 0 1rem; gap: 1rem; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="brand">⚡ FitCV Admin</span>
+    <a href="/admin/runs">Runs</a>
+    <a href="/admin/settings">Settings</a>
+    <a href="/healthz">Health</a>
+    <div class="nav-actions">
+      <button class="btn-secondary" id="theme-toggle" aria-label="Toggle theme" onclick="toggleTheme()">
+        <span id="theme-icon">☀️</span> <span id="theme-label">Light</span>
+      </button>
+    </div>
+  </nav>
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+  <script>
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('fitcv-theme', t);
+    var icon  = document.getElementById('theme-icon');
+    var label = document.getElementById('theme-label');
+    if (icon && label) {
+      icon.textContent  = t === 'dark' ? '☀️' : '🌙';
+      label.textContent = t === 'dark' ? 'Light' : 'Dark';
+    }
+  }
+  function toggleTheme() {
+    applyTheme(
+      document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'
+    );
+  }
+  // Sync toggle label on every page load
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+  </script>
+</body>
+</html>

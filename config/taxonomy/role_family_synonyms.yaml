@@ -1,0 +1,16 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_analysis
+#   - cv_generation
+# capabilities:
+#   - cv_system.analysis-grounded-validation
+# role: config
+# canonical: true
+
+# Role-family synonym source-of-truth.
+# Loader normalizes aliases/canonicals to lowercase tokens.
+role_family_alias_map: {}
+role_family_neighbors: {}

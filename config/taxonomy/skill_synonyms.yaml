@@ -1,0 +1,51 @@
+skill_synonyms:
+  advanced proficiency in sql: sql
+  airflow: apache airflow
+  anspruch an "clean code": clean code
+  architecting complex data models: data modeling
+  aws: amazon web services
+  azure: microsoft azure
+  backend-anwendungen: backend development
+  big query: google bigquery
+  bigquery: google bigquery
+  bigquery ml: machine learning
+  building and maintaining dashboards: dashboarding
+  ci/cd pipelines: ci/cd
+  dbt core: dbt
+  developing critical dashboards: dashboarding
+  familiarity with ... databases: databases
+  familiarity with ... excel: microsoft excel
+  familiarity with data modeling: data modeling
+  flatfiles: flat files
+  ga4: google analytics
+  gcp: google cloud
+  gemini: genai
+  git / github: git
+  github: git
+  google analytics (ga4): google analytics
+  google cloud platform: google cloud
+  k8s: kubernetes
+  kafka: apache kafka
+  kenntnisse in der datenbankmodellierung: data modeling
+  large language models: genai
+  llm: genai
+  llms: genai
+  looker studio: looker
+  ml: machine learning
+  nlp: natural language processing
+  nosql-datenbanksystemen: nosql databases
+  partitioning strategies: data partitioning
+  pg: postgresql
+  postgres: postgresql
+  powerbi: power bi
+  prompt engineering: genai
+  quality assurance: quality assurance (qa)
+  rag: genai
+  relationalen ... datenbanksystemen: relational databases
+  sap idocs: sap idoc
+  spark: apache spark
+  strong command of sql: sql
+  support change management processes: change management
+  vector databases: genai
+  vertex ai: genai
+  von rest-apis: rest apis

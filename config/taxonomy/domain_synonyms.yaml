@@ -1,0 +1,16 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_analysis
+#   - cv_generation
+# capabilities:
+#   - cv_system.analysis-grounded-validation
+# role: config
+# canonical: true
+
+# Domain synonym source-of-truth.
+# Loader normalizes aliases/canonicals to lowercase tokens.
+domain_alias_map: {}
+domain_neighbors: {}

@@ -1,0 +1,13 @@
+.git
+.gitignore
+.pytest_cache
+.mypy_cache
+.venv
+.worktrees
+__pycache__
+*.pyc
+docs
+tests
+fitcv-491123-51c030d71e07.json
+sa_key.json
+dump.rdb

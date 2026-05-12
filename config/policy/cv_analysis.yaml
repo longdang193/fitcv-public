@@ -1,0 +1,44 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+# stages:
+#   - cv_analysis
+# capabilities:
+#   - cv_system.analysis-evidence-selection
+#   - cv_system.fit-gate-resolution
+# role: config
+# canonical: true
+
+cv_analysis:
+  semantic_alignment:
+    enabled: false
+    model: text-embedding-005
+    required_skill_lexical_weight: 0.70
+    required_skill_semantic_weight: 0.30
+    role_lexical_weight: 0.60
+    role_semantic_weight: 0.40
+    responsibility_lexical_weight: 0.25
+    responsibility_semantic_weight: 0.75
+    domain_lexical_weight: 0.40
+    domain_semantic_weight: 0.60
+    channel_pool_size: 4
+  selection_policy:
+    channel_weights:
+      required_skill_support: 0.40
+      responsibility_alignment: 0.30
+      role_alignment: 0.15
+      domain_alignment: 0.15
+    multi_channel_bonus: 0.05
+    type_weight_factor: 0.10
+    residual_score_factor: 0.05
+    new_type_bonus: 0.03
+    same_type_penalty: 0.02
+    quotas:
+      experience_entry_top_k: 2
+      project_entry_top_k: 2
+      achievement_top_k: 1
+    trimming:
+      bullets_per_experience: 2
+      highlights_per_project: 2
+      stack_lines_per_project: 2
