@@ -1,0 +1,711 @@
+# GENERATED FILE - do not edit directly.
+feature_id: pipeline_performance
+source: docs/features/pipeline_performance/feature.source.yaml
+invariants: {}
+capabilities:
+  pipeline_performance.pre-enrichment-global-job-filters-applications-count-max-max-age-days:
+    state: active
+    statement: Pre-enrichment global job filters (applications_count_max, max_age_days)
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_rule_filter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_pre_filter_rejects_high_count_job_using_applications_count_int
+    - path: tests/test_rule_filter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_pre_filter_rejects_stale_job
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.explicit-rejection-reasons-in-rule-filter-results:
+    state: active
+    statement: Explicit rejection reasons in rule_filter_results
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_rule_filter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_multiple_rejection_reasons_accumulated
+    - path: tests/test_rule_filter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_rejected_jobs_include_reasons
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.gemini-structured-output-with-response-schema-and-pydantic:
+    state: active
+    statement: Gemini structured output with response_schema and Pydantic
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_parse_extraction_response_valid_json
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.fallback-path-for-unparseable-responses:
+    state: active
+    statement: Fallback path for unparseable responses
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_enrich_job_fallback_when_parsed_is_none
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_parse_extraction_response_malformed_json
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.enrich-extraction-prompt-text-now-comes-from-a-centralized-prompt-registry-with-config-selected-prompt-ids":
+    state: active
+    statement: Enrich extraction prompt text now comes from a centralized prompt registry with config-selected prompt IDs
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_config_accessors_resolve_centralized_prompt_ids_and_model_defaults
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_enrich_job_renders_prompt_via_prompt_registry
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.enrich-stage-raw-plus-canonical-semantic-companions-for-repeated-downstream-fields:
+    state: active
+    statement: Enrich-stage raw-plus-canonical semantic companions for repeated downstream fields
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_apply_structured_normalization_preserves_raw_scalar_companions
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_merge_scraped_and_enriched_preserves_raw_and_canonical_enrich_fields
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.canonical-skill-companion-lists-and-entity-payloads-for-required-preferred-skills:
+    state: active
+    statement: Canonical skill companion lists and entity payloads for required/preferred skills
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_apply_structured_normalization_emits_canonical_skill_companions
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.enrich-stage-mapping-suggestion-capture-for-review-debug-surfaces:
+    state: active
+    statement: Enrich-stage mapping suggestion capture for review/debug surfaces
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_apply_structured_normalization_emits_canonical_skill_companions
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_download_mapping_suggestions_json_endpoint_200
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  pipeline_performance.fingerprint-based-enrich-result-reuse-happens-before-llm-enrichment-using-normalized-raw-job-inputs:
+    state: active
+    statement: Fingerprint-based enrich-result reuse happens before LLM enrichment using normalized raw-job inputs
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_build_raw_job_fingerprint_is_stable_for_whitespace_and_case_changes
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.enrich-contract-fingerprinting-invalidates-reuse-automatically-when-prompt-model-schema-behavior-changes":
+    state: active
+    statement: Enrich-contract fingerprinting invalidates reuse automatically when prompt/model/schema behavior changes
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_build_enrich_contract_fingerprint_changes_when_prompt_contract_changes
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.shared-structured-jobs-reuse-lookup-avoids-redundant-enrich-calls-while-only-fresh-rows-are-upserted-back-into-the-shared-table":
+    state: active
+    statement: Shared `structured_jobs` reuse lookup avoids redundant enrich calls while only fresh rows are upserted back into the shared table
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_enrich.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_lookup_reusable_structured_jobs_returns_exact_fingerprint_and_contract_matches
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.shortlist-now-builds-a-stable-structured-embedding-input-signature-before-generating-job-summary-vectors":
+    state: active
+    statement: Shortlist now builds a stable structured embedding-input signature before generating `job_summary` vectors
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_embeddings.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_prefers_canonical_skill_lists_and_sorts_them
+    - path: tests/test_embeddings.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_signature_is_stable_when_skill_order_changes
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.shortlist-reuses-the-latest-stored-embedding-row-for-a-job-url-only-when-both-the-structured-signature-and-embedding-contract-fingerprint-still-match":
+    state: active
+    statement: Shortlist reuses the latest stored embedding row for a `job_url` only when both the structured signature and embedding contract fingerprint still match
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_embeddings.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_embed_and_store_jobs_reuses_matching_latest_embeddings_and_only_inserts_misses
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.fresh-shortlist-embeddings-persist-signature-metadata-so-later-runs-can-skip-repeated-embedding-work-safely":
+    state: active
+    statement: Fresh shortlist embeddings persist signature metadata so later runs can skip repeated embedding work safely
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_embeddings.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_embed_and_store_jobs_reuses_matching_latest_embeddings_and_only_inserts_misses
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.operator-facing-enriched-job-exports-now-keep-canonical-semantic-fields-and-fingerprint-reuse-provenance-while-omitting-retired-raw-duplicate-classification-baggage":
+    state: active
+    statement: Operator-facing enriched-job exports now keep canonical semantic fields and fingerprint/reuse provenance while omitting retired raw duplicate classification baggage
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_list_run_structured_jobs_preserves_reuse_provenance_fields
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.large-runs-avoid-some-row-scaled-layer-4-event-noise-by-relying-more-on-aggregate-stage-summaries-plus-stage-owned-artifacts":
+    state: active
+    statement: Large runs avoid some row-scaled Layer 4 event noise by relying more on aggregate stage summaries plus stage-owned artifacts
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_stage_transition_artifacts_json_on_success
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.results-json-now-keeps-only-compact-job-ledger-fields-instead-of-repeating-full-job-snapshots-heavy-score-explanation-internals-and-full-cv-bodies-already-represented-elsewhere":
+    state: active
+    statement: '`results.json` now keeps only compact job-ledger fields instead of repeating full job snapshots, heavy score-explanation internals, and full CV bodies already represented elsewhere'
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_results_export_json_on_success
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.cv-analysis-now-uses-bounded-semantic-lift-for-required-skill-and-role-channels-instead-of-reserving-semantic-work-only-for-domain-and-responsibility-alignment":
+    state: active
+    statement: '`cv_analysis` now uses bounded semantic lift for required-skill and role channels instead of reserving semantic work only for domain and responsibility alignment'
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_evidence.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_retrieve_evidence_bundle_uses_semantic_alignment_for_required_skill_support
+    - path: tests/test_evidence.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_retrieve_evidence_bundle_uses_semantic_alignment_for_role_alignment
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  "pipeline_performance.ranked-jobs-with-authoritative-reranker-fit-label-skip-now-stop-before-evidence-retrieval-gap-computation-and-semantic-alignment-inside-cv-analysis":
+    state: active
+    statement: Ranked jobs with authoritative reranker `fit_label = skip` now stop before evidence retrieval, gap computation, and semantic alignment inside `cv_analysis`
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_pipeline.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_pipeline_short_circuits_reranker_skip_before_cv_analysis_dependencies
+    docs:
+    - docs/features/pipeline_performance/history.md
+    docs_evidence:
+    - path: docs/features/pipeline_performance/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+timeline:
+- completed_at: '2026-04-22T00:07:00+02:00'
+  change_id: 2026-04-22-option-b-phase-2-rollout
+  summary: Option B Phase 2 Rollout Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 2 rollout.
+- completed_at: '2026-04-22T00:32:00+02:00'
+  change_id: 2026-04-22-option-b-phase-3-cleanup
+  summary: Option B Phase 3 Cleanup Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 3 cleanup.
+- completed_at: '2026-04-22T01:35:00+02:00'
+  change_id: 2026-04-22-phase-4-required-metadata-correction
+  summary: Phase 4 Required Metadata Correction Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 4 required metadata correction.
+- completed_at: '2026-04-22T12:20:00+02:00'
+  change_id: 2026-04-22-phase-5-evidence-oriented-lineage-alignment
+  summary: Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 5 evidence-oriented lineage alignment.
+- completed_at: '2026-04-22T12:48:00+02:00'
+  change_id: 2026-04-22-phase-8-settings-performance-evidence-backfill
+  summary: Phase 8 Settings And Performance Evidence Backfill Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 8 settings and performance evidence backfill.
+- completed_at: '2026-04-22T13:25:00+02:00'
+  change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+  summary: Phase 6 Lineage Evidence Hydration Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 6 lineage evidence hydration.
+- completed_at: '2026-04-22T14:48:00+02:00'
+  change_id: 2026-04-22-phase-10-settings-performance-residual-evidence-audit
+  summary: Phase 10 Settings And Performance Residual Evidence Audit Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 10 settings and performance residual evidence audit.

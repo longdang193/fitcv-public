@@ -1,0 +1,783 @@
+# GENERATED FILE - do not edit directly.
+feature_id: settings_system
+source: docs/features/settings_system/feature.source.yaml
+invariants: {}
+capabilities:
+  settings_system.bigquery-backed-pipeline-settings-store:
+    state: active
+    statement: BigQuery-backed pipeline settings store
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_settings_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_active_settings_returns_latest_per_key
+    - path: tests/test_fitcv_cp/test_settings_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_save_setting_calls_bq
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.settings-schema-registry:
+    state: active
+    statement: Settings schema registry
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_settings_schema.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_all_expected_keys_present
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.operator-facing-agentic-settings:
+    state: active
+    statement: Expose a bounded operator-facing registry for editable, metadata-only, and excluded agentic defaults.
+    satisfies: []
+    code: []
+    tests: []
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    - missing_test_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    - missing_test_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.retrieval-settings:
+    state: active
+    statement: Retrieval settings
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_settings_schema.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_retrieval_defaults_are_hydrated_from_centralized_pipeline_config
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.run-safety-settings:
+    state: active
+    statement: Configure timing, throttling, and run-lifecycle timeout controls.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_renders_run_lifecycle_section
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.global-job-filters:
+    state: active
+    statement: Global job filters
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_rule_filter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_setting_reaches_filter_via_apply_settings_to_config
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.ranking-settings:
+    state: active
+    statement: Configure six-feature ranking weights, zero-weight semantics, and runtime-aligned copy.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_settings_schema.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_ranking_weights_must_sum_to_one
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.preference-fit-calibration:
+    state: active
+    statement: Configure preference-fit subweights and fit-label threshold guidance for reranker calibration.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_grouped_save_fit_label_thresholds_valid
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.cv-analysis-alignment-settings:
+    state: active
+    statement: Configure semantic-alignment enablement, model selection, and lexical-vs-semantic balance for `cv_analysis`.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_settings_schema.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_cv_analysis_semantic_alignment_validate_accepts_balanced_weight_pairs
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.cv-generation-settings:
+    state: active
+    statement: CV generation settings
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_config_includes_cv_defaults
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_config_nested_cv_generation_has_model_and_prompt_version
+    - path: tests/test_fitcv_cp/test_settings_schema.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_apply_settings_to_config_cv_generation_nested
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.cv-composition-visibility-settings:
+    state: active
+    statement: CV composition visibility settings
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_validate_composition_accepts_valid_europass
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_renders_cv_visibility_matrix
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.warning-only-cv-max-pages-validation-setting:
+    state: active
+    statement: Warning-only CV max-pages validation setting
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_config_nested_cv_validation_max_pages_positive
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_cv_max_pages_is_numeric_input
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.task-first-settings-ui:
+    state: active
+    statement: Organize the admin settings surface by task with clearer current-vs-draft feedback.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_renders_task_first_sections
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.advanced-settings-disclosure:
+    state: active
+    statement: Separate expert-only tuning controls from the basic settings surface.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_uses_advanced_disclosure_for_expert_controls
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.metadata-only-fixed-controls:
+    state: active
+    statement: Render fixed single-option runtime controls and retired prompt fields as metadata rather than editable inputs.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_renders_single_option_controls_as_metadata
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.compact-cv-visibility-controls:
+    state: active
+    statement: Provide denser CV composition and visibility controls for operator workflows.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_renders_cv_sub_cards
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_settings_page_uses_shared_cv_setting_row_class_across_blocks
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.grouped-form-validation:
+    state: active
+    statement: Grouped form validation
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_grouped_save_cv_composition_invalid_does_not_partial_save
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_grouped_save_fit_label_thresholds_invalid_order
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.per-run-overrides:
+    state: active
+    statement: Per-run overrides
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_post_runs_rejects_invalid_config_overrides
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_post_runs_with_config_overrides
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.trigger-time-effective-settings-snapshot:
+    state: active
+    statement: Trigger-time effective settings snapshot
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_update_run_effective_settings_updates_only_effective_settings_field
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.baseline-default-hydration:
+    state: active
+    statement: Hydrate admin defaults from the baseline config layout while preserving migration-safe compatibility behavior.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_config_compatibility_flat_keys_work_after_nested_migration
+    - path: tests/test_config.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_load_config_prefers_reorganized_config_subfolders_over_legacy_flat_files
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  settings_system.settings-used-exports:
+    state: active
+    statement: Emit canonical nested settings-used exports and isolate compatibility-era flat keys into an explicit compatibility block.
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_persists_settings_used_json_on_success
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_settings_used_export_canonicalizes_legacy_compatibility_keys
+    docs:
+    - docs/features/settings_system/history.md
+    docs_evidence:
+    - path: docs/features/settings_system/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+timeline:
+- completed_at: '2026-04-22T00:07:00+02:00'
+  change_id: 2026-04-22-option-b-phase-2-rollout
+  summary: Option B Phase 2 Rollout Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 2 rollout.
+- completed_at: '2026-04-22T00:32:00+02:00'
+  change_id: 2026-04-22-option-b-phase-3-cleanup
+  summary: Option B Phase 3 Cleanup Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 3 cleanup.
+- completed_at: '2026-04-22T01:35:00+02:00'
+  change_id: 2026-04-22-phase-4-required-metadata-correction
+  summary: Phase 4 Required Metadata Correction Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 4 required metadata correction.
+- completed_at: '2026-04-22T12:20:00+02:00'
+  change_id: 2026-04-22-phase-5-evidence-oriented-lineage-alignment
+  summary: Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 5 evidence-oriented lineage alignment.
+- completed_at: '2026-04-22T12:48:00+02:00'
+  change_id: 2026-04-22-phase-8-settings-performance-evidence-backfill
+  summary: Phase 8 Settings And Performance Evidence Backfill Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 8 settings and performance evidence backfill.
+- completed_at: '2026-04-22T13:25:00+02:00'
+  change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+  summary: Phase 6 Lineage Evidence Hydration Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 6 lineage evidence hydration.
+- completed_at: '2026-04-22T14:48:00+02:00'
+  change_id: 2026-04-22-phase-10-settings-performance-residual-evidence-audit
+  summary: Phase 10 Settings And Performance Residual Evidence Audit Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 10 settings and performance residual evidence audit.

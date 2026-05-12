@@ -1,0 +1,23 @@
+# @architecture
+# owner: cv_system
+# features:
+#   - cv_system
+#   - inspection_debugging
+# stages:
+#   - cv_generation
+# capabilities:
+#   - cv_system.config-owned-generation-contract
+#   - inspection_debugging.prompt-provenance-diagnostics
+# role: config
+# canonical: true
+
+prompts:
+  enrich:
+    extraction:
+      prompt_id: enrich.extraction.v1
+  ranking:
+    ai_score:
+      prompt_id: ranking.ai_score.v1
+  cv_generation:
+    structured_write:
+      prompt_id: cv_generation.structured_write.v1

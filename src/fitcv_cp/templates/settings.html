@@ -1,0 +1,650 @@
+{% extends "base.html" %}
+{% block title %}Pipeline Settings — FitCV Admin{% endblock %}
+{% block content %}
+
+<style>
+  .settings-shell { display: grid; gap: 1.5rem; }
+  .settings-truth-panel {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 1rem;
+  }
+  .settings-truth-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.45rem;
+  }
+  .settings-truth-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: grid;
+    gap: 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+  }
+  .settings-mode-strip {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 0.85rem 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.6rem 1rem;
+    font-size: 0.82rem;
+  }
+  .settings-mode-item .k {
+    color: var(--text-muted);
+    margin-right: 0.4rem;
+  }
+  .settings-mode-item .v {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .settings-toolbar {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .settings-global-summary {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+  }
+  .settings-quick-nav {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 0.65rem 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.6rem;
+  }
+  .settings-quick-nav a {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+  }
+  .task-section {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 1rem;
+  }
+  .task-section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+  }
+  .task-section-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .task-section-helper {
+    font-size: 0.86rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    max-width: 70ch;
+  }
+  .task-section-grid {
+    display: grid;
+    gap: 1rem;
+  }
+  .settings-panel {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-0);
+    overflow: hidden;
+  }
+  .settings-panel-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem 1rem 0.75rem;
+  }
+  .settings-panel-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .settings-panel-helper {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    max-width: 64ch;
+  }
+  .settings-card-status {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .settings-panel-body {
+    padding: 0 1rem 1rem;
+  }
+  .settings-field-list {
+    display: grid;
+    gap: 0;
+  }
+  .settings-field-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) 10.5rem minmax(220px, 260px);
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--border-soft);
+  }
+  .settings-field-row:first-child {
+    border-top: none;
+  }
+  .settings-field-row.is-dirty {
+    background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 65%, white);
+  }
+  .settings-field-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .settings-field-description {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    max-width: 64ch;
+  }
+  .settings-field-meta {
+    display: grid;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .settings-field-meta .current-value {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .settings-field-control select,
+  .settings-field-control input[type="number"],
+  .settings-field-control input[type="text"] {
+    width: 100%;
+  }
+  .settings-field-note {
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .settings-field-note.is-fixed {
+    color: var(--badge-info-fg);
+  }
+  .settings-checkbox-list {
+    display: grid;
+    gap: 0.3rem;
+  }
+  .settings-checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.84rem;
+    color: var(--text-primary);
+  }
+  .sub-card-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding: 0 1rem 1rem;
+  }
+  .error-box {
+    margin: 0 1rem 1rem;
+  }
+  .settings-advanced-details {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-0);
+  }
+  .settings-advanced-details summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 1rem;
+  }
+  .settings-advanced-details summary::-webkit-details-marker {
+    display: none;
+  }
+  .settings-advanced-summary-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .settings-advanced-summary-helper {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+  }
+  .composition-matrix {
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .composition-matrix-header,
+  .composition-matrix-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) 8rem minmax(120px, 180px);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem 0.9rem;
+  }
+  .composition-matrix-header {
+    background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .composition-matrix-row + .composition-matrix-row {
+    border-top: 1px solid var(--border-soft);
+  }
+  .composition-matrix-row.is-dirty {
+    background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  }
+  .composition-row-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .composition-row-helper {
+    font-size: 0.77rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+  }
+  .composition-current {
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .composition-toggle {
+    justify-self: start;
+  }
+  @media (max-width: 980px) {
+    .settings-field-row,
+    .composition-matrix-header,
+    .composition-matrix-row {
+      grid-template-columns: 1fr;
+    }
+    .settings-panel-header,
+    .task-section-header {
+      flex-direction: column;
+    }
+    .settings-card-status {
+      white-space: normal;
+    }
+  }
+</style>
+
+{% macro render_field_control(item, settings_metadata_note) -%}
+  {% set entry = item.entry %}
+  <div class="settings-field-control">
+    {% if item.is_metadata_only %}
+      <div class="settings-field-note is-fixed">{{ settings_metadata_note }}</div>
+    {% elif entry.type == 'bool' %}
+      <input type="hidden" name="{{ entry.key }}" value="{{ 'true' if item.form_value in [true, 'true', '1', 'yes', 'on'] else 'false' }}" data-default-value="{{ 'true' if entry.default else 'false' }}">
+      <input
+        type="checkbox"
+        name="{{ entry.key }}"
+        value="true"
+        data-value-type="{{ entry.type }}"
+        data-current-value="{{ 'true' if item.effective_value else 'false' }}"
+        data-default-value="{{ 'true' if entry.default else 'false' }}"
+        {% if item.form_value in [true, 'true', '1', 'yes', 'on'] %}checked{% endif %}
+        onchange="this.previousElementSibling.value = this.checked ? 'true' : 'false'">
+    {% elif entry.type == 'list[str]' %}
+      {% set current_values = item.form_value if item.form_value is iterable and item.form_value is not string else [] %}
+      <div class="settings-checkbox-list">
+        {% for opt in entry.options %}
+          <label class="settings-checkbox-option">
+            <input
+              type="checkbox"
+              name="{{ entry.key }}"
+              value="{{ opt }}"
+              data-default-checked="{{ 'true' if opt in entry.default else 'false' }}"
+              data-current-checked="{{ 'true' if opt in item.effective_value else 'false' }}"
+              {% if opt in current_values %}checked{% endif %}>
+            <span>{{ opt | replace('_', ' ') | title }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    {% elif entry.options is defined %}
+      <select name="{{ entry.key }}" data-value-type="{{ entry.type }}" data-default-value="{{ entry.default }}" data-current-value="{{ item.effective_value }}">
+        {% for opt in entry.options %}
+          <option value="{{ opt }}" {% if item.form_value == opt %}selected{% endif %}>{{ opt | replace('_', ' ') | title }}</option>
+        {% endfor %}
+      </select>
+    {% elif entry.type == 'int' %}
+      <input
+        type="number"
+        name="{{ entry.key }}"
+        min="1"
+        value="{{ item.form_value }}"
+        data-value-type="{{ entry.type }}"
+        data-default-value="{{ entry.default }}"
+        data-current-value="{{ item.effective_value }}">
+    {% else %}
+      <input
+        type="text"
+        name="{{ entry.key }}"
+        value="{{ item.form_value }}"
+        data-value-type="{{ entry.type }}"
+        data-default-value="{{ entry.default }}"
+        data-current-value="{{ item.effective_value }}">
+    {% endif %}
+    {% if entry.key == "enrichment_concurrency" %}
+      <div class="settings-field-note">Higher concurrency does not bypass the enrich-stage global rate lock, so gains may be modest.</div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro render_settings_row(item, settings_metadata_note) -%}
+  {% set entry = item.entry %}
+  <div class="settings-field-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}">
+    <div>
+      <div class="settings-field-label">{{ entry.label }}</div>
+      <div class="settings-field-description">{{ entry.description }}</div>
+    </div>
+    <div class="settings-field-meta">
+      <span>Current: <span class="current-value">{{ item.effective_display }}</span></span>
+      <span>Source: {{ item.current_source_label }}</span>
+      <span>Owner: {{ item.owner_label }}</span>
+      <span>Active: {{ item.active_label }}</span>
+    </div>
+    {{ render_field_control(item, settings_metadata_note) }}
+  </div>
+{%- endmacro %}
+
+<div class="page-header">
+  <div>
+    <h1>Pipeline Settings</h1>
+    <p class="meta">Changes apply to future runs only. The default view highlights the settings operators tune most often; advanced tuning stays available when you need deeper control.</p>
+  </div>
+</div>
+
+<div class="settings-shell">
+  {% if error %}
+    <div class="error-box">
+      <strong>Validation error</strong>
+      <span>{{ error }}</span>
+    </div>
+  {% endif %}
+  <section class="settings-truth-panel">
+    <div class="settings-truth-title">How To Read This Page</div>
+    <ul class="settings-truth-list">
+      {% for note in settings_truth_notes %}
+        <li>{{ note }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section class="settings-mode-strip">
+    <div class="settings-mode-item"><span class="k">Agentic Mode:</span><span class="v">{{ settings_mode_summary.agentic_mode }}</span></div>
+    <div class="settings-mode-item"><span class="k">Live Provider:</span><span class="v">{{ settings_mode_summary.runtime_provider }}</span></div>
+    <div class="settings-mode-item"><span class="k">Live Model:</span><span class="v">{{ settings_mode_summary.runtime_model }}</span></div>
+    <div class="settings-mode-item"><span class="k">CV Model (Settings):</span><span class="v">{{ settings_mode_summary.settings_cv_model }}</span></div>
+  </section>
+  <section class="settings-truth-panel">
+    <div class="settings-truth-title">Run Truth Check</div>
+    <ul class="settings-truth-list">
+      <li>To confirm what actually ran, open Run Detail and check Agentic Runtime Alignment.</li>
+    </ul>
+  </section>
+  <section class="settings-toolbar">
+    <div class="settings-global-summary" data-global-dirty-summary="settings-page">All sections saved</div>
+    <nav class="settings-quick-nav" data-settings-quick-nav="true" aria-label="Settings quick navigation">
+      {% for section in settings_page_task_sections %}
+        <a href="#task-{{ section.id }}">{{ section.title }}</a>
+      {% endfor %}
+    </nav>
+  </section>
+  {% for section in settings_page_task_sections %}
+    <section class="task-section" data-task-section="{{ section.id }}" id="task-{{ section.id }}">
+      <div class="task-section-header">
+        <div>
+          <div class="task-section-title">{{ section.title }}</div>
+          <div class="task-section-helper">{{ section.helper }}</div>
+        </div>
+      </div>
+      <div class="task-section-grid">
+        {% for card in section.cards %}
+          {% if card.is_advanced %}
+            <details class="settings-advanced-details"{% if card.error_message %} open{% endif %}>
+              <summary>
+                <div class="settings-advanced-summary-title">{{ card.title }}</div>
+                <div class="settings-advanced-summary-helper">{{ card.helper }}</div>
+              </summary>
+              <div class="settings-panel">
+                <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}">
+                  {% if card.error_message %}
+                    <div class="error-box" style="margin-top:1rem">
+                      <strong>Validation error</strong>
+                      <span>{{ card.error_message }}</span>
+                    </div>
+                  {% endif %}
+                  <div class="settings-panel-body" style="padding-top:1rem">
+                    <div class="settings-field-list">
+                      {% for item in card.entries %}
+                        {{ render_settings_row(item, settings_metadata_note) }}
+                      {% endfor %}
+                    </div>
+                  </div>
+                  <div class="sub-card-footer">
+                    <div class="settings-card-status" data-dirty-summary="{{ card.form_id }}">
+                      {% if card.dirty_count == 0 %}No changes{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
+                    </div>
+                    <button type="button" class="btn-secondary" data-reset-form="{{ card.form_id }}">Use Defaults</button>
+                    <button type="submit" class="btn-section">{{ card.save_label }}</button>
+                  </div>
+                </form>
+              </div>
+            </details>
+          {% else %}
+            <div class="settings-panel">
+              <div class="settings-panel-header">
+                <div>
+                  <div class="settings-panel-title">{{ card.title }}</div>
+                  <div class="settings-panel-helper">{{ card.helper }}</div>
+                </div>
+                <div class="settings-card-status" data-dirty-summary="{{ card.form_id }}">
+                  {% if card.dirty_count == 0 %}No changes{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
+                </div>
+              </div>
+              {% if card.error_message %}
+                <div class="error-box">
+                  <strong>Validation error</strong>
+                  <span>{{ card.error_message }}</span>
+                </div>
+              {% endif %}
+              <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}">
+                <div class="settings-panel-body">
+                  {% if card.layout == "composition_matrix" %}
+                    <div class="composition-matrix">
+                      <div class="composition-matrix-header">
+                        <div>Section</div>
+                        <div>Current</div>
+                        <div>Edit</div>
+                      </div>
+                      {% for item in card.entries %}
+                        {% set entry = item.entry %}
+                        <div class="composition-matrix-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}">
+                          <div>
+                            <div class="composition-row-title">{{ entry.label | replace('Include ', '') }}</div>
+                            <div class="composition-row-helper">{{ entry.description }}</div>
+                          </div>
+                          <div class="composition-current">{{ "Included" if item.effective_value else "Hidden" }}</div>
+                          <div class="composition-toggle">
+                            {{ render_field_control(item, settings_metadata_note) }}
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="settings-field-list">
+                      {% for item in card.entries %}
+                        {{ render_settings_row(item, settings_metadata_note) }}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                <div class="sub-card-footer">
+                  <button type="button" class="btn-secondary" data-reset-form="{{ card.form_id }}">Use Defaults</button>
+                  <button type="submit" class="btn-section">{{ card.save_label }}</button>
+                </div>
+              </form>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endfor %}
+</div>
+
+<script type="application/json" id="ranking-weight-keys-data">{{ ranking_weight_keys | tojson }}</script>
+<script>
+  function updateWeightsTotal() {
+    const keysNode = document.getElementById('ranking-weight-keys-data');
+    const keys = keysNode ? JSON.parse(keysNode.textContent) : [];
+    let total = 0;
+    keys.forEach(function(k) {
+      const el = document.querySelector('[name="' + k + '"]');
+      if (el) total += parseFloat(el.value) || 0;
+    });
+    const card = document.getElementById('form-ranking-weights');
+    if (!card) return;
+    let target = card.parentElement.querySelector('.settings-panel-helper');
+    if (target) {
+      const formatted = total.toFixed(3);
+      target.innerHTML = 'All six weights must sum to 1.0 (±0.01). Current total: <strong style="color:' +
+        (Math.abs(total - 1.0) < 0.011 ? 'var(--badge-success-fg)' : 'var(--badge-error-fg)') +
+        ';">' + formatted + '</strong>';
+    }
+  }
+
+  function applyDefaultToField(field) {
+    const defaultValue = field.dataset.defaultValue;
+    if (field.dataset.defaultChecked !== undefined) {
+      field.checked = field.dataset.defaultChecked === 'true';
+      return;
+    }
+    if (defaultValue === undefined) {
+      return;
+    }
+    if (field.type === 'checkbox') {
+      const checked = defaultValue === 'true';
+      field.checked = checked;
+      const hidden = field.previousElementSibling;
+      if (hidden && hidden.type === 'hidden') {
+        hidden.value = checked ? 'true' : 'false';
+      }
+      return;
+    }
+    field.value = defaultValue;
+  }
+
+  function isRowDirty(row) {
+    function normalizeComparableValue(field, rawValue) {
+      const valueType = field.dataset.valueType;
+      if (valueType === 'int') {
+        const parsed = parseInt(rawValue, 10);
+        return Number.isNaN(parsed) ? String(rawValue) : String(parsed);
+      }
+      if (valueType === 'float') {
+        const parsed = parseFloat(rawValue);
+        return Number.isNaN(parsed) ? String(rawValue) : String(parsed);
+      }
+      if (valueType === 'bool') {
+        return rawValue === true || rawValue === 'true' ? 'true' : 'false';
+      }
+      return String(rawValue);
+    }
+
+    const fields = row.querySelectorAll('input, select, textarea');
+    for (const field of fields) {
+      if (field.type === 'hidden' && field.dataset.currentValue === undefined) {
+        continue;
+      }
+      if (field.dataset.currentChecked !== undefined) {
+        if ((field.checked ? 'true' : 'false') !== field.dataset.currentChecked) {
+          return true;
+        }
+        continue;
+      }
+      if (field.dataset.currentValue !== undefined) {
+        const current = normalizeComparableValue(field, field.dataset.currentValue);
+        const value = field.type === 'checkbox' ? (field.checked ? 'true' : 'false') : field.value;
+        if (normalizeComparableValue(field, value) !== current) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function updateRowDirtyState(row) {
+    const dirty = isRowDirty(row);
+    row.classList.toggle('is-dirty', dirty);
+    row.dataset.dirty = dirty ? 'true' : 'false';
+  }
+
+  function updateCardDirtyState(form) {
+    const rows = form.querySelectorAll('[data-entry-key]');
+    rows.forEach(updateRowDirtyState);
+    const dirtyCount = Array.from(rows).filter((row) => row.dataset.dirty === 'true').length;
+    const summary = document.querySelector('[data-dirty-summary="' + form.id + '"]');
+    if (summary) {
+      if (dirtyCount === 0) summary.textContent = 'No changes';
+      else if (dirtyCount === 1) summary.textContent = '1 unsaved edit';
+      else summary.textContent = dirtyCount + ' unsaved edits';
+    }
+    updateGlobalDirtySummary();
+    updateWeightsTotal();
+  }
+
+  function updateGlobalDirtySummary() {
+    const summary = document.querySelector('[data-global-dirty-summary="settings-page"]');
+    if (!summary) return;
+    const forms = document.querySelectorAll('form[data-dirty-card]');
+    let dirtyForms = 0;
+    forms.forEach(function(form) {
+      const hasDirtyRow = form.querySelector('[data-entry-key][data-dirty="true"]') !== null;
+      if (hasDirtyRow) dirtyForms += 1;
+    });
+    if (dirtyForms === 0) summary.textContent = 'All sections saved';
+    else if (dirtyForms === 1) summary.textContent = '1 section has unsaved edits';
+    else summary.textContent = dirtyForms + ' sections have unsaved edits';
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-dirty-card]').forEach(function(form) {
+      updateCardDirtyState(form);
+      form.querySelectorAll('input, select, textarea').forEach(function(field) {
+        field.addEventListener('input', function() { updateCardDirtyState(form); });
+        field.addEventListener('change', function() { updateCardDirtyState(form); });
+      });
+    });
+
+    document.querySelectorAll('[data-reset-form]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        const form = document.getElementById(button.dataset.resetForm);
+        if (!form) return;
+        form.querySelectorAll('input, select, textarea').forEach(applyDefaultToField);
+        updateCardDirtyState(form);
+      });
+    });
+  });
+</script>
+
+{% endblock %}

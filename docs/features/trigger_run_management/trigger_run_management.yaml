@@ -1,0 +1,223 @@
+# GENERATED FILE - do not edit directly.
+feature_id: trigger_run_management
+name: Trigger & Run Management
+status: active
+type: add
+summary: Admins can trigger runs via path reference, file upload, or pasted JSON in either `Run All` or `Stage by Stage` mode, attach a run-scoped synonym overlay before trigger for either mode, continue paused staged runs one stage at a time from persisted checkpoints, replace the run overlay after enrich before continuing into rule filter, cancel paused `awaiting_continue` runs when they should not resume, inspect shared stage progress from a selection-first runs list plus run detail, and export stage-owned artifacts once a stage has been reached in either mode.
+invariants: []
+domains:
+- admin_ui
+- run_orchestration
+depends_on:
+- admin_control_plane_core
+capabilities:
+- capability_id: trigger_run_management.runs-list-management
+  statement: Provide the runs list with status visibility, bulk lifecycle actions, and archive filtering.
+  state: active
+- capability_id: trigger_run_management.run-detail-actions
+  statement: Keep run detail as the single-run control surface for continue, stop, archive, unarchive, and repair actions.
+  state: active
+- capability_id: trigger_run_management.job-input-modes
+  statement: Support path, upload, and pasted JSON job inputs with canonical snapshot capture.
+  state: active
+- capability_id: trigger_run_management.candidate-profile-input-modes
+  statement: Support default-config, upload, and pasted candidate-profile inputs at trigger time.
+  state: active
+- capability_id: trigger_run_management.execution-mode-selection
+  statement: Support server-owned mode resolution for `Run All` and `Stage by Stage`.
+  state: active
+- capability_id: trigger_run_management.synonym-overlay-at-trigger
+  statement: Allow both execution modes to snapshot a run-scoped synonym-overlay YAML during setup.
+  state: active
+- capability_id: trigger_run_management.shared-stage-progress
+  statement: Persist shared reached-stage and completion progress for both execution modes.
+  state: active
+- capability_id: trigger_run_management.manual-checkpoints-and-continue
+  statement: Persist stage-by-stage checkpoint payloads and allow paused runs to continue from the next pending stage.
+  state: active
+- capability_id: trigger_run_management.synonym-overlay-replacement
+  statement: Allow paused manual runs to replace the run-scoped synonym overlay after enrich before continuing.
+  state: active
+- capability_id: trigger_run_management.run-health-surface
+  statement: Show compact run-health diagnostics that combine stage quality and late-stage reuse visibility.
+  state: active
+- capability_id: trigger_run_management.run-owned-artifact-exports
+  statement: Export run-scoped artifacts such as CV outputs, results, settings-used, CV debug, and artifact bundles.
+  state: active
+- capability_id: trigger_run_management.stage-artifact-downloads
+  statement: Provide aggregate stage-boundary downloads, stage slices, and gated stage-owned exports only when the owning stage has been reached.
+  state: active
+- capability_id: trigger_run_management.synonym-overlay-inspection
+  statement: Show active synonym-overlay state and snapshots from run detail inspection.
+  state: active
+- capability_id: trigger_run_management.run-results-export
+  statement: Export job-centric results with structured CV metadata and compact outcome detail.
+  state: active
+- capability_id: trigger_run_management.shortlist-debug-exports
+  statement: Show shortlist debug facts such as raw-hit visibility, raw-count separation, and retrieval-stage diagnostics.
+  state: active
+- capability_id: trigger_run_management.decision-chain-outcomes
+  statement: Surface explicit per-job decision chains and compact pipeline-outcome labels in exports and inspection views.
+  state: active
+- capability_id: trigger_run_management.reranker-fit-authority
+  statement: Treat reranker fit as the authoritative post-filter signal for ranking and CV eligibility outcomes.
+  state: active
+stage_participation:
+- stage_id: normalize
+  role: primary
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: enrich
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: rule_filter
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: shortlist
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: ranking
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: cv_analysis
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+- stage_id: cv_generation
+  role: supporting
+  capability_ids:
+  - trigger_run_management.candidate-profile-input-modes
+  - trigger_run_management.decision-chain-outcomes
+  - trigger_run_management.execution-mode-selection
+  - trigger_run_management.job-input-modes
+  - trigger_run_management.manual-checkpoints-and-continue
+  - trigger_run_management.reranker-fit-authority
+  - trigger_run_management.run-detail-actions
+  - trigger_run_management.run-health-surface
+  - trigger_run_management.run-owned-artifact-exports
+  - trigger_run_management.run-results-export
+  - trigger_run_management.runs-list-management
+  - trigger_run_management.shared-stage-progress
+  - trigger_run_management.shortlist-debug-exports
+  - trigger_run_management.stage-artifact-downloads
+  - trigger_run_management.synonym-overlay-at-trigger
+  - trigger_run_management.synonym-overlay-inspection
+  - trigger_run_management.synonym-overlay-replacement
+refs:
+  code:
+  - scripts/check_outbox_replay_health.py
+  - scripts/route_outbox_replay_health_alert.py
+  tests:
+  - tests/test_fitcv_cp/test_app.py
+  - tests/test_fitcv_cp/test_bq_store.py
+  - tests/test_fitcv_cp/test_queue.py
+  - tests/test_fitcv_cp/test_worker_job.py
+  specs:
+  plans:
+  docs:
+  - docs/features/trigger_run_management/history.md
+  configs: []
+  components: []
+revision: 7
+latest_change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+last_updated_at: '2026-04-22T13:25:00+02:00'

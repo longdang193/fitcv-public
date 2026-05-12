@@ -1,0 +1,467 @@
+# GENERATED FILE - do not edit directly.
+feature_id: run_lifecycle_controls
+source: docs/features/run_lifecycle_controls/feature.source.yaml
+invariants: {}
+capabilities:
+  run_lifecycle_controls.cancel-queued-runs-directly-from-the-queue-via-rq:
+    state: active
+    statement: Cancel queued runs directly from the queue via RQ
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_stop_queued_run_returns_json
+    - path: tests/test_fitcv_cp/test_queue.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_cancel_queued_run_returns_false_when_not_found
+    - path: tests/test_fitcv_cp/test_queue.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_cancel_queued_run_returns_true_when_cancelable
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.cooperative-cancellation-at-safe-checkpoints-for-running-jobs:
+    state: active
+    statement: Cooperative cancellation at safe checkpoints for running jobs
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_stop_claimed_run_falls_back_to_cancelling
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_request_run_cancel_sets_cancel_fields
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_cancellation_event_appended_on_early_exit
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_marks_cancelled_when_cancel_already_requested
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_pipeline_cancelled_exception_marks_cancelled
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.direct-cancellation-of-paused-manual-runs-in-awaiting-continue:
+    state: active
+    statement: Direct cancellation of paused manual runs in `awaiting_continue`
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_cancel_awaiting_continue_run_directly_cancels
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_stop_awaiting_continue_run_returns_cancelled
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.stale-cancellation-repair-endpoint:
+    state: active
+    statement: Stale cancellation repair endpoint
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_repair_cancellation_running_run_returns_409
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_repair_cancellation_stale_run_returns_cancelled
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_repair_cancellation_started_stale_run_returns_cancelled
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_stale_cancelling_shows_repair_status
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_run_detail_started_stale_cancelling_shows_repair_status
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.state-aware-max-runtime-timeout-handling-for-queued-running-cancelling-and-paused-manual-runs:
+    state: active
+    statement: State-aware max-runtime timeout handling for queued, running, cancelling, and paused manual runs
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_runs_timeouts_awaiting_continue_runs_to_cancelled
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_runs_timeouts_running_runs_to_failed
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.timeout-copy-now-distinguishes-queue-wait-active-runtime-and-stage-by-stage-manual-wait-time:
+    state: active
+    statement: Timeout copy now distinguishes queue wait, active runtime, and Stage by Stage manual-wait time
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_runs_timeouts_awaiting_continue_runs_to_cancelled
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_runs_timeouts_running_runs_to_failed
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.archive-and-unarchive-terminal-runs:
+    state: active
+    statement: Archive and unarchive terminal runs
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_archive_succeeded_run_returns_json
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_unarchive_archived_run_returns_json
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_archive_run_uses_parameterized_query
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_unarchive_run_uses_parameterized_query
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.batch-cancel-archive-and-unarchive-endpoints-with-explicit-processed-skipped-summaries:
+    state: active
+    statement: Batch cancel, archive, and unarchive endpoints with explicit processed/skipped summaries
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_archive_terminal_runs_only
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_cancel_awaiting_continue_run_directly_cancels
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_cancel_mixed_eligibility_returns_processed_and_skipped_summary
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_lifecycle_rejects_empty_run_ids
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_lifecycle_rejects_unknown_run_ids
+    - path: tests/test_fitcv_cp/test_app.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_admin_bulk_unarchive_archived_runs_only
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+  run_lifecycle_controls.full-audit-trail-in-pipeline-run-events:
+    state: active
+    statement: Full audit trail in pipeline_run_events
+    satisfies: []
+    code: []
+    tests:
+    - path: tests/test_fitcv_cp/test_bq_store.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_append_event_calls_bq
+    - path: tests/test_fitcv_cp/test_reporter.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_reporter_emits_event
+    - path: tests/test_fitcv_cp/test_worker_job.py
+      confidence: high
+      source:
+      - python_proves
+      symbols:
+      - test_worker_cancellation_event_appended_on_early_exit
+    docs:
+    - docs/features/run_lifecycle_controls/history.md
+    docs_evidence:
+    - path: docs/features/run_lifecycle_controls/history.md
+      confidence: high
+      source:
+      - docs_frontmatter
+    configs: []
+    config_evidence: []
+    components: []
+    component_evidence: []
+    specs:
+    plans:
+    evidence_gaps:
+    - missing_code_evidence
+    allowed_evidence_gaps:
+    - missing_code_evidence
+    lineage_exception_reason: null
+    unresolved_evidence_gaps: []
+    completeness_status: incomplete
+timeline:
+- completed_at: '2026-04-22T00:07:00+02:00'
+  change_id: 2026-04-22-option-b-phase-2-rollout
+  summary: Option B Phase 2 Rollout Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 2 rollout.
+- completed_at: '2026-04-22T00:32:00+02:00'
+  change_id: 2026-04-22-option-b-phase-3-cleanup
+  summary: Option B Phase 3 Cleanup Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the Option B phase 3 cleanup.
+- completed_at: '2026-04-22T01:35:00+02:00'
+  change_id: 2026-04-22-phase-4-required-metadata-correction
+  summary: Phase 4 Required Metadata Correction Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 4 required metadata correction.
+- completed_at: '2026-04-22T12:20:00+02:00'
+  change_id: 2026-04-22-phase-5-evidence-oriented-lineage-alignment
+  summary: Phase 5 Evidence-Oriented Lineage Alignment Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 5 evidence-oriented lineage alignment.
+- completed_at: '2026-04-22T13:25:00+02:00'
+  change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+  summary: Phase 6 Lineage Evidence Hydration Implementation Plan
+  capabilities: []
+  verification:
+  - See plan body closeout verification notes.
+  outcome: Completed the phase 6 lineage evidence hydration.

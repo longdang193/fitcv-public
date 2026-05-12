@@ -1,0 +1,111 @@
+feature_id: settings_system
+name: Settings System
+status: active
+type: add
+summary: Admins can view and edit pipeline tuning defaults through a task-first settings UI with clearer current-vs-draft feedback, basic-versus-advanced disclosure, denser CV output controls, and metadata-only treatment for fixed single-option runtime fields, while baseline defaults still resolve from centralized YAML/config ownership, persisted overrides still live in BigQuery, and operator-facing settings-used exports continue to present canonical settings instead of compatibility-era duplicate keys.
+invariants: []
+domains:
+  - admin_ui
+  - pipeline_config
+depends_on:
+  - admin_control_plane_core
+capabilities:
+  - capability_id: settings_system.bigquery-backed-pipeline-settings-store
+    statement: BigQuery-backed pipeline settings store
+    state: active
+  - capability_id: settings_system.settings-schema-registry
+    statement: Settings schema registry
+    state: active
+  - capability_id: settings_system.operator-facing-agentic-settings
+    statement: Expose a bounded operator-facing registry for editable, metadata-only, and excluded agentic defaults.
+    state: active
+  - capability_id: settings_system.retrieval-settings
+    statement: Retrieval settings
+    state: active
+  - capability_id: settings_system.run-safety-settings
+    statement: Configure timing, throttling, and run-lifecycle timeout controls.
+    state: active
+  - capability_id: settings_system.global-job-filters
+    statement: Global job filters
+    state: active
+  - capability_id: settings_system.ranking-settings
+    statement: Configure six-feature ranking weights, zero-weight semantics, and runtime-aligned copy.
+    state: active
+  - capability_id: settings_system.preference-fit-calibration
+    statement: Configure preference-fit subweights and fit-label threshold guidance for reranker calibration.
+    state: active
+  - capability_id: settings_system.cv-analysis-alignment-settings
+    statement: Configure semantic-alignment enablement, model selection, and lexical-vs-semantic balance for `cv_analysis`.
+    state: active
+  - capability_id: settings_system.cv-generation-settings
+    statement: CV generation settings
+    state: active
+  - capability_id: settings_system.cv-composition-visibility-settings
+    statement: CV composition visibility settings
+    state: active
+  - capability_id: settings_system.warning-only-cv-max-pages-validation-setting
+    statement: Warning-only CV max-pages validation setting
+    state: active
+  - capability_id: settings_system.task-first-settings-ui
+    statement: Organize the admin settings surface by task with clearer current-vs-draft feedback.
+    state: active
+  - capability_id: settings_system.advanced-settings-disclosure
+    statement: Separate expert-only tuning controls from the basic settings surface.
+    state: active
+  - capability_id: settings_system.metadata-only-fixed-controls
+    statement: Render fixed single-option runtime controls and retired prompt fields as metadata rather than editable inputs.
+    state: active
+  - capability_id: settings_system.compact-cv-visibility-controls
+    statement: Provide denser CV composition and visibility controls for operator workflows.
+    state: active
+  - capability_id: settings_system.grouped-form-validation
+    statement: Grouped form validation
+    state: active
+  - capability_id: settings_system.per-run-overrides
+    statement: Per-run overrides
+    state: active
+  - capability_id: settings_system.trigger-time-effective-settings-snapshot
+    statement: Trigger-time effective settings snapshot
+    state: active
+  - capability_id: settings_system.baseline-default-hydration
+    statement: Hydrate admin defaults from the baseline config layout while preserving migration-safe compatibility behavior.
+    state: active
+  - capability_id: settings_system.settings-used-exports
+    statement: Emit canonical nested settings-used exports and isolate compatibility-era flat keys into an explicit compatibility block.
+    state: active
+stage_participation:
+  - stage_id: normalize
+    role: supporting
+    capability_ids:
+      - settings_system.baseline-default-hydration
+      - settings_system.run-safety-settings
+      - settings_system.trigger-time-effective-settings-snapshot
+  - stage_id: enrich
+    role: supporting
+    capability_ids:
+      - settings_system.global-job-filters
+      - settings_system.retrieval-settings
+  - stage_id: rule_filter
+    role: supporting
+    capability_ids:
+      - settings_system.global-job-filters
+  - stage_id: shortlist
+    role: supporting
+    capability_ids:
+      - settings_system.retrieval-settings
+  - stage_id: ranking
+    role: supporting
+    capability_ids:
+      - settings_system.preference-fit-calibration
+      - settings_system.ranking-settings
+  - stage_id: cv_analysis
+    role: supporting
+    capability_ids:
+      - settings_system.cv-analysis-alignment-settings
+  - stage_id: cv_generation
+    role: supporting
+    capability_ids:
+      - settings_system.cv-composition-visibility-settings
+      - settings_system.cv-generation-settings
+      - settings_system.settings-used-exports
+      - settings_system.warning-only-cv-max-pages-validation-setting

@@ -1,0 +1,58 @@
+# GENERATED FILE - do not edit directly.
+feature_id: bounded_parallel_enrichment
+name: Bounded Parallel Enrichment
+status: active
+type: add
+summary: Enrichment runs in bounded parallel batches with admin-controlled concurrency settings.
+invariants: []
+domains:
+- api_optimization
+- pipeline
+depends_on:
+- pipeline_performance
+capabilities:
+- capability_id: bounded_parallel_enrichment.enrichment-batch-size-setting
+  statement: enrichment_batch_size setting
+  state: active
+- capability_id: bounded_parallel_enrichment.enrichment-concurrency-setting
+  statement: enrichment_concurrency setting
+  state: active
+- capability_id: bounded_parallel_enrichment.pre-enrichment-global-filters-run-first
+  statement: Pre-enrichment global filters run first
+  state: active
+- capability_id: bounded_parallel_enrichment.conservative-defaults-batch-size-10-concurrency-1
+  statement: Conservative defaults (batch_size=10, concurrency=1)
+  state: active
+- capability_id: bounded_parallel_enrichment.deterministic-output-order
+  statement: Deterministic output order
+  state: active
+- capability_id: bounded_parallel_enrichment.per-job-failure-isolation
+  statement: Per-job failure isolation
+  state: active
+stage_participation:
+- stage_id: enrich
+  role: primary
+  capability_ids:
+  - bounded_parallel_enrichment.conservative-defaults-batch-size-10-concurrency-1
+  - bounded_parallel_enrichment.deterministic-output-order
+  - bounded_parallel_enrichment.enrichment-batch-size-setting
+  - bounded_parallel_enrichment.enrichment-concurrency-setting
+  - bounded_parallel_enrichment.per-job-failure-isolation
+  - bounded_parallel_enrichment.pre-enrichment-global-filters-run-first
+refs:
+  code:
+  - src/fitcv/enrich.py
+  - src/fitcv/pipeline.py
+  tests:
+  - tests/test_enrich.py
+  - tests/test_fitcv_cp/test_settings_schema.py
+  - tests/test_pipeline.py
+  specs:
+  plans:
+  docs:
+  - docs/features/bounded_parallel_enrichment/history.md
+  configs: []
+  components: []
+revision: 5
+latest_change_id: 2026-04-22-phase-6-lineage-evidence-hydration
+last_updated_at: '2026-04-22T13:25:00+02:00'

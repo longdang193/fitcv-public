@@ -1,0 +1,503 @@
+# Candidate profile seed file for FitCV pipeline.
+# Fill in your actual details — this is the source of truth for CV generation.
+#
+# All fields are optional unless marked REQUIRED.
+# Sections rendered in CV depend on cv.yaml composition settings.
+
+name: "Nguyen Van A"
+headline: "Senior Data Engineer"
+summary: >
+  Data Engineer with 5+ years of experience designing and operating large-scale
+  data pipelines, analytics platforms, and cloud-native ETL solutions on GCP and AWS.
+  Proven track record in reducing data latency, improving data quality, and enabling
+  self-service analytics for cross-functional stakeholders. Passionate about
+  automation, observability, and mentoring junior engineers.
+
+# ── Contact & Personal Info ────────────────────────────────────────────────
+contact:
+  email: "nguyen.vana@email.com"
+  phone: "+49 170 123 4567"
+  location: "Berlin, Germany"
+  linkedin: "https://linkedin.com/in/nguyenvana"
+  github: "https://github.com/nguyenvana"
+  website: "https://nguyenvana.dev"
+
+# ── Work Experience ─────────────────────────────────────────────────────────
+experiences:
+  - id: "exp_1"
+    role: "Senior Data Engineer"
+    role_family: "data_engineering"
+    company: "Acme Analytics GmbH"
+    company_url: "https://acme-analytics.de"
+    location: "Berlin, Germany"
+    start: "2023-01"
+    end: "present"          # use "present" for current roles
+    current: true
+    domain_tags: ["analytics", "telecommunications"]
+    responsibility_themes: ["etl", "streaming", "dashboarding", "data_quality"]
+    bullets:
+      - text: "Built GA4 to BigQuery pipeline processing 2M daily events with dbt transformations, reducing reporting latency by 40%."
+        skills: ["BigQuery", "SQL", "dbt", "GA4", "ETL"]
+      - text: "Designed and implemented a Pub/Sub → Dataflow → BigQuery streaming architecture enabling real-time dashboard updates under 30 seconds."
+        skills: ["Pub/Sub", "Dataflow", "BigQuery", "Python", "Apache Beam"]
+      - text: "Automated data quality checks with Great Expectations, integrating into CI/CD pipeline via GitHub Actions."
+        skills: ["Great Expectations", "Python", "CI/CD", "GitHub Actions", "Data Quality"]
+      - text: "Led migration of legacy Spark jobs to Dataproc Serverless, cutting compute costs by 35%."
+        skills: ["Spark", "Dataproc", "Python", "GCP"]
+
+  - id: "exp_2"
+    role: "Data Engineer"
+    role_family: "data_engineering"
+    company: "Fintech Startup GmbH"
+    company_url: "https://fintech-startup.io"
+    location: "Munich, Germany"
+    start: "2021-06"
+    end: "2022-12"
+    current: false
+    domain_tags: ["fintech", "banking", "fraud_detection"]
+    responsibility_themes: ["dashboarding", "etl", "fraud_detection", "reporting_automation"]
+    bullets:
+      - text: "Built self-service Looker dashboards for product KPI monitoring, reducing ad-hoc reporting requests by 60%."
+        skills: ["Looker", "SQL", "LookML", "BigQuery"]
+      - text: "Wrote Python ETL scripts to consolidate CRM and marketing data into BigQuery, enabling unified customer analytics."
+        skills: ["Python", "SQL", "BigQuery", "ETL", "Salesforce API"]
+      - text: "Implemented real-time fraud detection features using BigQuery ML (random forest) on transaction streams."
+        skills: ["BigQuery ML", "Python", "Pub/Sub", "Fraud Detection"]
+
+  - id: "exp_3"
+    role: "Junior Data Analyst"
+    role_family: "analytics"
+    company: "RetailCo AG"
+    company_url: "https://retailco.de"
+    location: "Hamburg, Germany"
+    start: "2019-09"
+    end: "2021-05"
+    current: false
+    domain_tags: ["retail", "analytics"]
+    responsibility_themes: ["dashboarding", "reporting_automation", "stakeholder_reporting"]
+    bullets:
+      - text: "Maintained and extended Power BI dashboards for sales and inventory reporting consumed by 50+ business users."
+        skills: ["Power BI", "SQL Server", "DAX", "Excel"]
+      - text: "Automated weekly reporting workflows with Python scripts and Windows Task Scheduler, saving 8 hours/month."
+        skills: ["Python", "SQL", "Pandas", "Reporting"]
+
+# ── Education ────────────────────────────────────────────────────────────────
+education:
+  - id: "edu_1"
+    degree: "M.Sc. Data Engineering"
+    field: "Data Engineering"
+    institution: "Technical University Berlin"
+    location: "Berlin, Germany"
+    start: "2017-10"
+    end: "2019-09"
+    gpa: "1.3"               # German grading scale (1.0 = best)
+    thesis:
+      title: "Optimizing Spark Join Strategies for Large-Scale Graph Processing"
+      summary: >
+        Evaluated broadcast, shuffle-hash, and sort-merge join strategies on a 10TB
+        graph dataset using Apache Spark; proposed adaptive join selection heuristics
+        achieving up to 25% runtime reduction.
+    courses:
+      - "Distributed Systems"
+      - "Machine Learning at Scale"
+      - "Database Theory"
+      - "Statistics & Probability"
+      - "Data Visualization"
+    activities:
+      - "Data Engineering Student Club — co-organizer"
+      - "Kaggle competition participant (top 15% in two competitions)"
+
+  - id: "edu_2"
+    degree: "B.Sc. Computer Science"
+    field: "Computer Science"
+    institution: "TU Munich"
+    location: "Munich, Germany"
+    start: "2014-10"
+    end: "2017-09"
+    gpa: "1.7"
+    thesis:
+      title: "Parallelization of k-Nearest Neighbors on Multi-Core Processors"
+      summary: >
+        Designed and benchmarked shared-memory parallel implementations of kNN
+        using OpenMP and Threading Building Blocks.
+    courses:
+      - "Algorithms & Data Structures"
+      - "Operating Systems"
+      - "Software Engineering"
+      - "Linear Algebra"
+    activities:
+      - "University Hackathon — 2nd place"
+
+# ── Skills ───────────────────────────────────────────────────────────────────
+# All skills listed here are eligible for inclusion in the CV Skills section.
+# The pipeline uses evidence_refs to link skills to their proof (experience, project, etc.)
+skills:
+  # ── Programming Languages ──────────────────────────────────────────────────
+  - name: "Python"
+    level: "advanced"
+    years: 5
+    category: "Programming Languages"
+    evidence_refs: ["exp_1", "exp_2", "exp_3", "proj_1", "proj_3"]
+    sub_skills:
+      - "Pandas / Polars"
+      - "FastAPI / Flask"
+      - "Apache Airflow"
+      - "Great Expectations"
+
+  - name: "SQL"
+    level: "advanced"
+    years: 5
+    category: "Programming Languages"
+    evidence_refs: ["exp_1", "exp_2", "exp_3", "proj_1", "proj_2", "proj_3"]
+
+  - name: "Scala"
+    level: "intermediate"
+    years: 2
+    category: "Programming Languages"
+    evidence_refs: ["exp_1"]
+
+  - name: "Bash"
+    level: "intermediate"
+    years: 3
+    category: "Programming Languages"
+    evidence_refs: ["exp_1", "proj_3"]
+
+  # ── Cloud & Infrastructure ────────────────────────────────────────────────
+  - name: "GCP"
+    level: "advanced"
+    years: 4
+    category: "Cloud & Infrastructure"
+    evidence_refs: ["exp_1", "exp_2", "proj_1"]
+    sub_skills:
+      - "BigQuery"
+      - "Cloud Storage"
+      - "Pub/Sub"
+      - "Dataflow"
+      - "Dataproc"
+      - "Vertex AI"
+      - "Cloud Composer (Airflow)"
+
+  - name: "AWS"
+    level: "intermediate"
+    years: 2
+    category: "Cloud & Infrastructure"
+    evidence_refs: ["proj_2"]
+    sub_skills:
+      - "S3"
+      - "Kinesis"
+      - "Redshift"
+      - "Athena"
+      - "Glue"
+
+  - name: "Docker / Kubernetes"
+    level: "intermediate"
+    years: 2
+    category: "Cloud & Infrastructure"
+    evidence_refs: ["proj_1", "proj_3"]
+
+  - name: "Terraform"
+    level: "intermediate"
+    years: 2
+    category: "Cloud & Infrastructure"
+    evidence_refs: ["proj_1"]
+
+  # ── Data Engineering ───────────────────────────────────────────────────────
+  - name: "Apache Spark"
+    level: "advanced"
+    years: 4
+    category: "Data Engineering"
+    evidence_refs: ["exp_1", "edu_1"]
+    sub_skills:
+      - "PySpark"
+      - "Spark SQL"
+      - "Delta Lake"
+
+  - name: "dbt"
+    level: "advanced"
+    years: 3
+    category: "Data Engineering"
+    evidence_refs: ["exp_1", "proj_1"]
+    sub_skills:
+      - "dbt Core"
+      - "dbt Cloud"
+      - " Jinja templating"
+      - "Macro development"
+
+  - name: "Apache Airflow"
+    level: "intermediate"
+    years: 2
+    category: "Data Engineering"
+    evidence_refs: ["exp_1", "proj_1"]
+
+  - name: "Apache Kafka"
+    level: "intermediate"
+    years: 1
+    category: "Data Engineering"
+    evidence_refs: ["proj_2"]
+
+  - name: "Data Modeling"
+    level: "advanced"
+    years: 4
+    category: "Data Engineering"
+    evidence_refs: ["exp_1", "exp_2", "proj_1"]
+
+  # ── BI & Analytics ─────────────────────────────────────────────────────────
+  - name: "Looker"
+    level: "intermediate"
+    years: 2
+    category: "BI & Analytics"
+    evidence_refs: ["exp_2"]
+    sub_skills:
+      - "LookML"
+      - "Looker Studio"
+
+  - name: "Power BI"
+    level: "intermediate"
+    years: 2
+    category: "BI & Analytics"
+    evidence_refs: ["exp_3"]
+
+  - name: "Tableau"
+    level: "beginner"
+    years: 1
+    category: "BI & Analytics"
+    evidence_refs: ["edu_1"]
+
+  # ── Data Quality & Testing ─────────────────────────────────────────────────
+  - name: "Great Expectations"
+    level: "intermediate"
+    years: 1
+    category: "Data Quality & Testing"
+    evidence_refs: ["exp_1"]
+
+  - name: "Data Contract"
+    level: "beginner"
+    years: 1
+    category: "Data Quality & Testing"
+    evidence_refs: ["proj_1"]
+
+  # ── ML / AI ────────────────────────────────────────────────────────────────
+  - name: "BigQuery ML"
+    level: "intermediate"
+    years: 2
+    category: "ML / AI"
+    evidence_refs: ["exp_2", "proj_2"]
+    sub_skills:
+      - "Random Forest"
+      - "XGBoost"
+      - "K-Means Clustering"
+
+  - name: "Vertex AI"
+    level: "intermediate"
+    years: 1
+    category: "ML / AI"
+    evidence_refs: ["proj_1"]
+
+  # ── Version Control & CI/CD ────────────────────────────────────────────────
+  - name: "Git / GitHub"
+    level: "advanced"
+    years: 5
+    category: "DevOps & CI/CD"
+    evidence_refs: ["exp_1", "exp_2", "proj_1", "proj_3"]
+
+  - name: "GitHub Actions"
+    level: "intermediate"
+    years: 2
+    category: "DevOps & CI/CD"
+    evidence_refs: ["exp_1", "proj_1"]
+
+  - name: "CI/CD Pipelines"
+    level: "intermediate"
+    years: 2
+    category: "DevOps & CI/CD"
+    evidence_refs: ["exp_1", "proj_1"]
+
+# ── Projects ──────────────────────────────────────────────────────────────────
+projects:
+  - id: "proj_1"
+    name: "FitCV — AI-Powered CV Generation Pipeline"
+    url: "https://github.com/nguyenvana/fitcv"
+    duration: "2024-01 — present"
+    domain_tags: ["analytics", "recruiting", "ai"]
+    responsibility_themes: ["retrieval", "matching", "cv_generation", "reporting_automation"]
+    skills: ["Python", "BigQuery", "Vertex AI", "Gemini", "dbt", "Docker", "Terraform", "GitHub Actions"]
+    tech_stack:
+      - "Backend: Python, FastAPI, RQ (Redis Queue)"
+      - "AI: Vertex AI Gemini 2.5 Flash"
+      - "Data: BigQuery, dbt, Great Expectations"
+      - "Infrastructure: GCP, Terraform, Docker"
+      - "CI/CD: GitHub Actions"
+    business_value: >
+      End-to-end AI pipeline that ingests job postings, matches against candidate profiles
+      using BigQuery ML embeddings, and generates tailored CVs via Gemini. Reduced manual
+      CV tailoring time from 2 hours to under 5 minutes per application.
+    highlights:
+      - "Ingested 5,000+ LinkedIn job postings via scraper pipeline"
+      - "Achieved 89% relevance score on candidate–job matching via embedding similarity"
+      - "Serving 20+ candidates in production"
+
+  - id: "proj_2"
+    name: "Real-Time Fraud Detection on AWS"
+    url: "https://github.com/nguyenvana/fraud-detection"
+    duration: "2023-03 — 2023-08"
+    domain_tags: ["fintech", "banking", "fraud_detection"]
+    responsibility_themes: ["streaming", "fraud_detection", "model_scoring"]
+    skills: ["Python", "AWS Kinesis", "BigQuery ML", "Kafka", "SQL"]
+    tech_stack:
+      - "Stream Processing: AWS Kinesis, Kafka"
+      - "ML: BigQuery ML (Random Forest), Python scikit-learn"
+      - "Storage: AWS Redshift, S3"
+      - "Orchestration: Apache Airflow"
+    business_value: >
+      Real-time fraud detection system processing 10,000 transactions/minute with
+      sub-100ms latency, detecting fraud with 94% precision and reducing false positives
+      by 30% compared to the previous rule-based system.
+    highlights:
+      - "Trained and deployed BQML random forest model with 94% precision, 91% recall"
+      - "Integrated with existing Kafka consumer pipeline with zero downtime"
+
+  - id: "proj_3"
+    name: "Open-Source dbt Package for Marketing Attribution"
+    url: "https://github.com/nguyenvana/dbt-marketing-attribution"
+    duration: "2022-06 — 2022-10"
+    domain_tags: ["marketing", "analytics"]
+    responsibility_themes: ["data_modeling", "reporting_automation"]
+    skills: ["dbt", "SQL", "Python", "Docker", "Bash"]
+    tech_stack:
+      - "dbt Core / dbt Cloud"
+      - "Python (pytest, setuptools)"
+      - "Docker"
+      - "GitHub Actions (CI)"
+    business_value: >
+      Reusable dbt package enabling data teams to implement multi-touch marketing
+      attribution (first-touch, last-touch, linear) without reinventing the wheel.
+      150+ GitHub stars, used by 12 companies.
+    highlights:
+      - "150+ GitHub stars, 12 production adopters"
+      - "100% test coverage with dbt-expectations and pytest"
+
+# ── Certifications ───────────────────────────────────────────────────────────
+certifications:
+  - id: "cert_1"
+    name: "Google Professional Data Engineer"
+    issuer: "Google Cloud"
+    year: 2023
+    expiry: 2026                # leave blank/null if no expiry
+    credential_id: "GCP-DE-2023-12345"
+    url: "https://www.credential.net/abc123"
+
+  - id: "cert_2"
+    name: "dbt Analytics Engineering Certification"
+    issuer: "dbt Labs"
+    year: 2023
+    credential_id: "dbt-AE-2023-7890"
+    url: "https://www.getdbt.com/certification"
+
+  - id: "cert_3"
+    name: "AWS Certified Data Analytics — Specialty"
+    issuer: "Amazon Web Services"
+    year: 2022
+    expiry: 2025
+    credential_id: "AWS-DAS-C-2022-4444"
+    url: "https://aws.amazon.com/certification/"
+
+  - id: "cert_4"
+    name: "Certified Kubernetes Administrator (CKA)"
+    issuer: "Cloud Native Computing Foundation"
+    year: 2022
+    credential_id: "CKA-2022-11111"
+    url: "https://www.cncf.io/certification/cka/"
+
+# ── Languages ─────────────────────────────────────────────────────────────────
+languages:
+  - id: "lang_1"
+    name: "Vietnamese"
+    native: true               # set to true for mother tongue(s)
+
+  - id: "lang_2"
+    name: "English"
+    read: "C2"                # CEFR level: A1, A2, B1, B2, C1, C2
+    write: "C2"
+    speak: "C2"
+    notes: "IELTS 8.0 (2022)"
+    evidence_refs: ["edu_1", "edu_2"]
+
+  - id: "lang_3"
+    name: "German"
+    read: "C1"
+    write: "B2"
+    speak: "B2"
+    notes: "TestDaF 16 (2020)"
+    evidence_refs: ["edu_1"]
+
+  - id: "lang_4"
+    name: "French"
+    read: "B1"
+    write: "A2"
+    speak: "A2"
+
+# ── Achievements ─────────────────────────────────────────────────────────────
+achievements:
+  - id: "ach_1"
+    text: "Reduced reporting latency by 40% by rebuilding GA4 → BigQuery pipeline with dbt."
+    category: "performance"
+    domain_tags: ["analytics"]
+    evidence_refs: ["exp_1"]
+
+  - id: "ach_2"
+    text: "Enabled real-time dashboard updates under 30 seconds via Pub/Sub → Dataflow streaming architecture."
+    category: "performance"
+    evidence_refs: ["exp_1"]
+
+  - id: "ach_3"
+    text: "Reduced ad-hoc reporting requests by 60% by building Looker self-service dashboards."
+    category: "productivity"
+    domain_tags: ["analytics", "fintech"]
+    evidence_refs: ["exp_2"]
+
+  - id: "ach_4"
+    text: "Cut compute costs by 35% by migrating legacy Spark jobs to Dataproc Serverless."
+    category: "cost_savings"
+    evidence_refs: ["exp_1"]
+
+  - id: "ach_5"
+    text: "Achieved 94% precision and 91% recall on fraud detection model in production."
+    category: "ml_performance"
+    evidence_refs: ["exp_2", "proj_2"]
+
+  - id: "ach_6"
+    text: "150+ GitHub stars on open-source dbt marketing attribution package."
+    category: "open_source"
+    evidence_refs: ["proj_3"]
+
+  - id: "ach_7"
+    text: "Won 2nd place at TU Munich University Hackathon (2017)."
+    category: "award"
+    evidence_refs: ["edu_2"]
+
+# ── Interests & Activities ──────────────────────────────────────────────────
+interests:
+  - "Open-source contribution (dbt, Great Expectations)"
+  - "Data engineering blog (1,200 monthly readers)"
+  - "Kaggle competitions (top 15% in two competitions)"
+  - "Hiking and cycling"
+
+volunteering:
+  - id: "vol_1"
+    organization: "Data Engineering Berlin Meetup"
+    role: "Co-organizer"
+    duration: "2022 — present"
+    description: "Organize monthly talks and workshops for 400+ member community."
+
+# ── Preferences ──────────────────────────────────────────────────────────────
+preferences:
+  target_role: "Senior Data Engineer"
+  role_families: ["data_engineering", "analytics"]
+  location_types: ["remote", "hybrid"]
+  locations: ["Berlin", "Munich", "Remote"]
+  domains: ["data_engineering", "analytics", "data_science", "ml_engineering"]
+  seniority_target: "senior"
+  salary_range: "€80,000 — €100,000"
+  notice_period: "3 months"
+  exclude_contract_types: ["Internship"]
+  exclude_experience_levels: ["Internship", "Entry level"]

@@ -1,0 +1,24 @@
+{% if candidate_profile_pretty %}
+<div class="card" style="margin-bottom:1rem">
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+    <span class="badge badge-info">{{ run.candidate_profile_source }}</span>
+    <span class="meta">Candidate profile captured at trigger time (immutable snapshot)</span>
+  </div>
+</div>
+<div class="card">
+  <details open>
+    <summary class="meta" style="cursor:pointer;margin-bottom:0.75rem;user-select:none">▾ Raw JSON</summary>
+    <pre class="code-area" style="overflow-x:auto;max-height:500px;overflow-y:auto;margin:0">{{ candidate_profile_pretty }}</pre>
+  </details>
+</div>
+{% else %}
+<div class="card">
+  <p class="meta" style="margin-bottom:0.5rem">
+    Source: {% if run.candidate_profile_source %}<strong>{{ run.candidate_profile_source }}</strong>{% else %}<span class="empty-value">— not recorded</span>{% endif %}
+  </p>
+  <p class="meta">
+    No candidate profile snapshot was stored for this run.
+    This record was created before snapshot capture was available for this trigger mode.
+  </p>
+</div>
+{% endif %}
