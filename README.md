@@ -47,7 +47,6 @@ See deep stage behavior in [docs/FitCV-pipeline.md](docs/FitCV-pipeline.md) and 
 - **Generation safety**: validation and deterministic repair path for low-risk output defects.
 
 Related docs:
-
 - [docs/api.md](docs/api.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/component_boundaries.md](docs/component_boundaries.md)
@@ -66,10 +65,9 @@ Inputs (file/path/json)
 ```
 
 Primary architecture references:
-
 - [docs/architecture.md](docs/architecture.md)
 - [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
-- [docs/pipeline.md](docs/pipeline.md)
+- [docs/generated/architecture_dag.yaml](docs/generated/architecture_dag.yaml)
 
 ## Getting Started
 
@@ -83,18 +81,35 @@ Primary architecture references:
 
 ### Setup
 
-- Read setup guide: [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
-- Start local services:
+1. Read setup guide: [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
+2. Start local services:
 
 ```powershell
 docker compose up -d --build redis web worker
 ```
 
-- Open admin UI:
+3. Open admin UI:
 
 ```text
 http://localhost:8000/admin/runs
 ```
+
+### Reproduce
+
+Run core repo checks used in recent lanes:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/sync_architecture_docs.py --check
+.\.venv\Scripts\python.exe scripts/validate_repo_contracts.py --fast
+```
+
+Optional outbox replay health check:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_outbox_replay_health.py --base-url http://localhost:8010 --view active
+```
+
+For operator workflows and routes, see [docs/usage.md](docs/usage.md) and [docs/api.md](docs/api.md).
 
 ## Pending and Further Improvement
 

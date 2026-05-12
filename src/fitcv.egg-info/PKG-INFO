@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: fitcv
-Version: 0.1.0
-Summary: End-to-end pipeline for ingesting job postings, matching against a candidate profile, and generating tailored CVs.
-License: MIT
-Requires-Python: >=3.11
-Requires-Dist: pydantic>=2.0
