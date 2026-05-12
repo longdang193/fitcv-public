@@ -43,15 +43,6 @@ Owns stage execution, ranking and CV lanes, validation, artifact emission, and s
 - structured run events and stage artifacts back operator inspection flows
 - operator-facing exports are primary inspection evidence surfaces
 
-## Managed Documentation Model
-
-Human-owned architecture metadata lives in source docs (`docs/features/*.source.yaml`, `docs/stages/*.source.yaml`, root docs). Generated docs in `docs/generated/` and generated feature/stage contracts are output artifacts.
-
-## Validation Path
-
-- `python scripts/sync_architecture_docs.py --check`
-- `python scripts/validate_repo_contracts.py --fast`
-
 ## Related Docs
 
 - [setup.md](setup.md)

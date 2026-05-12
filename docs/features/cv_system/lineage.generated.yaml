@@ -97,20 +97,12 @@ capabilities:
     satisfies: []
     code: []
     tests:
-    - path: tests/test_architecture_metadata_generation.py
-      confidence: high
-      source:
-      - python_proves
     - path: tests/test_cv_generator.py
       confidence: high
       source:
       - python_proves
       symbols:
       - test_render_cv_markdown_consumes_structured_cv
-    - path: tests/test_sync_architecture_docs.py
-      confidence: high
-      source:
-      - python_proves
     docs:
     - docs/features/cv_system/history.md
     docs_evidence:

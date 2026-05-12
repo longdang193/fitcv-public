@@ -64,11 +64,9 @@ refs:
   code:
   - src/fitcv/pipeline.py
   tests:
-  - tests/test_architecture_metadata_generation.py
   - tests/test_config.py
   - tests/test_cv_generator.py
   - tests/test_pipeline.py
-  - tests/test_sync_architecture_docs.py
   - tests/test_validator.py
   specs:
   plans:

@@ -17,7 +17,7 @@ FitCV uses layered configuration with clear ownership boundaries.
 
 ## Primary Runtime Inputs
 
-- trigger base config file (`config_path` in `/runs` request; default `.env.yaml`)
+- trigger base config file (`config_path` in `/runs` request; default `config/env.yaml`)
 - persisted control-plane settings (`/admin/settings` and `/settings` surfaces)
 - per-run trigger overrides (`config_overrides` in `/runs`)
 - process environment variables for backend/provider credentials and runtime toggles
@@ -64,11 +64,6 @@ Examples:
 - backend routing: process env `FITCV_CP_DATA_BACKEND` selects backend mode (`sqlite` / `bigquery`) at runtime
 - model/provider routing: resolved from effective run config after settings + overrides composition
 - provider credentials: read from process env
-
-
-## Managed Docs Note
-
-Treat `docs/generated/`, generated feature contracts, and generated stage contracts as outputs. Refresh via sync scripts; do not hand-edit generated outputs.
 
 ## Related Docs
 
