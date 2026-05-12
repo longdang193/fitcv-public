@@ -1,201 +1,124 @@
 # FitCV
 
-> A job-matching and CV-generation system with an operator-facing control plane for running, inspecting, and tuning the pipeline.
+> Job-matching and CV-generation pipeline with operator-facing control plane.
 
 ## Who Uses It
 
-FitCV is built for a person or team that wants to turn a large set of raw job postings into a smaller set of high-confidence applications, with grounded CV output and strong operational visibility.
-
-Typical users are:
-
-- an operator running and reviewing application batches
-- an engineer building or maintaining the pipeline
-- a workflow owner who needs inspection, traceability, and repeatable CV generation
+- **Operators** running application batches and reviewing outcomes in admin UI.
+- **Engineers** maintaining pipeline logic, settings, and run infrastructure.
+- **Workflow owners** needing repeatable, inspectable CV production with run-level evidence.
 
 ## Problem
 
-The underlying workflow is messy if handled manually:
+Manual job-to-CV workflow breaks at scale:
 
-- raw jobs arrive in inconsistent formats
-- job relevance is hard to judge at scale
-- generic CV rewriting is difficult to trust
-- pipeline runs are hard to operate without good inspection and control surfaces
-
-FitCV addresses that by combining structured enrichment, deterministic filtering, retrieval and ranking, grounded CV generation, and an admin control plane that makes the whole system observable and tunable.
+- inconsistent raw job inputs
+- hard-to-trust relevance decisions
+- expensive downstream steps on low-quality candidates
+- weak operational visibility without run/stage inspection surfaces
 
 ## Solution
 
-FitCV processes jobs in a staged pipeline:
+FitCV uses staged pipeline + control plane:
 
-1. normalize incoming job inputs into a stable schema
-2. enrich jobs into structured records with skills, seniority, domain, and role context
-3. apply deterministic rule filtering before expensive retrieval and ranking
-4. shortlist plausible jobs through retrieval
-5. rank shortlisted jobs with stricter fit logic
-6. analyze only the best candidates for grounded CV evidence
-7. generate validated CV outputs with repair safeguards
-
-The admin control plane then lets operators trigger runs, inspect stage outputs, download artifacts, adjust settings, and manage run lifecycle actions without terminal-only workflows.
+- staged processing: normalize → enrich → rule_filter → shortlist → ranking → cv_analysis → cv_generation
+- deterministic gates before expensive stages
+- run-scoped artifacts and lifecycle controls
+- admin surfaces for trigger, inspect, download, and settings updates
 
 ## Key Pipeline Stages
 
-- `normalize`
-  - cleans and deduplicates raw job inputs into a stable run-scoped job list
-- `enrich`
-  - extracts structured job fields and supports safe reuse when unchanged jobs already have valid enrich output
-- `rule_filter`
-  - removes deterministic mismatches before expensive ranking work begins
-- `shortlist`
-  - retrieves the most plausible jobs with bounded, reuse-aware retrieval inputs
-- `ranking`
-  - applies the authoritative post-filter fit decision and selects which jobs can move toward CV generation
-- `cv_analysis`
-  - retrieves candidate evidence, computes grounded gap summaries, and decides whether a ranked job is generation-ready
-- `cv_generation`
-  - writes, validates, repairs when safe, and persists final CV outputs
+1. **normalize** — canonicalize and deduplicate input jobs.
+2. **enrich** — derive structured fields (skills, role, level, domain signals).
+3. **rule_filter** — apply deterministic exclusion rules.
+4. **shortlist** — retrieve plausible candidates for deeper scoring.
+5. **ranking** — compute fit decisions and promote best jobs.
+6. **cv_analysis** — gather grounded evidence and readiness signals.
+7. **cv_generation** — generate CV output with validation/repair safeguards.
 
-## Major Control-Plane Features
+See deep stage behavior in [docs/FitCV-pipeline.md](docs/FitCV-pipeline.md) and [docs/pipeline.md](docs/pipeline.md).
 
-- Trigger runs from uploaded files, pasted JSON, or path-based inputs
-- Run in either `Run All` or `Stage by Stage` mode
-- Inspect run progress, stage artifacts, and per-job outcomes
-- Download bundled run artifacts and stage-owned diagnostics
-- Manage editable pipeline settings through the UI
-- Pause, continue, archive, and cancel runs through lifecycle controls
+## Major Features and Engineering Highlights
 
-## Control-Plane Preview
+- **Control-plane run operations**: trigger runs, inspect stages/items, stop/archive lifecycle actions.
+- **Settings-driven execution**: persistent settings applied through control-plane settings store.
+- **Artifact-backed observability**: run/item diagnostics and downloadable outputs.
+- **Reuse/performance safeguards**: bounded reuse in selected stages to reduce redundant work.
+- **Generation safety**: validation and deterministic repair path for low-risk output defects.
 
-**Runs overview**
-
-The runs overview gives operators a batch-level view of recent executions, current statuses, trigger sources, and the fastest path into deeper inspection.
-
-![Runs overview showing pipeline run list and status summaries](data/images/run-overview.png)
-
-**Run details**
-
-The run-details view is the main operator workspace for inspecting stage progress, per-job outcomes, artifact truth, and downloadable diagnostics.
-
-![Run details view showing stage progress and per-job inspection surfaces](data/images/run-details.gif)
-
-**Settings page**
-
-The settings page exposes editable pipeline controls so operators can tune filtering, ranking, CV-generation behavior, and other runtime defaults without changing code.
-
-![Settings page showing editable pipeline configuration controls and runtime tuning options](data/images/setting-page.gif)
-
-## Engineering Highlights
-
-The most important system work in this repo is not just “generate CVs.” It is the surrounding reliability, diagnostics, and performance design:
-
-- **Stage-aware architecture**
-  - the pipeline is split into explicit stages with clear boundaries and stage-local artifacts
-- **Operator-facing inspection**
-  - runs expose compact ledgers, stage diagnostics, timeline events, and downloadable artifact bundles
-- **Reranker short-circuiting**
-  - weak ranked jobs are blocked before expensive CV-analysis evidence retrieval
-- **Artifact truth alignment**
-  - reranker-blocked, skipped-fit-gate, and generated outcomes are kept explicit in exported artifacts
-- **Performance and reuse work**
-  - enrichment, shortlist retrieval inputs, ranking rows, and CV-analysis outputs all support bounded reuse where contracts still match
-- **Generation safety**
-  - generated CVs are validated against grounded evidence, and specific low-risk failures such as placeholder candidate names can be repaired deterministically
+Related docs:
+- [docs/api.md](docs/api.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/component_boundaries.md](docs/component_boundaries.md)
+- [docs/configuration.md](docs/configuration.md)
+- [docs/observability.md](docs/observability.md)
 
 ## Architecture
 
 ```text
-Jobs JSON / upload / path input
-  |
-  v
-FastAPI admin control plane
-  |  trigger runs, snapshot settings, persist run state
-  v
-RQ worker + Redis
-  |  execute pipeline stages
-  v
-Core FitCV pipeline
-  |  normalize -> enrich -> rule_filter -> shortlist -> ranking -> cv_analysis -> cv_generation
-  v
-BigQuery
-  |  run state, events, structured jobs, rule-filter results, CV versions
-  v
-Admin inspection surfaces and downloadable artifacts
+Inputs (file/path/json)
+  -> FastAPI control plane (src/fitcv_cp)
+  -> Redis + RQ worker execution
+  -> Core pipeline stages (src/fitcv)
+  -> Persistent run state + artifacts
+  -> Admin inspection/download surfaces
 ```
 
-Operational invariants:
-
-- run records are inserted before queue enqueue
-- effective settings are snapshotted at trigger time
-- run inputs are treated as immutable once captured
-- run-scoped artifacts remain tied to the run that produced them
-
-## Main Components
-
-### Control plane
-
-- `src/fitcv_cp/`
-  - FastAPI app
-  - run lifecycle routes
-  - settings management
-  - BigQuery-backed inspection surfaces
-  - worker integration
-
-### Core pipeline
-
-- `src/fitcv/`
-  - normalization and enrichment
-  - deterministic filtering
-  - shortlist retrieval
-  - ranking
-  - CV analysis and generation
-  - validation and repair safeguards
-
-## Docs
-
-- [FitCV-pipeline.md](docs/FitCV-pipeline.md)
-  Current-state pipeline architecture, execution flow, and major engineering safeguards.
-- [fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
-  Local setup, Docker usage, credentials, and troubleshooting.
-- [architecture.md](docs/architecture.md)
-  Runtime architecture plus the source/generated Mode B doc shape.
-- [usage.md](docs/usage.md)
-  Operator and engineering workflow entry points.
-- [architecture_dag.yaml](docs/generated/architecture_dag.yaml)
-  Canonical generated topology across managed features, stages, and capability ownership.
-- [capability_lineage.yaml](docs/generated/capability_lineage.yaml)
-  Canonical generated summary of repo-wide capability evidence and completeness.
-
-## Source Layout
-
-```text
-src/fitcv_cp/     admin control plane
-src/fitcv/        core pipeline
-docs/features/    feature sources, generated contracts, and history
-docs/stages/      stage sources and generated contracts
-docs/generated/   generated discovery docs
-docs/intent/      stable project-purpose docs
-tests/            automated coverage
-config/           runtime and policy configuration
-assets/           SQL and supporting assets
-```
+Primary architecture references:
+- [docs/architecture.md](docs/architecture.md)
+- [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
+- [docs/generated/architecture_dag.yaml](docs/generated/architecture_dag.yaml)
 
 ## Getting Started
 
-For setup and local execution, start with:
+### Pre-requisites
 
-- [fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
+- Python environment (`.venv` expected in repo workflows)
+- Docker + Docker Compose
+- Redis (via compose service)
+- Runtime config file (default: `.env.yaml`)
+- Credentials required by configured backends (see setup doc)
 
-Typical Docker startup:
+### Setup
+
+1. Read setup guide: [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
+2. Start local services:
 
 ```powershell
 docker compose up -d --build redis web worker
 ```
 
-The admin UI is available at:
+3. Open admin UI:
 
 ```text
 http://localhost:8000/admin/runs
 ```
 
-## Repo Hooks
+### Reproduce
 
-Pushes and pull requests are expected to pass the repo hook workflow, including adapter verification, baseline tests, and the publication-boundary dry check.
+Run core repo checks used in recent lanes:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/sync_architecture_docs.py --check
+.\.venv\Scripts\python.exe scripts/validate_repo_contracts.py --fast
+```
+
+Optional outbox replay health check:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_outbox_replay_health.py --base-url http://localhost:8010 --view active
+```
+
+For operator workflows and routes, see [docs/usage.md](docs/usage.md) and [docs/api.md](docs/api.md).
+
+## Pending and Further Improvement
+
+### Pending
+
+- Add early warning alerts so operators know quickly when a run is going off track.
+- Improve run error summaries so users can find what failed and what to do next faster.
+
+### Further Improvement
+
+- Add a side-by-side run comparison so teams can see which settings lead to better results.
+- Add stronger final CV checks to increase trust before people submit applications.
