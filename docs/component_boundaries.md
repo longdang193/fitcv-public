@@ -128,25 +128,6 @@ Forbidden:
 3. `ai_runtime` bypassing policy/validation gates.
 4. `data_plane` owning flow semantics.
 
-## Exceptions Workflow
-
-Temporary exceptions are allowed only when explicitly documented and time-bounded.
-
-Use:
-
-
-Rules:
-
-1. exception must include exact `source` file and exact imported module.
-2. exception must include a short rationale and removal target in the related plan/checkpoint notes.
-3. exception should be removed in the next bounded pass that can safely do so.
-
-## Enforcement Surfaces
-
-- `scripts/validate_component_boundaries.py`
-
-Validation is executed through `scripts/validate_repo_contracts.py --fast`.
-
 ## Current Module Mapping
 
 - `src/fitcv_cp/app.py` -> control_plane
@@ -154,11 +135,3 @@ Validation is executed through `scripts/validate_repo_contracts.py --fast`.
 - `src/fitcv_cp/reporter.py` -> telemetry adapter
 - `src/fitcv_cp/bq_store.py` -> data_plane adapter
 - `src/fitcv/pipeline.py` -> evidence contract + policy + ai runtime integration
-
-## Adoption Notes
-
-Boundary enforcement is incremental and source-first:
-
-1. ownership and dependency rules are documented in this contract.
-2. validator surfaces enforce constraints and report drift.
-3. bounded exceptions are tracked and removed as dependent modules are reconciled.

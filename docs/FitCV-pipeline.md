@@ -6,12 +6,8 @@ FitCV turns noisy raw job postings into a smaller set of grounded, reviewable
 outputs that an operator can inspect, trust, and act on.
 
 This document is an explainer, not the editable stage contract. Canonical stage
-and feature truth lives in:
-
-- [docs/stages](stages/)
-- [docs/features](features/)
-- [architecture_dag.yaml](generated/architecture_dag.yaml)
-- [capability_lineage.yaml](generated/capability_lineage.yaml)
+and feature contract sources are maintained in the private governance layer and
+not mirrored into this public repository.
 
 ## End-to-End Flow
 
@@ -61,11 +57,6 @@ The pipeline is designed for an operator who needs to:
 The front of the pipeline converts noisy job text into a more stable internal
 representation that later stages can reason about consistently.
 
-Canonical ownership:
-
-- stage contracts in [docs/stages](stages/)
-- cross-stage feature ownership in [docs/features](features/)
-
 ### 2. Narrow The Candidate Set
 
 The middle of the pipeline keeps expensive downstream work focused on the most
@@ -73,12 +64,6 @@ plausible jobs instead of treating late stages as cleanup for weak candidates.
 
 That is the core cost-control idea in FitCV: narrowing should happen in layers,
 with more expensive work reserved for better candidates.
-
-Canonical ownership:
-
-- [rule_filter.source.yaml](stages/rule_filter.source.yaml)
-- [shortlist.source.yaml](stages/shortlist.source.yaml)
-- [ranking.source.yaml](stages/ranking.source.yaml)
 
 ### 3. Personalize Safely
 
@@ -89,12 +74,6 @@ This is where FitCV tries to be useful without becoming hand-wavy: generation
 is downstream of analysis, and accepted outputs are meant to stay grounded to
 owned evidence surfaces.
 
-Canonical ownership:
-
-- [cv_analysis.source.yaml](stages/cv_analysis.source.yaml)
-- [cv_generation.source.yaml](stages/cv_generation.source.yaml)
-- [cv_system feature source](features/cv_system/feature.source.yaml)
-
 ### 4. Operate And Inspect
 
 FitCV is not only a scoring pipeline. It is also an operator workflow with
@@ -102,12 +81,6 @@ execution controls, checkpoints, artifact downloads, and run-history surfaces.
 
 That is what turns the pipeline into a debuggable system instead of a black-box
 batch job.
-
-Canonical ownership:
-
-- [trigger_run_management feature source](features/trigger_run_management/feature.source.yaml)
-- [inspection_debugging feature source](features/inspection_debugging/feature.source.yaml)
-- [run_lifecycle_controls feature source](features/run_lifecycle_controls/feature.source.yaml)
 
 ## Execution Modes
 
@@ -136,10 +109,10 @@ The design goal is separation of concerns: small summary surfaces for everyday
 inspection, deeper artifacts for detailed debugging, and explicit ownership for
 where each kind of truth belongs.
 
-For the current generated view of the architecture and evidence graph, use:
+For the current public architecture and evidence narrative, use:
 
-- [architecture_dag.yaml](generated/architecture_dag.yaml)
-- [capability_lineage.yaml](generated/capability_lineage.yaml)
+- [architecture.md](architecture.md)
+- [pipeline.md](pipeline.md)
 
 ## Why The Staged Model Matters
 

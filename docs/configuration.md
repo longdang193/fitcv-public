@@ -65,11 +65,6 @@ Examples:
 - model/provider routing: resolved from effective run config after settings + overrides composition
 - provider credentials: read from process env
 
-
-## Managed Docs Note
-
-Treat `docs/generated/`, generated feature contracts, and generated stage contracts as outputs. Refresh via sync scripts; do not hand-edit generated outputs.
-
 ## Related Docs
 
 - [setup.md](setup.md)

@@ -506,8 +506,6 @@ When debugging a surprising run:
 
 - run-detail labels are derived views, not the source of semantic truth
 - stage artifacts are the primary source for stage-owned decisions
-- generated docs in `docs/generated/` explain repo structure, not live run state
-- deeper behavioral ownership still lives in `docs/features/` and `docs/stages/`
 
 ## Related Docs
 
