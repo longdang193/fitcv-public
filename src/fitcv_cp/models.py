@@ -80,6 +80,7 @@ class PipelineRun:
     # run-scoped input metadata
     jobs_input_source: Optional[str] = None           # "path" | "upload" | "paste"
     jobs_input_json: Optional[str] = None             # canonical resolved jobs-input snapshot for supported trigger modes in new runs
+    jobs_input_manifest_json: Optional[str] = None    # trigger-time jobs-input provenance metadata (e.g. upload source filenames)
     candidate_profile_source: Optional[str] = None    # "default_config" | "upload" | "paste"
     candidate_profile_json: Optional[str] = None      # canonical resolved candidate-profile snapshot for supported trigger modes in new runs
     # lifecycle controls

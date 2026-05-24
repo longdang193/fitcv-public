@@ -38,11 +38,16 @@ def deduplicate_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[str] = set()
     result: list[dict[str, Any]] = []
     for job in jobs:
-        url: str = job.get("job_url", "")
+        url = _job_url(job)
         if url not in seen:
             seen.add(url)
             result.append(job)
     return result
+
+
+def _job_url(job: dict[str, Any]) -> str:
+    """Canonical URL key for exact dedupe."""
+    return str(job.get("job_url", ""))
 
 
 # ── near-duplicate deduplication ─────────────────────────────────────────────
@@ -61,15 +66,20 @@ def deduplicate_near_duplicates(jobs: list[dict[str, Any]]) -> list[dict[str, An
     seen: set[tuple[str, str, str]] = set()
     result: list[dict[str, Any]] = []
     for job in jobs:
-        key = (
-            str(job.get("company_id", "")),
-            str(job.get("title", "")),
-            _description_hash(str(job.get("description", ""))),
-        )
+        key = _near_duplicate_key(job)
         if key not in seen:
             seen.add(key)
             result.append(job)
     return result
+
+
+def _near_duplicate_key(job: dict[str, Any]) -> tuple[str, str, str]:
+    """Canonical near-dedupe key used across dedupe flows."""
+    return (
+        str(job.get("company_id", "")),
+        str(job.get("title", "")),
+        _description_hash(str(job.get("description", ""))),
+    )
 
 
 def normalize_batch_with_exclusions(
@@ -88,7 +98,7 @@ def normalize_batch_with_exclusions(
     excluded: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
     for input_index, job in enumerate(normalized):
-        url = str(job.get("job_url", ""))
+        url = _job_url(job)
         if url in seen_urls:
             excluded.append({
                 **job,
@@ -104,11 +114,7 @@ def normalize_batch_with_exclusions(
     for input_index, job in enumerate(normalized):
         if input_index not in exact_kept_indices:
             continue
-        key = (
-            str(job.get("company_id", "")),
-            str(job.get("title", "")),
-            _description_hash(str(job.get("description", ""))),
-        )
+        key = _near_duplicate_key(job)
         if key in seen_keys:
             excluded.append({
                 **job,
@@ -125,18 +131,26 @@ def normalize_batch_with_exclusions(
 
 # ── applicationsCount parsing ─────────────────────────────────────────────────
 
-# Matches the leading number in strings like "61 applicants" or "Over 200 applicants"
-_APPS_COUNT_RE = re.compile(r"(?:Over\s+)?(\d+)\s+applicants?", re.IGNORECASE)
-# Matches "Be among the first N applicants" pattern → treat as 0 (very early)
-_AMONG_FIRST_RE = re.compile(r"Be among the first", re.IGNORECASE)
+# Matches localized count forms like:
+# "61 applicants", "Over 200 applicants", "61 Bewerber", "Plus de 40 candidats"
+_APPS_COUNT_RE = re.compile(
+    r"(?:over|plus\s+de|mehr\s+als|mas\s+de|más\s+de)?\s*(\d+)\s+"
+    r"(?:applicants?|bewerber(?:n)?|candidats?|candidatures|candidatos?|postulantes?)",
+    re.IGNORECASE,
+)
+# Matches "Be among the first N applicants" and localized variants → treat as 0
+_AMONG_FIRST_RE = re.compile(
+    r"(?:be\s+among\s+the\s+first|unter\s+den\s+ersten|parmi\s+les\s+premiers|entre\s+los\s+primeros)",
+    re.IGNORECASE,
+)
 
 
 def parse_applications_count(raw: str) -> int | None:
     """Parse a raw applicants string to an integer.
 
     Returns:
-        - Integer count for "61 applicants", "Over 200 applicants"
-        - 0 for "Be among the first 25 applicants" (indicates early posting)
+        - Integer count for recognized localized applicant-count phrases
+        - 0 for recognized "among first" localized phrases
         - None for empty or unrecognisable strings
     """
     if not raw:
@@ -182,22 +196,26 @@ def parse_salary(raw: str) -> dict[str, Any] | None:
         return None
 
     amounts: list[int] = []
-    currency = "UNKNOWN"
-    period = "yr"
+    currencies_seen: set[str] = set()
+    periods_seen: set[str] = set()
 
     for symbol, amount_str, period_raw in matches:
         currency = _CURRENCY_SYMBOLS.get(symbol, symbol)
-        period = period_raw
+        period = period_raw.lower()
+        currencies_seen.add(currency)
+        periods_seen.add(period)
         amounts.append(int(amount_str.replace(",", "").split(".")[0]))
 
     if not amounts:
+        return None
+    if len(currencies_seen) != 1 or len(periods_seen) != 1:
         return None
 
     return {
         "min": min(amounts),
         "max": max(amounts),
-        "currency": currency,
-        "period": period,
+        "currency": next(iter(currencies_seen)),
+        "period": next(iter(periods_seen)),
     }
 
 
@@ -239,3 +257,4 @@ def normalize_batch(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     deduped, _excluded = normalize_batch_with_exclusions(jobs)
     return deduped
+

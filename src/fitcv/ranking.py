@@ -21,6 +21,11 @@ from typing import Any
 
 from fitcv.candidate import canonicalize_role_title, infer_role_family
 from fitcv.config import sqlite_mode_enabled
+from fitcv.persistence import build_bigquery_client
+from fitcv.ranking_contract import (
+    validate_missing_defaults_contract,
+    validate_weight_contract,
+)
 
 SUPPORTED_RANKING_FEATURES = (
     "ai_score",
@@ -117,6 +122,7 @@ def get_active_ranking_weights(config: dict[str, Any] | None = None) -> dict[str
         raw_weight = configured.get(feature_name)
         if raw_weight is not None:
             resolved[feature_name] = float(raw_weight)
+    validate_weight_contract(resolved)
     return resolved
 
 
@@ -134,6 +140,7 @@ def get_active_missing_value_defaults(config: dict[str, Any] | None = None) -> d
         raw_default = configured.get(feature_name)
         if raw_default is not None:
             resolved[feature_name] = float(raw_default)
+    validate_missing_defaults_contract(resolved, supported_features=SUPPORTED_RANKING_FEATURES)
     return resolved
 
 
@@ -412,6 +419,8 @@ def compute_final_score(
         weights: Dictionary of weights summing to 1.0
         null_defaults: Dictionary of fallback values when a feature is missing
     """
+    validate_weight_contract(weights)
+    validate_missing_defaults_contract(null_defaults, supported_features=SUPPORTED_RANKING_FEATURES)
     score = 0.0
     for feature_name, weight in weights.items():
         val = features.get(feature_name)
@@ -426,6 +435,8 @@ def compute_feature_contributions(
     weights: dict[str, float],
     null_defaults: dict[str, float],
 ) -> dict[str, float]:
+    validate_weight_contract(weights)
+    validate_missing_defaults_contract(null_defaults, supported_features=SUPPORTED_RANKING_FEATURES)
     contributions: dict[str, float] = {}
     for feature_name, weight in weights.items():
         value = features.get(feature_name)
@@ -478,18 +489,9 @@ def store_final_ranking(
     if sqlite_mode_enabled(config):
         return
 
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.final_ranking"
     now = datetime.now(tz=timezone.utc).isoformat()
 

@@ -20,6 +20,273 @@ import hashlib
 import json
 from typing import Any
 
+from fitcv.contracts import SYNONYM_PROPOSALS_SCHEMA_VERSION
+
+_NON_SKILL_MIN_SUPPORT_FOR_PROPOSAL = 2
+_SYNONYM_MANAGEMENT_DEFAULTS: dict[str, bool] = {
+    "propose_enabled": True,
+    "apply_to_run_enabled": True,
+    "promote_global_enabled": True,
+    "auto_triage_recommendation_enabled": True,
+    "triage_recommendation_reuse_enabled": True,
+    "auto_apply_recommendation_enabled": True,
+    "auto_promote_global_enabled": True,
+    "auto_accept_ai_action_enabled": True,
+}
+_REUSE_DEFAULTS: dict[str, bool] = {
+    "enrich": True,
+    "ranking": True,
+    "cv_analysis": True,
+    "cv_generation": True,
+    "synonym_triage": True,
+}
+
+def build_synonym_proposal_identity(
+    *,
+    field: str,
+    alias: str,
+    candidate_canonicals: list[str],
+    proposal_family: str,
+) -> str:
+    normalized_field = str(field or "skill").strip().lower() or "skill"
+    normalized_alias = str(alias or "").strip().lower()
+    normalized_family = str(proposal_family or "alias_to_canonical_mapping").strip().lower() or "alias_to_canonical_mapping"
+    normalized_canonicals = sorted(
+        {
+            str(item).strip().lower()
+            for item in list(candidate_canonicals or [])
+            if str(item).strip()
+        }
+    )
+    identity_seed = f"{normalized_field}:{normalized_alias}:{'|'.join(normalized_canonicals)}:{normalized_family}"
+    return f"synident-{hashlib.sha1(identity_seed.encode('utf-8')).hexdigest()[:16]}"
+
+def build_synonym_triage_fingerprint(
+    *,
+    proposal: dict[str, Any],
+    runtime: dict[str, Any],
+    overlay_fingerprint: str | None = None,
+) -> str:
+    payload = {
+        "proposal_identity": str(proposal.get("proposal_identity") or "").strip()
+        or build_synonym_proposal_identity(
+            field=str(proposal.get("field") or "skill"),
+            alias=str(proposal.get("alias") or ""),
+            candidate_canonicals=[str(item) for item in list(proposal.get("candidate_canonicals") or [])],
+            proposal_family=str(proposal.get("proposal_family") or "alias_to_canonical_mapping"),
+        ),
+        "proposal_status": str(proposal.get("proposal_status") or "").strip(),
+        "field": str(proposal.get("field") or "skill").strip().lower(),
+        "alias": str(proposal.get("alias") or "").strip().lower(),
+        "canonical": str(proposal.get("canonical") or "").strip().lower(),
+        "candidate_canonicals": sorted(
+            {
+                str(item).strip().lower()
+                for item in list(proposal.get("candidate_canonicals") or [])
+                if str(item).strip()
+            }
+        ),
+        "provider": str(runtime.get("provider") or "fitcv_builtin").strip().lower(),
+        "model": str(runtime.get("model") or "synonym_triage_v1").strip(),
+        "wire_api": str(runtime.get("wire_api") or "builtin").strip(),
+        "sleep_secs": round(float(runtime.get("sleep_secs") or 0.0), 6),
+        "concurrency": int(runtime.get("concurrency") or 1),
+        "triage_version": "synonym_triage_v1",
+        "overlay_fingerprint": str(overlay_fingerprint or "").strip() or None,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def build_synonym_triage_core_fingerprint(
+    *,
+    proposal: dict[str, Any],
+    runtime: dict[str, Any],
+    overlay_fingerprint: str | None = None,
+) -> str:
+    payload = {
+        "field": str(proposal.get("field") or "skill").strip().lower(),
+        "alias": str(proposal.get("alias") or "").strip().lower(),
+        "canonical": str(proposal.get("canonical") or "").strip().lower(),
+        "proposal_family": str(proposal.get("proposal_family") or "alias_to_canonical_mapping").strip().lower(),
+        "provider": str(runtime.get("provider") or "fitcv_builtin").strip().lower(),
+        "model": str(runtime.get("model") or "synonym_triage_v1").strip(),
+        "wire_api": str(runtime.get("wire_api") or "builtin").strip(),
+        "triage_version": "synonym_triage_v1",
+        "overlay_fingerprint": str(overlay_fingerprint or "").strip() or None,
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _build_synonym_triage_gate_snapshot(proposal: dict[str, Any]) -> dict[str, Any]:
+    canonical = str(proposal.get("canonical") or "").strip().lower()
+    candidates = sorted(
+        {
+            str(item).strip().lower()
+            for item in list(proposal.get("candidate_canonicals") or [])
+            if str(item).strip()
+        }
+    )
+    return {
+        "status": str(proposal.get("proposal_status") or "").strip() or "proposed_unreviewed",
+        "has_conflict": bool((proposal.get("conflict_summary") or {}).get("has_conflict")),
+        "canonical": canonical,
+        "candidate_canonicals": candidates,
+    }
+
+
+def _triage_status_gate_compatible(previous: str, current: str) -> bool:
+    prev = str(previous or "").strip() or "proposed_unreviewed"
+    cur = str(current or "").strip() or "proposed_unreviewed"
+    if prev == cur:
+        return True
+    compatible_open_states = {
+        "proposed_unreviewed",
+        "in_review",
+        "deferred",
+        "approved_for_run_overlay",
+    }
+    return prev in compatible_open_states and cur in compatible_open_states
+
+
+def evaluate_synonym_triage_reuse(
+    *,
+    proposal: dict[str, Any],
+    runtime: dict[str, Any],
+    runtime_meta: dict[str, Any],
+    overlay_fingerprint: str | None = None,
+) -> dict[str, Any]:
+    strict_fp = build_synonym_triage_fingerprint(
+        proposal=proposal,
+        runtime=runtime,
+        overlay_fingerprint=overlay_fingerprint,
+    )
+    core_fp = build_synonym_triage_core_fingerprint(
+        proposal=proposal,
+        runtime=runtime,
+        overlay_fingerprint=overlay_fingerprint,
+    )
+    gate = _build_synonym_triage_gate_snapshot(proposal)
+    stored_strict_fp = str(
+        runtime_meta.get("triage_fingerprint_strict")
+        or runtime_meta.get("triage_fingerprint")
+        or ""
+    ).strip()
+    if stored_strict_fp and stored_strict_fp == strict_fp:
+        return {
+            "decision": "strict_reuse",
+            "reason": "strict_fingerprint_match",
+            "strict_fingerprint": strict_fp,
+            "core_fingerprint": core_fp,
+            "gate": gate,
+        }
+    stored_core_fp = str(runtime_meta.get("triage_fingerprint_core") or "").strip()
+    gate_status = str(runtime_meta.get("triage_gate_status") or "").strip()
+    gate_has_conflict = bool(runtime_meta.get("triage_gate_has_conflict"))
+    gate_canonical = str(runtime_meta.get("triage_gate_canonical") or "").strip().lower()
+    gate_candidates = sorted(
+        {
+            str(item).strip().lower()
+            for item in list(runtime_meta.get("triage_gate_candidate_canonicals") or [])
+            if str(item).strip()
+        }
+    )
+    if stored_core_fp and stored_core_fp == core_fp:
+        if not _triage_status_gate_compatible(gate_status, str(gate["status"])):
+            return {
+                "decision": "fresh",
+                "reason": "core_match_gate_status_mismatch",
+                "strict_fingerprint": strict_fp,
+                "core_fingerprint": core_fp,
+                "gate": gate,
+            }
+        if gate_has_conflict != bool(gate["has_conflict"]):
+            return {
+                "decision": "fresh",
+                "reason": "core_match_gate_conflict_mismatch",
+                "strict_fingerprint": strict_fp,
+                "core_fingerprint": core_fp,
+                "gate": gate,
+            }
+        if gate_canonical and gate_canonical != str(gate["canonical"]):
+            return {
+                "decision": "fresh",
+                "reason": "core_match_gate_canonical_mismatch",
+                "strict_fingerprint": strict_fp,
+                "core_fingerprint": core_fp,
+                "gate": gate,
+            }
+        if gate_candidates and str(gate["canonical"]) not in gate_candidates:
+            return {
+                "decision": "fresh",
+                "reason": "core_match_gate_candidates_mismatch",
+                "strict_fingerprint": strict_fp,
+                "core_fingerprint": core_fp,
+                "gate": gate,
+            }
+        return {
+            "decision": "core_reuse",
+            "reason": "core_fingerprint_match_with_gates",
+            "strict_fingerprint": strict_fp,
+            "core_fingerprint": core_fp,
+            "gate": gate,
+        }
+    return {
+        "decision": "fresh",
+        "reason": "fingerprint_mismatch",
+        "strict_fingerprint": strict_fp,
+        "core_fingerprint": core_fp,
+        "gate": gate,
+    }
+
+def resolve_synonym_management_mode(settings_payload: dict[str, Any] | None) -> dict[str, bool]:
+    payload = dict(settings_payload or {})
+    block = dict(payload.get("synonym_management") or {})
+    reuse_block = dict(payload.get("reuse") or {})
+    synonym_reuse_block = dict(reuse_block.get("synonym_triage") or {})
+    mode = {
+        key: bool(block.get(key, default_value))
+        for key, default_value in _SYNONYM_MANAGEMENT_DEFAULTS.items()
+    }
+    # Canonical control lives under reuse.synonym_triage.enabled; legacy key remains fallback.
+    if "enabled" in synonym_reuse_block:
+        mode["triage_recommendation_reuse_enabled"] = bool(synonym_reuse_block.get("enabled"))
+    return mode
+
+def apply_synonym_management_defaults(settings_payload: dict[str, Any] | None) -> dict[str, Any]:
+    normalized = dict(settings_payload or {})
+    normalized["synonym_management"] = resolve_synonym_management_mode(normalized)
+    reuse = dict(normalized.get("reuse") or {})
+    for stage, default_enabled in _REUSE_DEFAULTS.items():
+        stage_block = dict(reuse.get(stage) or {})
+        stage_block.setdefault("enabled", default_enabled)
+        reuse[stage] = stage_block
+    normalized["reuse"] = reuse
+    return normalized
+
+
+def transition_synonym_proposal_status(current_status: str, action: str) -> str | None:
+    transitions = {
+        "start_review": {
+            "proposed_unreviewed": "in_review",
+            "deferred": "in_review",
+        },
+        "approve_for_run_overlay": {
+            "proposed_unreviewed": "approved_for_run_overlay",
+            "in_review": "approved_for_run_overlay",
+            "deferred": "approved_for_run_overlay",
+        },
+        "reject": {
+            "proposed_unreviewed": "rejected",
+            "in_review": "rejected",
+            "deferred": "rejected",
+        },
+        "defer": {
+            "proposed_unreviewed": "deferred",
+            "in_review": "deferred",
+        },
+    }
+    return transitions.get(action, {}).get(str(current_status or "").strip())
+
 
 def build_synonym_proposals_payload(
     *,
@@ -30,6 +297,7 @@ def build_synonym_proposals_payload(
     global_synonyms: dict[str, str] | None = None,
 ) -> str:
     existing_proposals_by_id: dict[str, dict[str, Any]] = {}
+    existing_proposals_by_identity: dict[str, dict[str, Any]] = {}
     if existing_payload_json:
         try:
             existing_payload = json.loads(existing_payload_json)
@@ -42,6 +310,16 @@ def build_synonym_proposals_payload(
                 proposal_id = str(existing_proposal.get("proposal_id") or "").strip()
                 if proposal_id:
                     existing_proposals_by_id[proposal_id] = existing_proposal
+                proposal_identity = str(existing_proposal.get("proposal_identity") or "").strip()
+                if not proposal_identity:
+                    proposal_identity = build_synonym_proposal_identity(
+                        field=str(existing_proposal.get("field") or "skill"),
+                        alias=str(existing_proposal.get("alias") or ""),
+                        candidate_canonicals=[str(item) for item in list(existing_proposal.get("candidate_canonicals") or [])],
+                        proposal_family=str(existing_proposal.get("proposal_family") or "alias_to_canonical_mapping"),
+                    )
+                if proposal_identity:
+                    existing_proposals_by_identity[proposal_identity] = existing_proposal
 
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for suggestion in list(summary.get("mapping_suggestions") or []):
@@ -90,6 +368,8 @@ def build_synonym_proposals_payload(
             if str(alias).strip() and str(canonical).strip()
         }
     suppressed_as_already_global_count = 0
+    suppressed_count_by_field: dict[str, int] = {}
+    suppressed_reason_counts_by_field: dict[str, dict[str, int]] = {}
     suppressed_examples: list[dict[str, str]] = []
     for (_field_alias_key, bucket) in grouped.items():
         field = str(bucket.get("field") or "skill")
@@ -104,18 +384,41 @@ def build_synonym_proposals_payload(
         proposal_family = "conflict_bundle" if has_conflict else "alias_to_canonical_mapping"
         occurrence_count = int(bucket["occurrence_count"])
         avg_confidence = float(bucket["confidence_sum"]) / occurrence_count if occurrence_count else 0.0
-        identity_seed = f"{run_id}:{field}:{alias}:{'|'.join(candidate_canonicals)}:{proposal_family}"
+        if field in {"domain", "role_family"} and occurrence_count < _NON_SKILL_MIN_SUPPORT_FOR_PROPOSAL:
+            suppressed_count_by_field[field] = suppressed_count_by_field.get(field, 0) + 1
+            reason_bucket = suppressed_reason_counts_by_field.setdefault(field, {})
+            reason_bucket["insufficient_non_skill_support"] = (
+                reason_bucket.get("insufficient_non_skill_support", 0) + 1
+            )
+            if len(suppressed_examples) < 10:
+                suppressed_examples.append({"field": field, "alias": alias, "canonical": primary_canonical})
+            continue
+        proposal_identity = build_synonym_proposal_identity(
+            field=field,
+            alias=alias,
+            candidate_canonicals=candidate_canonicals,
+            proposal_family=proposal_family,
+        )
+        identity_seed = f"{run_id}:{proposal_identity}"
         proposal_id = f"synprop-{hashlib.sha1(identity_seed.encode('utf-8')).hexdigest()[:12]}"
-        existing_proposal = existing_proposals_by_id.get(proposal_id) or {}
+        existing_proposal = (
+            existing_proposals_by_id.get(proposal_id)
+            or existing_proposals_by_identity.get(proposal_identity)
+            or {}
+        )
         global_canonical = normalized_global_synonyms.get(alias) if field == "skill" else None
         if global_canonical and global_canonical == primary_canonical:
             suppressed_as_already_global_count += 1
+            suppressed_count_by_field[field] = suppressed_count_by_field.get(field, 0) + 1
+            reason_bucket = suppressed_reason_counts_by_field.setdefault(field, {})
+            reason_bucket["already_global_exact"] = reason_bucket.get("already_global_exact", 0) + 1
             if len(suppressed_examples) < 10:
                 suppressed_examples.append({"field": field, "alias": alias, "canonical": primary_canonical})
             continue
         proposals.append(
             {
                 "proposal_id": proposal_id,
+                "proposal_identity": proposal_identity,
                 "run_id": run_id,
                 "field": field,
                 "alias": alias,
@@ -139,6 +442,19 @@ def build_synonym_proposals_payload(
                     "conflicting_canonicals": candidate_canonicals[1:],
                 },
                 "proposal_status": str(existing_proposal.get("proposal_status") or "proposed_unreviewed"),
+                "recommended_action": str(existing_proposal.get("recommended_action") or "").strip() or None,
+                "recommendation_confidence": (
+                    round(float(existing_proposal.get("recommendation_confidence") or 0.0), 3)
+                    if existing_proposal.get("recommendation_confidence") is not None
+                    else None
+                ),
+                "recommendation_rationale": str(existing_proposal.get("recommendation_rationale") or "").strip() or None,
+                "recommendation_risk_flags": [
+                    str(flag).strip()
+                    for flag in list(existing_proposal.get("recommendation_risk_flags") or [])
+                    if str(flag).strip()
+                ],
+                "recommendation_runtime": dict(existing_proposal.get("recommendation_runtime") or {}),
                 "proposal_scope": "run_scoped_overlay_candidate",
                 "proposal_family": proposal_family,
                 "source_artifact_refs": {
@@ -149,9 +465,9 @@ def build_synonym_proposals_payload(
             }
         )
     proposals.sort(key=lambda item: (-float(item["confidence"]), str(item["alias"])))
-    payload = {
+    payload: dict[str, Any] = {
         "run_id": run_id,
-        "synonym_proposals_schema_version": "synonym_proposals_v1",
+        "synonym_proposals_schema_version": SYNONYM_PROPOSALS_SCHEMA_VERSION,
         "created_at": created_at.isoformat(),
         "proposal_generation_status": "generated" if proposals else "not_applicable",
         "persistence_status": "persisted" if proposals else "not_applicable",
@@ -166,6 +482,8 @@ def build_synonym_proposals_payload(
         suppression_summary={
             "suppressed_as_already_global_count": suppressed_as_already_global_count,
             "generated_for_review_count": len(proposals),
+            "suppressed_count_by_field": suppressed_count_by_field,
+            "suppressed_reason_counts_by_field": suppressed_reason_counts_by_field,
             "suppressed_examples": suppressed_examples,
             "suppression_source": (
                 "run_effective_skill_synonyms"
@@ -203,6 +521,12 @@ def _build_synonym_proposals_trace_payload(
                 ),
                 "generated_for_review_count": int(
                     (suppression_summary or {}).get("generated_for_review_count") or 0
+                ),
+                "suppressed_count_by_field": dict(
+                    (suppression_summary or {}).get("suppressed_count_by_field") or {}
+                ),
+                "suppressed_reason_counts_by_field": dict(
+                    (suppression_summary or {}).get("suppressed_reason_counts_by_field") or {}
                 ),
                 "suppression_source": str((suppression_summary or {}).get("suppression_source") or "none"),
             },
@@ -285,6 +609,12 @@ def _build_synonym_proposals_trace_payload(
             "generated_for_review_count": int(
                 (suppression_summary or {}).get("generated_for_review_count") or len(proposals)
             ),
+            "suppressed_count_by_field": dict(
+                (suppression_summary or {}).get("suppressed_count_by_field") or {}
+            ),
+            "suppressed_reason_counts_by_field": dict(
+                (suppression_summary or {}).get("suppressed_reason_counts_by_field") or {}
+            ),
             "suppression_source": str((suppression_summary or {}).get("suppression_source") or "none"),
         },
         "records": trace_records,
@@ -295,4 +625,5 @@ def _build_synonym_proposals_trace_payload(
         },
         "suppression_examples": list((suppression_summary or {}).get("suppressed_examples") or []),
     }
+
 

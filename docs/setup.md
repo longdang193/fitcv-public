@@ -46,19 +46,36 @@ pip install -r requirements.txt
 
 ## 3) Runtime Config Contract (Single Source Of Truth)
 
-Canonical runtime config file:
+Canonical config ownership:
 
 - `config/env.yaml`
+  - base runtime entry config for control-plane runs
+  - infra/environment keys and local candidate-profile path
+- `config/runtime/pipeline.yaml`
+  - canonical owner for pipeline/ranking/retrieval model+limit knobs
+  - stage behavior defaults used by `src/fitcv/*` runtime modules
 
 Secrets and runtime env vars file:
 
 - `.env` (untracked)
+
+Provider routing ownership:
+
+- canonical default owner: `config/runtime/control_plane.yaml`
+- `.env` `FITCV_LANGGRAPH_*` values are override-only (optional)
+- do not treat `.env` as default owner for provider/model/base_url/wire_api
 
 Notes:
 
 - Do not depend on `.env.yaml.example`.
 - `.env.yaml` may exist as local override in some setups, but canonical default
   for control-plane runs is `config/env.yaml`.
+- Do not duplicate runtime/pipeline knobs in `config/env.yaml` when they are
+  already owned by `config/runtime/pipeline.yaml`.
+- For provider routing expectation, precedence is:
+  1. non-empty `FITCV_LANGGRAPH_*` env overrides
+  2. control-plane defaults in `config/runtime/control_plane.yaml`
+  3. fail fast on unresolved required fields
 
 Minimum backend env for local SQLite mode:
 
@@ -72,7 +89,37 @@ Optional SQLite path override:
 $env:FITCV_CP_SQLITE_PATH = ".\data\fitcv_local.db"
 ```
 
-## 4) Start Application (Choose One)
+## 4) Candidate Profile Contract (Canonical + Optional Private Source)
+
+Current default runtime path in `config/env.yaml`:
+
+- `paths.candidate_profile: data/candidate_profile.yaml`
+
+Use these files with strict boundaries:
+
+- `data/candidate_profile.template.yaml`
+  - public-safe scaffold only
+  - no private values or PII
+  - edit only when profile contract/schema changes
+- `data/candidate_profile.yaml`
+  - canonical runtime candidate profile source for current defaults
+  - keep this synchronized with your local private profile workflow
+- `data/candidate_profile.private.yaml` (optional local workflow)
+  - local private candidate values
+  - ignored/untracked helper surface when teams choose private-source workflow
+
+Recommended workflow:
+
+1. Review required keys in `data/candidate_profile.template.yaml`.
+2. Fill real values in `data/candidate_profile.yaml` (or generate/sync it from a private local source).
+3. Run checks:
+
+```powershell
+git check-ignore data/candidate_profile.private.yaml
+pytest -q tests/test_candidate_profile_template_contract.py
+```
+
+## 5) Start Application (Choose One)
 
 ### Track A: Docker (recommended)
 

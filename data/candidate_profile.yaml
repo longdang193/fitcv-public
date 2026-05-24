@@ -26,15 +26,12 @@ contact:
 experiences:
   - id: "exp_1"
     role: "Senior Data Engineer"
-    role_family: "data_engineering"
     company: "Acme Analytics GmbH"
     company_url: "https://acme-analytics.de"
     location: "Berlin, Germany"
     start: "2023-01"
     end: "present"          # use "present" for current roles
     current: true
-    domain_tags: ["analytics", "telecommunications"]
-    responsibility_themes: ["etl", "streaming", "dashboarding", "data_quality"]
     bullets:
       - text: "Built GA4 to BigQuery pipeline processing 2M daily events with dbt transformations, reducing reporting latency by 40%."
         skills: ["BigQuery", "SQL", "dbt", "GA4", "ETL"]
@@ -47,15 +44,12 @@ experiences:
 
   - id: "exp_2"
     role: "Data Engineer"
-    role_family: "data_engineering"
     company: "Fintech Startup GmbH"
     company_url: "https://fintech-startup.io"
     location: "Munich, Germany"
     start: "2021-06"
     end: "2022-12"
     current: false
-    domain_tags: ["fintech", "banking", "fraud_detection"]
-    responsibility_themes: ["dashboarding", "etl", "fraud_detection", "reporting_automation"]
     bullets:
       - text: "Built self-service Looker dashboards for product KPI monitoring, reducing ad-hoc reporting requests by 60%."
         skills: ["Looker", "SQL", "LookML", "BigQuery"]
@@ -66,15 +60,12 @@ experiences:
 
   - id: "exp_3"
     role: "Junior Data Analyst"
-    role_family: "analytics"
     company: "RetailCo AG"
     company_url: "https://retailco.de"
     location: "Hamburg, Germany"
     start: "2019-09"
     end: "2021-05"
     current: false
-    domain_tags: ["retail", "analytics"]
-    responsibility_themes: ["dashboarding", "reporting_automation", "stakeholder_reporting"]
     bullets:
       - text: "Maintained and extended Power BI dashboards for sales and inventory reporting consumed by 50+ business users."
         skills: ["Power BI", "SQL Server", "DAX", "Excel"]
@@ -318,8 +309,6 @@ projects:
     name: "FitCV — AI-Powered CV Generation Pipeline"
     url: "https://github.com/nguyenvana/fitcv"
     duration: "2024-01 — present"
-    domain_tags: ["analytics", "recruiting", "ai"]
-    responsibility_themes: ["retrieval", "matching", "cv_generation", "reporting_automation"]
     skills: ["Python", "BigQuery", "Vertex AI", "Gemini", "dbt", "Docker", "Terraform", "GitHub Actions"]
     tech_stack:
       - "Backend: Python, FastAPI, RQ (Redis Queue)"
@@ -340,8 +329,6 @@ projects:
     name: "Real-Time Fraud Detection on AWS"
     url: "https://github.com/nguyenvana/fraud-detection"
     duration: "2023-03 — 2023-08"
-    domain_tags: ["fintech", "banking", "fraud_detection"]
-    responsibility_themes: ["streaming", "fraud_detection", "model_scoring"]
     skills: ["Python", "AWS Kinesis", "BigQuery ML", "Kafka", "SQL"]
     tech_stack:
       - "Stream Processing: AWS Kinesis, Kafka"
@@ -360,8 +347,6 @@ projects:
     name: "Open-Source dbt Package for Marketing Attribution"
     url: "https://github.com/nguyenvana/dbt-marketing-attribution"
     duration: "2022-06 — 2022-10"
-    domain_tags: ["marketing", "analytics"]
-    responsibility_themes: ["data_modeling", "reporting_automation"]
     skills: ["dbt", "SQL", "Python", "Docker", "Bash"]
     tech_stack:
       - "dbt Core / dbt Cloud"
@@ -441,7 +426,6 @@ achievements:
   - id: "ach_1"
     text: "Reduced reporting latency by 40% by rebuilding GA4 → BigQuery pipeline with dbt."
     category: "performance"
-    domain_tags: ["analytics"]
     evidence_refs: ["exp_1"]
 
   - id: "ach_2"
@@ -452,7 +436,6 @@ achievements:
   - id: "ach_3"
     text: "Reduced ad-hoc reporting requests by 60% by building Looker self-service dashboards."
     category: "productivity"
-    domain_tags: ["analytics", "fintech"]
     evidence_refs: ["exp_2"]
 
   - id: "ach_4"
@@ -491,8 +474,6 @@ volunteering:
 
 # ── Preferences ──────────────────────────────────────────────────────────────
 preferences:
-  target_role: "Senior Data Engineer"
-  role_families: ["data_engineering", "analytics"]
   location_types: ["remote", "hybrid"]
   locations: ["Berlin", "Munich", "Remote"]
   domains: ["data_engineering", "analytics", "data_science", "ml_engineering"]

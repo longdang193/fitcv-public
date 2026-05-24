@@ -17,12 +17,21 @@ lifecycle:
 
 import hashlib
 import json
-import os
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
 from fitcv.config import get_embedding_model, sqlite_mode_enabled
+from fitcv.shortlist_runtime import (
+    build_bigquery_client,
+    build_contract_fingerprint,
+    configure_sqlite_connection,
+    hash_payload,
+    normalize_text_scalar,
+    run_sqlite_io_retry,
+    sqlite_path,
+)
 
 JOB_SUMMARY_CHUNK_TYPE = "job_summary"
 SHORTLIST_SUMMARY_SCHEMA_VERSION = "shortlist_job_summary_v2"
@@ -30,27 +39,17 @@ SHORTLIST_DEFAULT_EMBEDDING_MODEL = "text-embedding-005"
 REUSED_CACHED_EMBEDDING_STATUS = "reused_cached_embedding"
 FRESH_EMBEDDING_STATUS = "fresh_embedding"
 SQLITE_EMBED_DIM = 256
+EMBEDDING_FAILURE_POLICY_DEFAULT = "deterministic_fallback"
+EMBEDDING_FAILURE_POLICY_RAISE = "raise"
+
+logger = logging.getLogger(__name__)
 
 
 
 
 def _normalize_summary_scalar(value: Any) -> str:
     """Collapse whitespace while preserving human-readable casing."""
-    return " ".join(str(value or "").split()).strip()
-
-
-def _canonicalize_for_hash(value: Any) -> Any:
-    """Canonicalize nested values for deterministic hashing."""
-    if isinstance(value, dict):
-        return {
-            key: _canonicalize_for_hash(value[key])
-            for key in sorted(value)
-        }
-    if isinstance(value, list):
-        return [_canonicalize_for_hash(item) for item in value]
-    if isinstance(value, str):
-        return value.casefold()
-    return value
+    return normalize_text_scalar(value)
 
 
 def _stable_sorted_unique_strings(values: list[Any]) -> list[str]:
@@ -106,12 +105,10 @@ def build_job_summary_signature_payload(structured_jd: dict[str, Any]) -> dict[s
 def build_job_summary_signature_record(structured_jd: dict[str, Any]) -> dict[str, Any]:
     """Return the stable shortlist summary payload plus its hash signature."""
     payload = build_job_summary_signature_payload(structured_jd)
-    canonical_payload = _canonicalize_for_hash(payload)
-    payload_json = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
-    signature = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+    payload_json, signature = hash_payload(payload)
     return {
         "payload": payload,
-        "payload_json": json.dumps(payload, sort_keys=True, separators=(",", ":")),
+        "payload_json": payload_json,
         "signature": signature,
     }
 
@@ -127,8 +124,7 @@ def build_embedding_contract_fingerprint(config: dict[str, Any]) -> dict[str, An
         "embedding_model": get_shortlist_embedding_model(config),
         "summary_schema_version": SHORTLIST_SUMMARY_SCHEMA_VERSION,
     }
-    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    fingerprint = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+    fingerprint = build_contract_fingerprint(payload)
     return {
         "payload": payload,
         "fingerprint": fingerprint,
@@ -145,7 +141,6 @@ def _load_latest_job_embedding_metadata(
     if not job_urls:
         return {}
 
-    url_list = ", ".join(f"'{url}'" for url in job_urls)
     sql = f"""
 SELECT
   job_url,
@@ -163,11 +158,18 @@ FROM (
       ORDER BY created_at DESC, chunk_text DESC, job_url DESC
     ) AS rn
   FROM `{table_ref}`
-  WHERE chunk_type = '{JOB_SUMMARY_CHUNK_TYPE}' AND job_url IN ({url_list})
+  WHERE chunk_type = '{JOB_SUMMARY_CHUNK_TYPE}' AND job_url IN UNNEST(@job_urls)
 )
 WHERE rn = 1
 """.strip()
-    rows = client.query(sql).result()
+    from google.cloud import bigquery  # type: ignore[import-untyped]
+
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("job_urls", "STRING", job_urls),
+        ]
+    )
+    rows = client.query(sql, job_config=job_config).result()
     metadata: dict[str, dict[str, str]] = {}
     for row in rows:
         job_url = _normalize_summary_scalar(getattr(row, "job_url", ""))
@@ -334,6 +336,32 @@ def _deterministic_local_embedding(text: str) -> list[float]:
     return values
 
 
+def get_embedding_failure_policy(config: dict[str, Any]) -> str:
+    policy = str(config.get("embedding_failure_policy") or EMBEDDING_FAILURE_POLICY_DEFAULT).strip().lower()
+    if policy in {EMBEDDING_FAILURE_POLICY_DEFAULT, EMBEDDING_FAILURE_POLICY_RAISE}:
+        return policy
+    return EMBEDDING_FAILURE_POLICY_DEFAULT
+
+
+def _generate_vertex_embedding(
+    *,
+    text: str,
+    config: dict[str, Any],
+    model_name: str | None = None,
+) -> list[float]:
+    import vertexai  # type: ignore[import-untyped]
+    from fitcv.config import get_vertex_location
+    from vertexai.language_models import TextEmbeddingModel  # type: ignore[import-untyped]
+
+    vertexai.init(
+        project=str(config["gcp_project"]),
+        location=get_vertex_location(config),
+    )
+    model = TextEmbeddingModel.from_pretrained(str(model_name or SHORTLIST_DEFAULT_EMBEDDING_MODEL))
+    embeddings = model.get_embeddings([text])
+    return embeddings[0].values  # type: ignore[return-value]
+
+
 def generate_embedding(
     text: str,
     config: dict[str, Any],
@@ -348,23 +376,18 @@ def generate_embedding(
         return _deterministic_local_embedding(text)
 
     try:
-        import vertexai  # type: ignore[import-untyped]
-        from fitcv.config import get_vertex_location
-        from vertexai.language_models import TextEmbeddingModel  # type: ignore[import-untyped]
-
-        vertexai.init(
-            project=str(config["gcp_project"]),
-            location=get_vertex_location(config),
+        return _generate_vertex_embedding(
+            text=text,
+            config=config,
+            model_name=model_name,
         )
-        model = TextEmbeddingModel.from_pretrained(str(model_name or SHORTLIST_DEFAULT_EMBEDDING_MODEL))
-        embeddings = model.get_embeddings([text])
-        return embeddings[0].values  # type: ignore[return-value]
-    except Exception:
+    except Exception as exc:
+        if get_embedding_failure_policy(config) == EMBEDDING_FAILURE_POLICY_RAISE:
+            raise RuntimeError("Embedding provider call failed and failure policy is set to raise") from exc
+        logger.warning("Embedding provider failed; falling back to deterministic local embedding: %s", exc)
         return _deterministic_local_embedding(text)
 
 
-def _sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
 
 
 def _ensure_sqlite_embedding_tables(conn: sqlite3.Connection) -> None:
@@ -438,45 +461,41 @@ def embed_and_store_jobs(
                     "embedding_input_signature_payload_json": signature_record["payload_json"],
                 }
             )
-        with sqlite3.connect(_sqlite_path()) as conn:
-            _ensure_sqlite_embedding_tables(conn)
-            conn.executemany(
-                """
-                INSERT INTO job_embeddings(
-                  job_url, chunk_type, chunk_text, embedding_json, created_at,
-                  embedding_input_signature, embedding_contract_fingerprint, embedding_input_signature_payload_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        row["job_url"],
-                        row["chunk_type"],
-                        row["chunk_text"],
-                        row["embedding_json"],
-                        row["created_at"],
-                        row["embedding_input_signature"],
-                        row["embedding_contract_fingerprint"],
-                        row["embedding_input_signature_payload_json"],
-                    )
-                    for row in rows
-                ],
-            )
-            conn.commit()
+        def _write_job_embeddings() -> None:
+            with sqlite3.connect(sqlite_path(), timeout=30) as conn:
+                configure_sqlite_connection(conn)
+                _ensure_sqlite_embedding_tables(conn)
+                conn.executemany(
+                    """
+                    INSERT INTO job_embeddings(
+                      job_url, chunk_type, chunk_text, embedding_json, created_at,
+                      embedding_input_signature, embedding_contract_fingerprint, embedding_input_signature_payload_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            row["job_url"],
+                            row["chunk_type"],
+                            row["chunk_text"],
+                            row["embedding_json"],
+                            row["created_at"],
+                            row["embedding_input_signature"],
+                            row["embedding_contract_fingerprint"],
+                            row["embedding_input_signature_payload_json"],
+                        )
+                        for row in rows
+                    ],
+                )
+                conn.commit()
+
+        run_sqlite_io_retry(_write_job_embeddings)
         return len(rows)
 
     import time
 
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.job_embeddings"
     now = datetime.now(tz=timezone.utc).isoformat()
     embedding_contract = build_embedding_contract_fingerprint(config)
@@ -556,32 +575,28 @@ def embed_and_store_candidate(
                     now,
                 )
             )
-        with sqlite3.connect(_sqlite_path()) as conn:
-            _ensure_sqlite_embedding_tables(conn)
-            conn.executemany(
-                """
-                INSERT INTO candidate_embeddings(
-                  evidence_id, source_ref_id, evidence_type, chunk_text, embedding_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                rows,
-            )
-            conn.commit()
+        def _write_candidate_embeddings() -> None:
+            with sqlite3.connect(sqlite_path(), timeout=30) as conn:
+                configure_sqlite_connection(conn)
+                _ensure_sqlite_embedding_tables(conn)
+                conn.executemany(
+                    """
+                    INSERT INTO candidate_embeddings(
+                      evidence_id, source_ref_id, evidence_type, chunk_text, embedding_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    rows,
+                )
+                conn.commit()
+
+        run_sqlite_io_retry(_write_candidate_embeddings)
         return len(rows)
 
     import time
 
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.candidate_embeddings"
     now = datetime.now(tz=timezone.utc).isoformat()
 
@@ -605,3 +620,5 @@ def embed_and_store_candidate(
     if errors:
         raise RuntimeError(f"BigQuery insert errors for candidate_embeddings: {errors}")
     return len(rows)
+
+

@@ -16,42 +16,21 @@ lifecycle:
 """
 
 import json
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fitcv.config import sqlite_mode_enabled
+from fitcv.contracts import REQUIRED_SCRAPER_FIELDS, SCRAPER_CAMEL_TO_SNAKE
+from fitcv.persistence import build_bigquery_client, get_local_sqlite_path
 
 # ── field mapping: LinkedIn scraper camelCase → raw_jobs snake_case ──────────
 
-_CAMEL_TO_SNAKE: dict[str, str] = {
-    "jobUrl": "job_url",
-    "postedTime": "posted_time",
-    "publishedAt": "published_at",
-    "companyName": "company_name",
-    "companyUrl": "company_url",
-    "companyId": "company_id",
-    "applicationsCount": "applications_count",
-    "contractType": "contract_type",
-    "experienceLevel": "experience_level",
-    "workType": "work_type",
-    "posterFullName": "poster_full_name",
-    "posterProfileUrl": "poster_profile_url",
-    "applyUrl": "apply_url",
-    "applyType": "apply_type",
-}
+_CAMEL_TO_SNAKE: dict[str, str] = SCRAPER_CAMEL_TO_SNAKE.copy()
 
 # Fields the scraper must always provide
-_REQUIRED_SCRAPER_FIELDS: list[str] = [
-    "jobUrl",
-    "title",
-    "companyName",
-    "description",
-    "contractType",
-    "experienceLevel",
-]
+_REQUIRED_SCRAPER_FIELDS: tuple[str, ...] = REQUIRED_SCRAPER_FIELDS
 
 
 # ── parsing ──────────────────────────────────────────────────────────────────
@@ -140,7 +119,7 @@ def prepare_raw_rows(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # ── BigQuery load (integration) ───────────────────────────────────────────────
 
 def _local_sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+    return get_local_sqlite_path()
 
 
 
@@ -264,19 +243,9 @@ def load_to_bigquery(rows: list[dict[str, Any]], config: dict[str, Any]) -> int:
             )
             conn.commit()
         return len(rows)
-
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
-    key_path: str = str(config["service_account_key"])
     project: str = str(config["gcp_project"])
     dataset: str = str(config["bigquery_dataset"])
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
 
     table_ref = f"{project}.{dataset}.raw_jobs"
     errors = client.insert_rows_json(table_ref, rows)
@@ -321,3 +290,4 @@ def fetch_from_apify(config: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("Apify API did not return a JSON array")
 
     return data  # type: ignore[return-value]
+

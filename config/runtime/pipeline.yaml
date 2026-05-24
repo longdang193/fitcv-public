@@ -15,13 +15,18 @@
 # Consumed by: enrich.py, embeddings.py, vector_search.py, ai_score.py.
 # Override any value in .env.yaml; pipeline.yaml defaults apply otherwise.
 
-# ── AI models ──────────────────────────────────────────────────────────────────
-gemini_model: gemini-2.5-flash         # used by enrich.py and ai_score.py
-embedding_model: text-embedding-005    # used by embeddings.py
+# ── AI model compatibility fallbacks ───────────────────────────────────────────
+# Canonical active owner for stage model selection is control-plane model routing:
+#   control_plane.model_routing.parts.<stage>.model
+# These remain fallback defaults for compatibility paths only.
+gemini_model: gemini-2.5-flash
+embedding_model: text-embedding-005
 
 # ── Enrichment (Task 4) ────────────────────────────────────────────────────────
 enrichment_version: v1
-enrichment_sleep_secs: 1.0             # sleep between Gemini calls (free-tier: 1 req/s)
+enrichment_sleep_secs: 0.0             # default: no enforced delay between enrichment calls
+enrichment_batch_size: 10              # default enrichment batch size
+enrichment_concurrency: 8              # default enrichment parallel workers
 
 # ── Embeddings (Task 6) ────────────────────────────────────────────────────────
 embedding_batch_size: 100
@@ -30,7 +35,7 @@ embedding_batch_size: 100
 pipeline:
   vector_search_top_n: 50              # canonical shortlist top-N for vector search
   ai_score_top_n: 50                   # canonical ranking top-N for AI scoring
-  final_top_n: 10                      # canonical final ranked list size
+  final_top_n: 15                      # canonical final ranked list size
   evidence_top_k: 5                    # canonical cv_analysis evidence bundle size
 
 run_lifecycle:
@@ -45,4 +50,36 @@ retrieval_strategy: job_summary_v1     # stored in vector_shortlist.retrieval_st
 
 # ── AI reranking (Task 9) ──────────────────────────────────────────────────────
 rerank_top_n: 50                       # max shortlisted jobs sent to AI reranking
-rerank_sleep_secs: 0.5                 # sleep between Vertex AI scoring calls
+rerank_sleep_secs: 0.0                 # default: no enforced delay between ranking calls
+
+stage_runtime:
+  enrich:
+    sleep_secs: 0.0
+    batch_size: 10
+    concurrency: 8
+  ranking:
+    sleep_secs: 0.0
+    concurrency: 4
+  cv_analysis:
+    concurrency: 4
+  cv_generation:
+    concurrency: 4
+
+synonym_management:
+  apply_to_run_enabled: true
+  promote_global_enabled: true
+  triage_recommendation_reuse_enabled: true
+  auto_apply_recommendation_enabled: true
+  auto_promote_global_enabled: true
+
+reuse:
+  enrich:
+    enabled: true
+  ranking:
+    enabled: true
+  cv_analysis:
+    enabled: true
+  cv_generation:
+    enabled: true
+  synonym_triage:
+    enabled: true

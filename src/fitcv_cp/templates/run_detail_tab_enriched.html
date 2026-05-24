@@ -110,16 +110,18 @@
 {% if enriched_total_pages > 1 %}
 <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1.25rem;justify-content:flex-end">
   {% if enriched_has_prev %}
-  <a href="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page - 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+  {% set enriched_prev_url = "/admin/runs/" ~ run.run_id ~ "/tabs/enriched?page=" ~ (enriched_current_page - 1) ~ "&page_size=" ~ enriched_page_size ~ "&filter_name=" ~ enriched_filter ~ "&q=" ~ (enriched_query | urlencode) %}
+  <a href="{{ enriched_prev_url | safe }}"
      class="btn-secondary"
-     data-tab-fragment-url="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page - 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     data-tab-fragment-url="{{ enriched_prev_url | safe }}"
      data-tab-id="enriched">← Prev</a>
   {% endif %}
   <span class="meta">Page {{ enriched_current_page }} of {{ enriched_total_pages }}</span>
   {% if enriched_has_next %}
-  <a href="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page + 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+  {% set enriched_next_url = "/admin/runs/" ~ run.run_id ~ "/tabs/enriched?page=" ~ (enriched_current_page + 1) ~ "&page_size=" ~ enriched_page_size ~ "&filter_name=" ~ enriched_filter ~ "&q=" ~ (enriched_query | urlencode) %}
+  <a href="{{ enriched_next_url | safe }}"
      class="btn-secondary"
-     data-tab-fragment-url="/admin/runs/{{ run.run_id }}/tabs/enriched?page={{ enriched_current_page + 1 }}&page_size={{ enriched_page_size }}&filter_name={{ enriched_filter }}&q={{ enriched_query | urlencode }}"
+     data-tab-fragment-url="{{ enriched_next_url | safe }}"
      data-tab-id="enriched">Next →</a>
   {% endif %}
 </div>

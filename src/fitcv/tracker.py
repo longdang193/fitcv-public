@@ -21,18 +21,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fitcv.config import sqlite_mode_enabled
+from fitcv.contracts import DEFAULT_APPLICATION_STATUSES
+from fitcv.persistence import build_bigquery_client
 
 
 # ── default status enum ───────────────────────────────────────────────────────
 
-_DEFAULT_APPLICATION_STATUSES: list[str] = [
-    "applied",
-    "not_applied",
-    "interview",
-    "rejected",
-    "no_response",
-]
-
+_DEFAULT_APPLICATION_STATUSES: tuple[str, ...] = DEFAULT_APPLICATION_STATUSES
 
 def _get_valid_statuses(config: dict[str, Any] | None) -> list[str]:
     """Return the list of valid application statuses from config, or the built-in default."""
@@ -40,7 +35,7 @@ def _get_valid_statuses(config: dict[str, Any] | None) -> list[str]:
         statuses = config.get("application_statuses")
         if isinstance(statuses, list) and statuses:
             return [str(s) for s in statuses]
-    return _DEFAULT_APPLICATION_STATUSES
+    return list(_DEFAULT_APPLICATION_STATUSES)
 
 
 # ── cv version record ─────────────────────────────────────────────────────────
@@ -60,6 +55,8 @@ def create_cv_version_record(
     cv_structured: dict[str, Any] | None = None,
     cv_generation_model: str | None = None,
     cv_prompt_version: str | None = None,
+    cv_generation_input_fingerprint: str | None = None,
+    cv_generation_reuse_status: str | None = None,
 ) -> dict[str, Any]:
     """Build a cv_versions record in memory.
 
@@ -90,6 +87,8 @@ def create_cv_version_record(
         ),
         "cv_structured_json": json.dumps(cv_structured) if isinstance(cv_structured, dict) else None,
         "cv_markdown": str(cv_markdown),
+        "cv_generation_input_fingerprint": str(cv_generation_input_fingerprint or "") or None,
+        "cv_generation_reuse_status": str(cv_generation_reuse_status or "") or None,
         "gap_summary": json.dumps(gap_summary),
         "fit_classification": str(fit_classification),
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
@@ -102,6 +101,8 @@ def _is_missing_structured_cv_column_error(errors: list[dict[str, Any]]) -> bool
         "cv_generation_model",
         "cv_schema_version",
         "cv_structured_json",
+        "cv_generation_input_fingerprint",
+        "cv_generation_reuse_status",
     }
     for error in errors:
         for item in error.get("errors") or []:
@@ -121,9 +122,44 @@ def _legacy_cv_version_record(record: dict[str, Any]) -> dict[str, Any]:
         "cv_generation_model",
         "cv_schema_version",
         "cv_structured_json",
+        "cv_generation_input_fingerprint",
+        "cv_generation_reuse_status",
     ):
         legacy_record.pop(field, None)
     return legacy_record
+
+def lookup_reusable_cv_versions(
+    fingerprints: list[str],
+    config: dict[str, Any],
+    *,
+    limit: int = 500,
+) -> dict[str, dict[str, Any]]:
+    normalized = [str(item or "").strip() for item in fingerprints if str(item or "").strip()]
+    if not normalized:
+        return {}
+    if sqlite_mode_enabled(config):
+        from fitcv_cp import bq_store as cp_bq_store
+
+        return cp_bq_store.lookup_reusable_cv_versions(
+            normalized,
+            bq=None,
+            project="",
+            dataset="",
+            limit=limit,
+        )
+
+    project = str(config["gcp_project"])
+    dataset = str(config["bigquery_dataset"])
+    client = build_bigquery_client(config)
+    from fitcv_cp import bq_store as cp_bq_store
+
+    return cp_bq_store.lookup_reusable_cv_versions(
+        normalized,
+        bq=client,
+        project=project,
+        dataset=dataset,
+        limit=limit,
+    )
 
 
 def store_cv_version(record: dict[str, Any], config: dict[str, Any]) -> None:
@@ -145,15 +181,9 @@ def store_cv_version(record: dict[str, Any], config: dict[str, Any]) -> None:
             raise RuntimeError(f"SQLite insert errors for cv_versions: {errors}")
         return
 
-    from google.cloud import bigquery  # type: ignore[import-not-found]
-    from google.oauth2 import service_account  # type: ignore[import-not-found]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-
-    credentials = service_account.Credentials.from_service_account_file(key_path)
-    client = bigquery.Client(project=project, credentials=credentials)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.cv_versions"
 
     errors = client.insert_rows_json(table_ref, [record])
@@ -218,20 +248,18 @@ def store_application_status(record: dict[str, Any], config: dict[str, Any]) -> 
             raise RuntimeError(f"SQLite insert errors for application_tracker: {errors}")
         return
 
-    from google.cloud import bigquery  # type: ignore[import-not-found]
-    from google.oauth2 import service_account  # type: ignore[import-not-found]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config.get("service_account_key") or "").strip()
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.application_tracker"
 
     errors = client.insert_rows_json(table_ref, [record])
     if errors:
         raise RuntimeError(f"BigQuery insert errors for application_tracker: {errors}")
+
+
+
+
+
+
+

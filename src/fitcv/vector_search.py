@@ -18,14 +18,22 @@ lifecycle:
 import hashlib
 import json
 import logging
-import os
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 from fitcv.candidate import flatten_skills, infer_role_family
 from fitcv.config import sqlite_mode_enabled
 from fitcv.embeddings import generate_embedding, get_shortlist_embedding_model
+from fitcv.shortlist_runtime import (
+    build_bigquery_client,
+    build_contract_fingerprint,
+    configure_sqlite_connection,
+    hash_payload,
+    normalize_text_scalar,
+    run_sqlite_io_retry,
+    sqlite_path,
+)
 
 DEFAULT_RECENT_ROLE_COUNT = 3
 DEFAULT_ROLE_FAMILY_HINT_COUNT = 3
@@ -37,10 +45,43 @@ FRESH_QUERY_EMBEDDING_STATUS = "fresh_query_embedding"
 logger = logging.getLogger(__name__)
 
 
+class CandidateQueryEmbeddingRecord(TypedDict):
+    text: str
+    components: dict[str, Any]
+    embedding: list[float]
+    candidate_query_signature: str
+    candidate_query_contract_fingerprint: str
+    candidate_query_reuse_status: str
 
 
-def _sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+class CandidateQueryEmbeddingCacheRow(TypedDict):
+    candidate_query_signature: str
+    candidate_query_contract_fingerprint: str
+    candidate_query_text: str
+    candidate_query_components_json: str
+    embedding: list[float]
+
+
+def _build_candidate_query_embedding_record(
+    *,
+    text: str,
+    components: dict[str, Any],
+    embedding: list[float],
+    candidate_query_signature: str,
+    candidate_query_contract_fingerprint: str,
+    candidate_query_reuse_status: str,
+) -> CandidateQueryEmbeddingRecord:
+    return {
+        "text": text,
+        "components": components,
+        "embedding": embedding,
+        "candidate_query_signature": candidate_query_signature,
+        "candidate_query_contract_fingerprint": candidate_query_contract_fingerprint,
+        "candidate_query_reuse_status": candidate_query_reuse_status,
+    }
+
+
+
 
 
 def _ensure_sqlite_vector_tables(conn: sqlite3.Connection) -> None:
@@ -121,20 +162,7 @@ def _append_unique_text(values: list[str], candidate: str, seen: set[str]) -> No
 
 
 def _normalize_query_scalar(value: Any) -> str:
-    return " ".join(str(value or "").split()).strip()
-
-
-def _canonicalize_for_hash(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _canonicalize_for_hash(value[key])
-            for key in sorted(value)
-        }
-    if isinstance(value, list):
-        return [_canonicalize_for_hash(item) for item in value]
-    if isinstance(value, str):
-        return value.casefold()
-    return value
+    return normalize_text_scalar(value)
 
 
 def build_candidate_query_components(
@@ -172,7 +200,7 @@ def build_candidate_query_components(
         if len(role_family_hints) >= DEFAULT_ROLE_FAMILY_HINT_COUNT:
             break
     if len(role_family_hints) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
-        inferred_target_family = infer_role_family(target_role)
+        inferred_target_family = infer_role_family(target_role, config=config)
         if inferred_target_family:
             _append_unique_text(role_family_hints, inferred_target_family, seen_role_families)
     if len(role_family_hints) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
@@ -181,6 +209,7 @@ def build_candidate_query_components(
             inferred_family = infer_role_family(
                 str(experience.get("role") or ""),
                 explicit_family=explicit_family or None,
+                config=config,
             )
             if inferred_family:
                 _append_unique_text(role_family_hints, inferred_family, seen_role_families)
@@ -251,12 +280,10 @@ def build_candidate_query_signature_record(components: dict[str, Any]) -> dict[s
         for key, value in payload.items()
         if value not in ("", [], None)
     }
-    canonical_payload = _canonicalize_for_hash(payload)
-    payload_json = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
-    signature = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+    payload_json, signature = hash_payload(payload)
     return {
         "payload": payload,
-        "payload_json": json.dumps(payload, sort_keys=True, separators=(",", ":")),
+        "payload_json": payload_json,
         "signature": signature,
     }
 
@@ -267,8 +294,7 @@ def build_candidate_query_embedding_contract_fingerprint(config: dict[str, Any])
         "embedding_model": get_shortlist_embedding_model(config),
         "candidate_query_schema_version": CANDIDATE_QUERY_SCHEMA_VERSION,
     }
-    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    fingerprint = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+    fingerprint = build_contract_fingerprint(payload)
     return {
         "payload": payload,
         "fingerprint": fingerprint,
@@ -325,7 +351,7 @@ def _load_latest_candidate_query_embedding(
     client: Any,
     table_ref: str,
     candidate_query_signature: str,
-) -> dict[str, Any] | None:
+) -> CandidateQueryEmbeddingCacheRow | None:
     """Fetch the latest cached shortlist candidate-query embedding for a signature."""
     if not candidate_query_signature:
         return None
@@ -353,7 +379,7 @@ LIMIT 1
     if not rows:
         return None
     row = rows[0]
-    return {
+    row_data: CandidateQueryEmbeddingCacheRow = {
         "candidate_query_signature": _normalize_query_scalar(
             getattr(row, "candidate_query_signature", "")
         ),
@@ -368,12 +394,13 @@ LIMIT 1
         ),
         "embedding": list(getattr(row, "embedding", []) or []),
     }
+    return row_data
 
 
 def resolve_candidate_query_embedding(
     profile: dict[str, Any],
     config: dict[str, Any],
-) -> dict[str, Any]:
+) -> CandidateQueryEmbeddingRecord:
     """Return the shortlist candidate query plus a reused or fresh embedding vector."""
     components = build_candidate_query_components(profile, config)
     query_text = build_candidate_query_text(profile, config)
@@ -381,7 +408,8 @@ def resolve_candidate_query_embedding(
     contract_record = build_candidate_query_embedding_contract_fingerprint(config)
     sqlite_mode = sqlite_mode_enabled(config)
     if sqlite_mode:
-        with sqlite3.connect(_sqlite_path()) as conn:
+        with sqlite3.connect(sqlite_path(), timeout=30) as conn:
+            configure_sqlite_connection(conn)
             _ensure_sqlite_vector_tables(conn)
             row = conn.execute(
                 """
@@ -400,14 +428,14 @@ def resolve_candidate_query_embedding(
                 except Exception:
                     cached_embedding = []
                 if cached_embedding:
-                    return {
-                        "text": query_text,
-                        "components": components,
-                        "embedding": cached_embedding,
-                        "candidate_query_signature": signature_record["signature"],
-                        "candidate_query_contract_fingerprint": contract_record["fingerprint"],
-                        "candidate_query_reuse_status": REUSED_CACHED_QUERY_EMBEDDING_STATUS,
-                    }
+                    return _build_candidate_query_embedding_record(
+                        text=query_text,
+                        components=components,
+                        embedding=cached_embedding,
+                        candidate_query_signature=signature_record["signature"],
+                        candidate_query_contract_fingerprint=contract_record["fingerprint"],
+                        candidate_query_reuse_status=REUSED_CACHED_QUERY_EMBEDDING_STATUS,
+                    )
             embedding_vector = generate_embedding(query_text, config)
             now = datetime.now(tz=timezone.utc).isoformat()
             conn.execute(
@@ -427,26 +455,18 @@ def resolve_candidate_query_embedding(
                 ),
             )
             conn.commit()
-        return {
-            "text": query_text,
-            "components": components,
-            "embedding": embedding_vector,
-            "candidate_query_signature": signature_record["signature"],
-            "candidate_query_contract_fingerprint": contract_record["fingerprint"],
-            "candidate_query_reuse_status": FRESH_QUERY_EMBEDDING_STATUS,
-        }
-
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
+        return _build_candidate_query_embedding_record(
+            text=query_text,
+            components=components,
+            embedding=embedding_vector,
+            candidate_query_signature=signature_record["signature"],
+            candidate_query_contract_fingerprint=contract_record["fingerprint"],
+            candidate_query_reuse_status=FRESH_QUERY_EMBEDDING_STATUS,
+        )
 
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.candidate_query_embeddings"
     try:
         cached_row = _load_latest_candidate_query_embedding(
@@ -459,16 +479,16 @@ def resolve_candidate_query_embedding(
         cached_row = None
 
     if cached_row and (
-        cached_row.get("candidate_query_contract_fingerprint") == contract_record["fingerprint"]
+        cached_row["candidate_query_contract_fingerprint"] == contract_record["fingerprint"]
     ):
-        return {
-            "text": query_text,
-            "components": components,
-            "embedding": list(cached_row.get("embedding") or []),
-            "candidate_query_signature": signature_record["signature"],
-            "candidate_query_contract_fingerprint": contract_record["fingerprint"],
-            "candidate_query_reuse_status": REUSED_CACHED_QUERY_EMBEDDING_STATUS,
-        }
+        return _build_candidate_query_embedding_record(
+            text=query_text,
+            components=components,
+            embedding=list(cached_row["embedding"] or []),
+            candidate_query_signature=signature_record["signature"],
+            candidate_query_contract_fingerprint=contract_record["fingerprint"],
+            candidate_query_reuse_status=REUSED_CACHED_QUERY_EMBEDDING_STATUS,
+        )
 
     embedding_vector = generate_embedding(query_text, config)
     now = datetime.now(tz=timezone.utc).isoformat()
@@ -488,14 +508,14 @@ def resolve_candidate_query_embedding(
             logger.warning("BigQuery insert errors for candidate_query_embeddings: %s", errors)
     except Exception as exc:
         logger.warning("Candidate query embedding cache insert failed; continuing with fresh embedding: %s", exc)
-    return {
-        "text": query_text,
-        "components": components,
-        "embedding": embedding_vector,
-        "candidate_query_signature": signature_record["signature"],
-        "candidate_query_contract_fingerprint": contract_record["fingerprint"],
-        "candidate_query_reuse_status": FRESH_QUERY_EMBEDDING_STATUS,
-    }
+    return _build_candidate_query_embedding_record(
+        text=query_text,
+        components=components,
+        embedding=embedding_vector,
+        candidate_query_signature=signature_record["signature"],
+        candidate_query_contract_fingerprint=contract_record["fingerprint"],
+        candidate_query_reuse_status=FRESH_QUERY_EMBEDDING_STATUS,
+    )
 
 
 # ── VECTOR_SEARCH SQL builder ─────────────────────────────────────────────────
@@ -529,7 +549,6 @@ def build_vector_search_query(
     temp_table_name = "_latest_job_embeddings"
 
     if passed_job_urls:
-        url_list = ", ".join(f"'{u}'" for u in passed_job_urls)
         latest_rows_query = f"""
 CREATE TEMP TABLE {temp_table_name} AS
 SELECT
@@ -550,7 +569,7 @@ FROM (
       ORDER BY created_at DESC, chunk_text DESC, job_url DESC
     ) AS rn
   FROM `{project}.{dataset}.job_embeddings`
-  WHERE chunk_type = 'job_summary' AND job_url IN ({url_list})
+  WHERE chunk_type = 'job_summary' AND job_url IN UNNEST(@passed_job_urls)
 )
 WHERE rn = 1;
 """.strip()
@@ -627,7 +646,8 @@ def run_vector_search(
         candidate_embedding = list(candidate_query_record.get("embedding") or [])
         placeholders = ",".join(["?"] * len(passed_job_urls))
         rows: list[tuple[Any, ...]] = []
-        with sqlite3.connect(_sqlite_path()) as conn:
+        with sqlite3.connect(sqlite_path(), timeout=30) as conn:
+            configure_sqlite_connection(conn)
             query = f"""
             SELECT je.job_url, je.embedding_json
             FROM job_embeddings je
@@ -672,17 +692,10 @@ def run_vector_search(
         return deduped
 
     from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
 
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
 
     candidate_query_record = resolve_candidate_query_embedding(profile, config)
     embedding_vector = list(candidate_query_record.get("embedding") or [])
@@ -696,7 +709,8 @@ def run_vector_search(
 
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ArrayQueryParameter("candidate_embedding", "FLOAT64", embedding_vector)
+            bigquery.ArrayQueryParameter("candidate_embedding", "FLOAT64", embedding_vector),
+            bigquery.ArrayQueryParameter("passed_job_urls", "STRING", passed_job_urls),
         ]
     )
 
@@ -737,41 +751,36 @@ def store_shortlist(
     if sqlite_mode_enabled(config):
         effective_strategy = retrieval_strategy or str(config.get("retrieval_strategy", "job_summary_v1"))
         now = datetime.now(tz=timezone.utc).isoformat()
-        with sqlite3.connect(_sqlite_path()) as conn:
-            _ensure_sqlite_vector_tables(conn)
-            conn.executemany(
-                """
-                INSERT INTO vector_shortlist(job_url, vector_rank, vector_similarity, retrieval_strategy, retrieved_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        str(item["job_url"]),
-                        int(item["vector_rank"]),
-                        float(item["vector_similarity"]),
-                        effective_strategy,
-                        now,
-                    )
-                    for item in shortlist
-                ],
-            )
-            conn.commit()
+        def _write_shortlist() -> None:
+            with sqlite3.connect(sqlite_path(), timeout=30) as conn:
+                configure_sqlite_connection(conn)
+                _ensure_sqlite_vector_tables(conn)
+                conn.executemany(
+                    """
+                    INSERT INTO vector_shortlist(job_url, vector_rank, vector_similarity, retrieval_strategy, retrieved_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            str(item["job_url"]),
+                            int(item["vector_rank"]),
+                            float(item["vector_similarity"]),
+                            effective_strategy,
+                            now,
+                        )
+                        for item in shortlist
+                    ],
+                )
+                conn.commit()
+
+        run_sqlite_io_retry(_write_shortlist)
         return
 
     effective_strategy = retrieval_strategy or str(config.get("retrieval_strategy", "job_summary_v1"))
 
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.vector_shortlist"
     now = datetime.now(tz=timezone.utc).isoformat()
 
@@ -789,3 +798,5 @@ def store_shortlist(
     errors = client.insert_rows_json(table_ref, rows)
     if errors:
         raise RuntimeError(f"BigQuery insert errors for vector_shortlist: {errors}")
+
+

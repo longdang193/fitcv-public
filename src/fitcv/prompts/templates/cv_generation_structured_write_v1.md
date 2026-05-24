@@ -7,6 +7,12 @@ Required skills: $required_skills
 ## Selected Evidence
 $selected_evidence
 
+## Allowed Skills (selected-evidence only)
+$allowed_skills
+
+## Allowed Certifications (selected-evidence only)
+$allowed_certifications
+
 ## Evidence Usage Guidance
 $evidence_usage_guidance
 
@@ -15,6 +21,11 @@ $analysis_summary
 
 ## Constraints
 $constraints
+
+## Allow-List Rules (Hard)
+- Skills section MUST contain only skills from **Allowed Skills (selected-evidence only)**. Do not add profile-only skills.
+- Certifications section MUST be omitted when **Allowed Certifications (selected-evidence only)** is `(none)`.
+- Never invent certifications or training.
 
 ## Markdown Output Standard
 - The persisted markdown renderer expects: `# Candidate Name`, optional subtitle line, then `##` section headings.

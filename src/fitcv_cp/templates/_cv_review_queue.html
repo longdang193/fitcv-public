@@ -1,0 +1,250 @@
+<div class="card">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem">
+    <div>
+      <h3 style="margin:0 0 0.35rem">Agentic Review Queue</h3>
+      <div class="meta">
+        {{ hitl_review_queue.pending_count }} pending of {{ hitl_review_queue.total_review_required }} review-required job(s).
+      </div>
+    </div>
+    <span class="badge badge-info">{{ hitl_review_queue.actions_count }} action(s) logged</span>
+  </div>
+  <form id="hitl-batch-form" method="post" action="/admin/runs/{{ run.run_id }}/cv-review-batch-action" style="display:flex;flex-direction:column;gap:0.55rem;margin-bottom:0.85rem">
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+      <select name="action">
+        <option value="approve_as_is">Batch Accept Draft As Final CV</option>
+        <option value="regenerate_once">Batch Regenerate Once</option>
+        <option value="reject">Batch Reject</option>
+      </select>
+      <input type="text" name="actor" value="admin" placeholder="actor (optional)" style="min-width:10rem">
+      <input type="text" name="note" placeholder="note (optional)" style="min-width:14rem">
+    </div>
+    <div style="display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap">
+      <label class="meta" style="display:inline-flex;align-items:center;gap:0.35rem">
+        <input type="checkbox" name="confirm_no_accepted_cv_closure" value="true">
+        <span>Allow closure with zero accepted CV artifacts</span>
+      </label>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+      <span class="meta">Apply one action to selected jobs.</span>
+      <button
+        class="btn-secondary"
+        type="submit"
+        form="hitl-batch-form"
+        formaction="/admin/runs/{{ run.run_id }}/cv-review-batch-action"
+        formmethod="post"
+      >Apply to Selected Jobs</button>
+      <span class="meta">Select one or more rows below.</span>
+    </div>
+  </form>
+  <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin:-0.35rem 0 0.75rem 0">
+    <button class="btn-secondary" id="hitl-select-all-btn" type="button">Select All</button>
+    <button class="btn-secondary" id="hitl-clear-all-btn" type="button">Clear All</button>
+    <span class="meta" id="hitl-selected-count">Selected: 0</span>
+    <span class="meta">Scope: visible jobs</span>
+  </div>
+  {% if hitl_closure_summary.requires_no_accepted_ack and hitl_review_queue.pending_count == 0 %}
+  <div class="meta" style="margin:-0.2rem 0 0.75rem;color:#7a4b00">
+    All review-required rows are terminal, but no accepted CV artifact exists yet. Check the batch-form confirmation to close intentionally.
+  </div>
+  {% endif %}
+  {% set include_resolved_rows = show_resolved_rows if show_resolved_rows is defined else true %}
+  {% set visible_items = [] %}
+  {% for item in hitl_review_queue.queue_items %}
+    {% if include_resolved_rows or item.pending %}
+      {% set _ = visible_items.append(item) %}
+    {% endif %}
+  {% endfor %}
+  <div style="display:flex;flex-direction:column;gap:0.85rem">
+    {% if not visible_items %}
+    <div class="meta" style="padding:0.6rem 0.7rem;border:1px dashed var(--border);border-radius:0.55rem">
+      <span style="display:none">No pending review rows shown here. Open dedicated review queue page for resolved history.</span>
+      No pending review rows shown here.
+      <a href="/admin/runs/{{ run.run_id }}/review-queue">Open dedicated review queue page</a>
+      for resolved history.
+    </div>
+    {% endif %}
+    {% for item in visible_items %}
+    <div class="sub-card" style="padding:0.8rem">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:flex-start;column-gap:0.75rem;row-gap:0.35rem">
+        <div style="min-width:0">
+          {% if item.pending %}
+          <label style="display:inline-flex;align-items:center;gap:0.35rem;margin-bottom:0.35rem">
+            <input
+              type="checkbox"
+              name="{{ 'review_item_id' if item.review_item_id else 'job_url' }}"
+              value="{{ item.review_item_id if item.review_item_id else item.job_url }}"
+              form="hitl-batch-form"
+              data-hitl-selectable="true"
+              data-has-job-url="{{ 'true' if item.job_url else 'false' }}"
+            >
+            <span class="meta">Select</span>
+          </label>
+          {% endif %}
+          <div style="font-weight:700">
+            {% if item.job_url %}
+            <a class="truncate-link job-title-link" href="{{ item.job_url }}" target="_blank" rel="noopener">
+              {{ item.job_title }}
+            </a>
+            {% else %}
+            <span class="truncate-link job-title-link">{{ item.job_title }}</span>
+            {% endif %}
+          </div>
+          {% if item.missing_job_url %}
+          <div class="meta" style="margin-top:0.25rem;color:#7a4b00">Job URL unavailable. Review actions still available except regenerate-once.</div>
+          {% endif %}
+          <div class="meta" style="margin-top:0.35rem">{{ item.reason }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.35rem;white-space:nowrap">
+          <span class="badge badge-{{ 'warning' if item.pending else 'success' }}">{{ 'pending' if item.pending else 'resolved' }}</span>
+          <span class="fit-classification-chip">{{ item.fit_classification }}</span>
+        </div>
+      </div>
+      {% if item.action %}
+      <div class="meta" style="margin-top:0.5rem">
+        Last action: <strong>{{ item.action }}</strong>{% if item.action_by %} by {{ item.action_by }}{% endif %}{% if item.action_at_display %} at {{ item.action_at_display }}{% endif %}
+      </div>
+      {% endif %}
+      <div style="margin-top:0.55rem">
+        <div class="meta" style="font-weight:600;margin-bottom:0.25rem">CV Draft Preview</div>
+        {% if item.cv_preview_available %}
+        <details class="cv-preview-details">
+          <summary class="meta cv-preview-summary">Show generated CV markdown</summary>
+          <div class="cv-preview-wrap">
+            <pre class="cv-preview-markdown">{{ item.cv_markdown_preview }}</pre>
+          </div>
+        </details>
+        {% else %}
+        <div class="meta">No generated CV markdown is available for this review item yet. Use regenerate once to produce a fresh draft.</div>
+        {% endif %}
+      </div>
+      {% if item.pending %}
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-top:0.65rem">
+        <form method="post" action="/admin/runs/{{ run.run_id }}/cv-review-action" style="display:inline">
+          <input type="hidden" name="review_item_id" value="{{ item.review_item_id or '' }}">
+          <input type="hidden" name="job_url" value="{{ item.job_url }}">
+          <input type="hidden" name="action" value="approve_as_is">
+          <button class="btn-secondary" type="submit">Accept Draft As Final CV</button>
+        </form>
+        <form method="post" action="/admin/runs/{{ run.run_id }}/cv-review-action" style="display:inline">
+          <input type="hidden" name="review_item_id" value="{{ item.review_item_id or '' }}">
+          <input type="hidden" name="job_url" value="{{ item.job_url }}">
+          <input type="hidden" name="action" value="regenerate_once">
+          <button class="btn-secondary" type="submit" {% if item.missing_job_url %}disabled title="Regenerate once requires job URL"{% endif %}>Regenerate Once</button>
+        </form>
+        <form method="post" action="/admin/runs/{{ run.run_id }}/cv-review-action" style="display:inline">
+          <input type="hidden" name="review_item_id" value="{{ item.review_item_id or '' }}">
+          <input type="hidden" name="job_url" value="{{ item.job_url }}">
+          <input type="hidden" name="action" value="reject">
+          <button class="btn-secondary" type="submit">Reject</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="meta" style="margin-top:0.65rem">Row is resolved.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function initHitlSelectionControls() {
+  if (window.__hitlSelectionControlsInitialized) return;
+  window.__hitlSelectionControlsInitialized = true;
+
+  const selectAllBtn = document.getElementById('hitl-select-all-btn');
+  const clearAllBtn = document.getElementById('hitl-clear-all-btn');
+  const batchForm = document.getElementById('hitl-batch-form');
+  const selectedCount = document.getElementById('hitl-selected-count');
+  const selectableCheckboxes = () => Array.from(document.querySelectorAll('input[type="checkbox"][data-hitl-selectable="true"]'));
+
+  const refreshSelectedCount = () => {
+    if (!selectedCount) return;
+    const selected = selectableCheckboxes().filter((cb) => cb.checked).length;
+    selectedCount.textContent = `Selected: ${selected}`;
+  };
+
+  selectableCheckboxes().forEach((cb) => cb.addEventListener('change', refreshSelectedCount));
+
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', () => {
+      selectableCheckboxes().forEach((cb) => { cb.checked = true; });
+      refreshSelectedCount();
+    });
+  }
+
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      selectableCheckboxes().forEach((cb) => { cb.checked = false; });
+      refreshSelectedCount();
+    });
+  }
+
+  if (batchForm) {
+    batchForm.addEventListener('submit', (event) => {
+      const actionField = batchForm.querySelector('select[name="action"]');
+      const selectedAction = actionField ? String(actionField.value || '').trim() : '';
+      if (selectedAction !== 'regenerate_once') return;
+      const selected = selectableCheckboxes().filter((cb) => cb.checked);
+      const hasMissingUrlSelection = selected.some((cb) => String(cb.dataset.hasJobUrl || '').toLowerCase() !== 'true');
+      if (!hasMissingUrlSelection) return;
+      event.preventDefault();
+      window.alert('Regenerate once requires job URL. Deselect rows with missing URL or choose approve/reject.');
+    });
+  }
+
+  refreshSelectedCount();
+})();
+</script>
+
+<style>
+.cv-preview-details {
+  margin-top: 0.25rem;
+}
+
+.cv-preview-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.34rem 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.cv-preview-summary:hover {
+  border-color: rgba(120, 170, 255, 0.55);
+  background: rgba(120, 170, 255, 0.08);
+}
+
+.cv-preview-details[open] .cv-preview-summary {
+  border-color: rgba(120, 170, 255, 0.65);
+  background: rgba(120, 170, 255, 0.1);
+}
+
+.cv-preview-wrap {
+  margin-top: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.cv-preview-markdown {
+  margin: 0;
+  padding: 0.75rem 0.8rem;
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background:
+    linear-gradient(transparent 27px, rgba(255, 255, 255, 0.04) 28px) 0 0 / 100% 28px;
+}
+</style>

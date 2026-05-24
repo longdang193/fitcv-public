@@ -15,7 +15,6 @@ lifecycle:
   - status: active
 """
 
-import os
 import re
 import sqlite3
 from datetime import datetime, timezone
@@ -23,7 +22,8 @@ from pathlib import Path
 from typing import Any
 
 from fitcv.config import sqlite_mode_enabled
-from fitcv.rule_filter import _canonicalise_skill, _get_skill_synonyms
+from fitcv.persistence import build_bigquery_client, get_local_sqlite_path
+from fitcv.rule_filter import canonicalize_skill, get_skill_synonyms
 
 
 # ── config defaults ───────────────────────────────────────────────────────────
@@ -31,11 +31,6 @@ from fitcv.rule_filter import _canonicalise_skill, _get_skill_synonyms
 _DEFAULT_STRONG_RATIO: float = 0.80
 _DEFAULT_STRETCH_RATIO: float = 0.50
 
-# Keywords that signal a leadership/ownership requirement in the JD.
-_LEADERSHIP_KEYWORDS: frozenset[str] = frozenset({
-    "lead", "leading", "leadership", "owns", "ownership",
-    "manage", "managing", "manager", "director", "head of",
-})
 _NON_SKILL_REQUIREMENT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(master'?s|phd|bachelor|degree|stud(y|ies)|university)\b"),
     re.compile(r"\b\d+\+?\s+years?\b|\byears? of\b|\bprofessional experience\b|\bhands[- ]on\b"),
@@ -76,13 +71,13 @@ def _normalise_compact_skill(skill: str) -> str:
 
 def _skill_variants(skill: str, config: dict[str, Any] | None = None) -> set[str]:
     """Return raw/canonical alias variants for phrase-level matching."""
-    synonyms = _get_skill_synonyms(config)
-    canonical = _normalise_phrase_text(_canonicalise_skill(skill, config))
+    synonyms = get_skill_synonyms(config)
+    canonical = _normalise_phrase_text(canonicalize_skill(skill, config))
     variants = {
         _normalise_phrase_text(skill),
         canonical,
         _normalise_compact_skill(skill),
-        _normalise_compact_skill(_canonicalise_skill(skill, config)),
+        _normalise_compact_skill(canonicalize_skill(skill, config)),
     }
     for alias, canonical_value in synonyms.items():
         if _normalise_phrase_text(canonical_value) == canonical:
@@ -143,7 +138,7 @@ def classify_skill_match(
     3. Missing     — no match at either level
     """
     req_norm = normalise_raw_skill(required_skill)
-    req_canonical = _canonicalise_skill(required_skill, config)
+    req_canonical = canonicalize_skill(required_skill, config)
 
     for cand in candidate_skills:
         cand_norm = normalise_raw_skill(cand)
@@ -183,7 +178,7 @@ def classify_skill_match(
             }
 
     for cand in candidate_skills:
-        cand_canonical = _canonicalise_skill(cand, config)
+        cand_canonical = canonicalize_skill(cand, config)
         if cand_canonical == req_canonical:
             return {
                 "result": "partial",
@@ -236,12 +231,6 @@ def _compute_years_risk(
     if min_required is None or years_candidate is None:
         return False
     return int(years_candidate) < min_required
-
-
-def _has_leadership_claim(candidate_evidence: list[str]) -> bool:
-    """Return True when any evidence string contains a leadership keyword."""
-    lowered = " ".join(candidate_evidence).lower()
-    return any(kw in lowered for kw in _LEADERSHIP_KEYWORDS)
 
 
 # ── gap computation ───────────────────────────────────────────────────────────
@@ -370,11 +359,6 @@ def classify_fit(
 
 # ── integration: store to bigquery ────────────────────────────────────────────
 
-def _local_sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
-
-
-
 def _ensure_local_gap_analysis_table(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -408,7 +392,7 @@ def store_gap_analysis(
     overclaim_risk = list(gap.get("overclaim_risk") or [])
 
     if sqlite_mode_enabled(config):
-        db_path = Path(_local_sqlite_path())
+        db_path = Path(get_local_sqlite_path())
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(db_path) as conn:
             _ensure_local_gap_analysis_table(conn)
@@ -445,18 +429,9 @@ def store_gap_analysis(
             conn.commit()
         return
 
-    from google.cloud import bigquery  # type: ignore[import-not-found]
-    from google.oauth2 import service_account  # type: ignore[import-not-found]
-
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.gap_analysis"
 
     partial_serialised = [json.dumps(item, ensure_ascii=False) for item in partial]
@@ -473,3 +448,4 @@ def store_gap_analysis(
     errors = client.insert_rows_json(table_ref, [row])
     if errors:
         raise RuntimeError(f"BigQuery insert errors for gap_analysis: {errors}")
+

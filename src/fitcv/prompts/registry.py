@@ -52,6 +52,13 @@ _PROMPT_REGISTRY: dict[str, PromptDefinition] = {
         template_path=_TEMPLATES_DIR / "cv_generation_structured_write_v1.md",
         summary="Primary CV generation writer prompt for structured JSON CV output.",
     ),
+    "synonym_triage.recommendation.v1": PromptDefinition(
+        prompt_id="synonym_triage.recommendation.v1",
+        stage_id="synonym_triage",
+        version="v1",
+        template_path=_TEMPLATES_DIR / "synonym_triage_recommendation_v1.md",
+        summary="Synonym triage recommendation prompt for control-plane provider routing.",
+    ),
 }
 
 

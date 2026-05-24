@@ -1,0 +1,141 @@
+# Candidate profile template for FitCV pipeline.
+# Copy values you want to personalize into `candidate_profile.private.yaml`.
+#
+# This file is public-safe scaffold only.
+# Keep structure, comments, and placeholder patterns stable for reuse.
+# All fields are optional unless marked REQUIRED.
+# Sections rendered in CV depend on cv.yaml composition settings.
+
+name: "<full name>"
+headline: "<target role headline>"
+summary: >
+  <2-4 sentence professional summary tailored to target role and domain focus.>
+
+# ── Contact & Personal Info ────────────────────────────────────────────────
+contact:
+  email: "<email@example.com>"
+  phone: "<phone number>"
+  location: "<city, country>"
+  linkedin: "<https://linkedin.com/in/your-profile>"
+  github: "<https://github.com/your-handle>"
+  website: "<https://your-website.example>"
+
+# ── Work Experience ─────────────────────────────────────────────────────────
+experiences:
+  - id: "exp_1"
+    role: "<role title>"
+    role_family: "<role family>"
+    company: "<company name>"
+    company_url: "<https://company.example>"
+    location: "<city, country>"
+    start: "<YYYY-MM>"
+    end: "present"
+    current: true
+    domain_tags: ["<domain>", "<domain>"]
+    responsibility_themes: ["<theme>", "<theme>"]
+    bullets:
+      - text: "<impact-oriented bullet with measurable outcome.>"
+        skills: ["<skill>", "<skill>"]
+
+# ── Education ────────────────────────────────────────────────────────────────
+education:
+  - id: "edu_1"
+    degree: "<degree>"
+    field: "<field of study>"
+    institution: "<institution name>"
+    location: "<city, country>"
+    start: "<YYYY-MM>"
+    end: "<YYYY-MM>"
+    gpa: "<optional GPA>"
+    thesis:
+      title: "<optional thesis title>"
+      summary: >
+        <optional thesis summary.>
+    courses:
+      - "<course name>"
+    activities:
+      - "<activity or society>"
+
+# ── Skills ───────────────────────────────────────────────────────────────────
+# All skills listed here are eligible for inclusion in CV Skills section.
+# Pipeline uses evidence_refs to link skills to proof (experience, project, etc.)
+skills:
+  - name: "<skill name>"
+    level: "<beginner|intermediate|advanced>"
+    years: 0
+    category: "<category name>"
+    evidence_refs: ["<exp_or_proj_id>"]
+    sub_skills:
+      - "<sub skill>"
+
+# ── Projects ──────────────────────────────────────────────────────────────────
+projects:
+  - id: "proj_1"
+    name: "<project name>"
+    url: "<https://project.example>"
+    duration: "<YYYY-MM — YYYY-MM|present>"
+    domain_tags: ["<domain>"]
+    responsibility_themes: ["<theme>"]
+    skills: ["<skill>", "<skill>"]
+    tech_stack:
+      - "<component: technology>"
+    business_value: >
+      <brief statement of value delivered or problem solved.>
+    highlights:
+      - "<measurable highlight>"
+
+# ── Certifications ───────────────────────────────────────────────────────────
+certifications:
+  - id: "cert_1"
+    name: "<certification name>"
+    issuer: "<issuer>"
+    year: 2026
+    expiry: 2029                # leave blank/null if no expiry
+    credential_id: "<optional credential id>"
+    url: "<https://credential.example>"
+
+# ── Languages ─────────────────────────────────────────────────────────────────
+languages:
+  - id: "lang_1"
+    name: "<language>"
+    native: true               # set to true for mother tongue(s)
+
+  - id: "lang_2"
+    name: "<language>"
+    read: "<A1|A2|B1|B2|C1|C2>"
+    write: "<A1|A2|B1|B2|C1|C2>"
+    speak: "<A1|A2|B1|B2|C1|C2>"
+    notes: "<optional notes>"
+    evidence_refs: ["<supporting id>"]
+
+# ── Achievements ─────────────────────────────────────────────────────────────
+achievements:
+  - id: "ach_1"
+    text: "<achievement statement with evidence-backed impact.>"
+    category: "<category>"
+    domain_tags: ["<domain>"]
+    evidence_refs: ["<supporting id>"]
+
+# ── Interests & Activities ──────────────────────────────────────────────────
+interests:
+  - "<interest>"
+
+volunteering:
+  - id: "vol_1"
+    organization: "<organization>"
+    role: "<role>"
+    duration: "<YYYY — YYYY|present>"
+    description: "<contribution summary>"
+
+# ── Preferences ──────────────────────────────────────────────────────────────
+preferences:
+  target_role: "<target role>"
+  role_families: ["<role family>"]
+  location_types: ["<remote|hybrid|onsite>"]
+  locations: ["<preferred location>"]
+  domains: ["<target domain>"]
+  seniority_target: "<seniority target>"
+  salary_range: "<optional salary range>"
+  notice_period: "<optional notice period>"
+  exclude_contract_types: ["<optional contract type>"]
+  exclude_experience_levels: ["<optional experience level>"]

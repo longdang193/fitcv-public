@@ -34,7 +34,7 @@ Owns stage execution, ranking and CV lanes, validation, artifact emission, and s
 ## Portability and Routing
 
 - backend portability: sqlite and bigquery execution paths are selected through control-plane backend runtime resolution
-- provider portability: model routing is config/env driven and resolved at runtime
+- provider portability: model routing is config/runtime controlled (with optional `FITCV_LANGGRAPH_*` env overrides) and resolved at runtime
 - secrets: runtime credentials are supplied via environment variables
 
 ## Orchestration and Observability

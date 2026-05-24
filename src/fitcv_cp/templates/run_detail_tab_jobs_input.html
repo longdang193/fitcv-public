@@ -1,25 +1,8 @@
-{% if run.jobs_input_json %}
-<div class="card" style="margin-bottom:1rem">
-  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
-    <span class="badge badge-info">{{ run.jobs_input_source or 'paste' }}</span>
-    <span class="meta">Raw job payload captured at trigger time (immutable snapshot)</span>
-  </div>
-</div>
-<div class="card">
-  <details open>
-    <summary class="meta" style="cursor:pointer;margin-bottom:0.75rem;user-select:none">▾ Raw JSON</summary>
-    <pre class="code-area" style="overflow-x:auto;max-height:500px;overflow-y:auto;margin:0">{{ run.jobs_input_json }}</pre>
-  </details>
-</div>
-{% else %}
-<div class="card">
-  <p class="meta" style="margin-bottom:0.5rem">
-    Source: {% if run.jobs_input_source %}<strong>{{ run.jobs_input_source }}</strong>{% else %}<span class="empty-value">— not recorded</span>{% endif %}
-    {% if run.jobs_path %}&nbsp;·&nbsp; Path: <code>{{ run.jobs_path }}</code>{% endif %}
-  </p>
-  <p class="meta">
-    No immutable raw snapshot was stored for this run.
-    This record was created before snapshot capture was available for this trigger mode.
-  </p>
-</div>
-{% endif %}
+{% set snapshot_payload = run.jobs_input_json %}
+{% set snapshot_source_badge = run.jobs_input_source or 'paste' %}
+{% set snapshot_intro_text = "Raw job payload captured at trigger time (immutable snapshot)" %}
+{% set snapshot_source = run.jobs_input_source %}
+{% set snapshot_path = run.jobs_path %}
+{% set snapshot_empty_title = "No immutable raw snapshot was stored for this run." %}
+{% set snapshot_empty_reason = "This record was created before snapshot capture was available for this trigger mode." %}
+{% include "_run_detail_snapshot_tab.html" %}

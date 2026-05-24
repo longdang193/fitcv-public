@@ -23,14 +23,38 @@ from typing import Literal
 import httpx
 
 from fitcv_cp import queue
+from fitcv_cp.runtime_contracts import normalize_orchestration_status
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class RunSubmission:
     run_id: str
     queue_job_id: str
     backend_run_id: str | None = None
-    backend: str = "queue"
+    requested_backend: str = "queue"
+    execution_backend: str = "queue"
+
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        queue_job_id: str,
+        backend_run_id: str | None = None,
+        requested_backend: str = "queue",
+        execution_backend: str = "queue",
+        backend: str | None = None,
+    ) -> None:
+        object.__setattr__(self, "run_id", run_id)
+        object.__setattr__(self, "queue_job_id", queue_job_id)
+        object.__setattr__(self, "backend_run_id", backend_run_id)
+        object.__setattr__(self, "requested_backend", requested_backend)
+        resolved_backend = str(backend).strip() if backend is not None else ""
+        object.__setattr__(self, "execution_backend", resolved_backend or execution_backend)
+
+    @property
+    def backend(self) -> str:
+        """Backward-compatible alias retained for existing callers/tests."""
+        return self.execution_backend
 
 
 OrchestrationMode = Literal["default_queue", "prefect"]
@@ -99,7 +123,8 @@ class OrchestrationAdapter:
             run_id=run_id_value,
             queue_job_id=queue_job_id,
             backend_run_id=queue_job_id,
-            backend="queue",
+            requested_backend=self.name,
+            execution_backend="queue",
         )
 
     def continue_run(
@@ -124,7 +149,9 @@ class OrchestrationAdapter:
         return queue.cancel_queued_run(queue_job_id=queue_job_id, redis_url=redis_url)
 
     def status(self, *, queue_job_id: str, redis_url: str) -> str:
-        return queue.get_queue_job_status(queue_job_id=queue_job_id, redis_url=redis_url)
+        return normalize_orchestration_status(
+            queue.get_queue_job_status(queue_job_id=queue_job_id, redis_url=redis_url)
+        )
 
 
 @dataclass(frozen=True)
@@ -204,18 +231,7 @@ class PrefectOrchestrationAdapter(OrchestrationAdapter):
             row = resp.json() if resp.content else {}
         state = dict((row or {}).get("state") or {})
         state_type = str(state.get("type") or "").strip().upper()
-        mapping = {
-            "SCHEDULED": "queued",
-            "PENDING": "queued",
-            "RUNNING": "started",
-            "COMPLETED": "finished",
-            "FAILED": "failed",
-            "CRASHED": "failed",
-            "CANCELLING": "cancelling",
-            "CANCELLED": "cancelled",
-            "PAUSED": "deferred",
-        }
-        return mapping.get(state_type, "unknown")
+        return normalize_orchestration_status(state_type)
 
     def submit(
         self,
@@ -239,7 +255,8 @@ class PrefectOrchestrationAdapter(OrchestrationAdapter):
                 run_id=submission.run_id,
                 queue_job_id=submission.queue_job_id,
                 backend_run_id=submission.backend_run_id,
-                backend="prefect",
+                requested_backend="prefect",
+                execution_backend=submission.execution_backend,
             )
 
         run_id_value = str(run_id or "").strip()
@@ -257,7 +274,8 @@ class PrefectOrchestrationAdapter(OrchestrationAdapter):
                 run_id=run_id_value,
                 queue_job_id=flow_run_id,
                 backend_run_id=flow_run_id,
-                backend="prefect",
+                requested_backend="prefect",
+                execution_backend="prefect",
             )
         except Exception:
             submission = super().submit(
@@ -271,7 +289,8 @@ class PrefectOrchestrationAdapter(OrchestrationAdapter):
                 run_id=submission.run_id,
                 queue_job_id=submission.queue_job_id,
                 backend_run_id=submission.backend_run_id,
-                backend="prefect",
+                requested_backend="prefect",
+                execution_backend=submission.execution_backend,
             )
 
     def cancel(self, *, queue_job_id: str, redis_url: str) -> bool:
@@ -290,7 +309,7 @@ class PrefectOrchestrationAdapter(OrchestrationAdapter):
         if not cfg:
             return super().status(queue_job_id=queue_job_id, redis_url=redis_url)
         try:
-            return self._prefect_status(cfg=cfg, flow_run_id=queue_job_id)
+            return normalize_orchestration_status(self._prefect_status(cfg=cfg, flow_run_id=queue_job_id))
         except Exception:
             return super().status(queue_job_id=queue_job_id, redis_url=redis_url)
 

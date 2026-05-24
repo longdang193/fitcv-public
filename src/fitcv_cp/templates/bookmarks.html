@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Bookmarks — FitCV Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Bookmarked Jobs</h1>
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <a href="/admin/bookmarks?view=all" class="btn-secondary" aria-pressed="{{ 'true' if view == 'all' else 'false' }}">All</a>
+    <a href="/admin/bookmarks?view=submitted" class="btn-secondary" aria-pressed="{{ 'true' if view == 'submitted' else 'false' }}">Submitted</a>
+    <a href="/admin/bookmarks?view=archived" class="btn-secondary" aria-pressed="{{ 'true' if view == 'archived' else 'false' }}">Archived</a>
+    <a href="/admin/runs" class="btn-secondary">← All Runs</a>
+  </div>
+</div>
+
+{% set redirect_to = "/admin/bookmarks?view=" ~ view %}
+
+{% macro render_bookmark_rows(items) %}
+  <div style="display:flex;flex-direction:column;gap:0.75rem">
+    {% for item in items %}
+    <div class="cv-row">
+      <div style="display:flex;flex-direction:column;gap:0.2rem;min-width:0">
+        <a class="truncate-link job-title-link" href="{{ item.url }}" target="_blank" rel="noopener">{{ item.job_primary_label }} ↗</a>
+        <div class="meta">
+          {% if item.fit_classification_display %}<span class="badge {{ item.fit_classification_badge_class }}">{{ item.fit_classification_display }}</span>{% endif %}
+          {% if item.status == 'submitted' %}<span class="badge badge-success">Submitted</span>{% endif %}
+          {% if item.status == 'archived' %}<span class="badge badge-warning">Archived</span>{% endif %}
+        </div>
+        <div class="meta">Saved: {{ item.saved_at_display }}{% if item.source_run_id %} · Run <code>{{ item.source_run_id }}</code>{% endif %}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap">
+        {% if item.status == 'active' %}
+          <form method="post" action="/admin/bookmarks/status" style="display:inline">
+            <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+            <input type="hidden" name="status" value="submitted">
+            <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+            <button type="submit" class="btn-secondary" title="Mark as submitted">✓ Submitted</button>
+          </form>
+          <form method="post" action="/admin/bookmarks/status" style="display:inline">
+            <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+            <input type="hidden" name="status" value="archived">
+            <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+            <button type="submit" class="btn-secondary" title="Archive bookmark">Archive</button>
+          </form>
+        {% elif item.status == 'submitted' %}
+          <form method="post" action="/admin/bookmarks/status" style="display:inline">
+            <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+            <input type="hidden" name="status" value="active">
+            <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+            <button type="submit" class="btn-secondary" title="Mark as not submitted">Undo Submitted</button>
+          </form>
+          <form method="post" action="/admin/bookmarks/status" style="display:inline">
+            <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+            <input type="hidden" name="status" value="archived">
+            <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+            <button type="submit" class="btn-secondary" title="Archive bookmark">Archive</button>
+          </form>
+        {% elif item.status == 'archived' %}
+          <form method="post" action="/admin/bookmarks/status" style="display:inline">
+            <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+            <input type="hidden" name="status" value="active">
+            <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+            <button type="submit" class="btn-secondary" title="Restore bookmark">Restore</button>
+          </form>
+        {% endif %}
+
+        {% if item.version_id %}<a href="/admin/cvs/{{ item.version_id }}/download" class="btn-secondary">⬇ Download Markdown</a>{% endif %}
+        {% if item.source_run_id %}<a href="/admin/runs/{{ item.source_run_id }}" class="btn-secondary">Open Run</a>{% endif %}
+        <form method="post" action="/admin/bookmarks/delete" style="display:inline">
+          <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
+          <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+          <button type="submit" class="btn-secondary" title="Remove bookmark">★ Remove</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% endmacro %}
+
+<div class="card">
+  {% if view == 'all' %}
+    {% if active_bookmarks %}
+      <div style="font-weight:700;margin-bottom:0.55rem">Needs Action</div>
+      {{ render_bookmark_rows(active_bookmarks) }}
+    {% endif %}
+
+    {% if submitted_bookmarks %}
+      <div style="font-weight:700;margin-top:0.9rem;margin-bottom:0.55rem">Submitted</div>
+      {{ render_bookmark_rows(submitted_bookmarks) }}
+    {% endif %}
+
+    {% if not active_bookmarks and not submitted_bookmarks and not archived_bookmarks %}
+      <div class="meta">No bookmarked jobs yet. Save jobs from Pipeline Results to see them here.</div>
+    {% endif %}
+  {% else %}
+    {% if bookmarks %}
+      {{ render_bookmark_rows(bookmarks) }}
+    {% else %}
+      <div class="meta">No bookmarked jobs in this view.</div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

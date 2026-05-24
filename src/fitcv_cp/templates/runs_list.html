@@ -5,9 +5,9 @@
 <div class="page-header">
   <h1>Pipeline Runs</h1>
   <div style="display:flex;gap:0.5rem;align-items:center">
-    <a href="/admin/runs?view=active"   class="btn-secondary" {% if view == 'active'   %}data-active="true"{% endif %}>Active</a>
-    <a href="/admin/runs?view=all"      class="btn-secondary" {% if view == 'all'      %}data-active="true"{% endif %}>All</a>
-    <a href="/admin/runs?view=archived" class="btn-secondary" {% if view == 'archived' %}data-active="true"{% endif %}>Archived</a>
+    <a href="/admin/runs?view=active"   class="btn-secondary" aria-pressed="{{ 'true' if view == 'active' else 'false' }}">Active</a>
+    <a href="/admin/runs?view=all"      class="btn-secondary" aria-pressed="{{ 'true' if view == 'all' else 'false' }}">All</a>
+    <a href="/admin/runs?view=archived" class="btn-secondary" aria-pressed="{{ 'true' if view == 'archived' else 'false' }}">Archived</a>
     <a href="/admin/runs" class="btn-secondary">⟳ Refresh</a>
   </div>
 </div>
@@ -29,6 +29,7 @@
 <div class="meta" style="margin-bottom:0.8rem">Orchestration schema: <strong>complete</strong></div>
 {% endif %}
 
+{% if false %}
 <div class="card" style="margin-bottom:0.9rem">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.8rem;flex-wrap:wrap;margin-bottom:0.55rem">
     <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
@@ -50,6 +51,7 @@
     <span class="k">Failed Replays</span><span class="v">{{ dead_letter_replay_health.failed }}</span>
   </div>
 </div>
+{% endif %}
 
 <style>
   .runs-table {
@@ -72,12 +74,16 @@
   .runs-table .col-orch { width: 10rem; }
 
   .run-jobs-path {
-    display: inline-block;
+    display: block;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
     vertical-align: top;
+  }
+
+  .runs-table td.jobs-path-cell {
+    overflow: visible;
   }
 
   .run-created-at {
@@ -125,9 +131,9 @@
   <div style="margin-bottom:1rem">
     <label class="section-helper" style="display:block;margin-bottom:0.4rem">Jobs Input</label>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-      <button type="button" class="btn-secondary" id="jobs-tab-path"   data-active="true"  onclick="setJobsMode('path')">📂 Path</button>
-      <button type="button" class="btn-secondary" id="jobs-tab-upload" data-active="false" onclick="setJobsMode('upload')">⬆ Upload</button>
-      <button type="button" class="btn-secondary" id="jobs-tab-paste"  data-active="false" onclick="setJobsMode('paste')">📋 Paste JSON</button>
+      <button type="button" class="btn-secondary" id="jobs-tab-path"   aria-pressed="true"  onclick="setJobsMode('path')">📂 Path</button>
+      <button type="button" class="btn-secondary" id="jobs-tab-upload" aria-pressed="false" onclick="setJobsMode('upload')">⬆ Upload</button>
+      <button type="button" class="btn-secondary" id="jobs-tab-paste"  aria-pressed="false" onclick="setJobsMode('paste')">📋 Paste JSON</button>
     </div>
   </div>
 
@@ -149,21 +155,21 @@
   <div style="margin-bottom:1rem">
     <label class="section-helper" style="display:block;margin-bottom:0.4rem">Candidate Profile</label>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-      <button type="button" class="btn-secondary" id="prof-tab-default" data-active="true"  onclick="setProfMode('default_config')">⚙ Default Config</button>
-      <button type="button" class="btn-secondary" id="prof-tab-upload"  data-active="false" onclick="setProfMode('upload')">⬆ Upload JSON</button>
-      <button type="button" class="btn-secondary" id="prof-tab-paste"   data-active="false" onclick="setProfMode('paste')">📋 Paste JSON</button>
+      <button type="button" class="btn-secondary" id="prof-tab-default" aria-pressed="true"  onclick="setProfMode('default_config')">⚙ Default Config</button>
+      <button type="button" class="btn-secondary" id="prof-tab-upload"  aria-pressed="false" onclick="setProfMode('upload')">⬆ Upload Profile</button>
+      <button type="button" class="btn-secondary" id="prof-tab-paste"   aria-pressed="false" onclick="setProfMode('paste')">📋 Paste Profile</button>
     </div>
   </div>
 
   <div id="prof-pane-default" style="margin-bottom:1rem">
-    <span class="meta">Uses the candidate profile YAML path from <code>.env.yaml</code></span>
+    <span class="meta">Uses the candidate profile YAML path from <code>config/env.yaml</code></span>
   </div>
   <div id="prof-pane-upload" style="display:none;margin-bottom:1rem">
-    <input type="file" id="candidate_profile_file" accept=".json">
-    <span class="meta" style="display:block;margin-top:0.25rem">JSON file matching the FitCV candidate profile schema</span>
+    <input type="file" id="candidate_profile_file" accept=".json,.yaml,.yml,application/json,text/yaml,application/x-yaml">
+    <span class="meta" style="display:block;margin-top:0.25rem">JSON or YAML file matching the FitCV candidate profile schema</span>
   </div>
   <div id="prof-pane-paste" style="display:none;margin-bottom:1rem">
-    <textarea id="candidate_profile_text" class="code-area" placeholder='{"experiences": [...], "skills": [...], "preferences": {...}, ...}'
+    <textarea id="candidate_profile_text" class="code-area" placeholder='JSON or YAML profile (for example: {"experiences":[...]} or experiences: [...])'
       style="height:100px;font-size:0.8rem;resize:vertical"></textarea>
   </div>
 
@@ -172,8 +178,8 @@
   <div style="margin-bottom:1rem">
     <label class="section-helper" style="display:block;margin-bottom:0.4rem">Synonym Overlay</label>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-      <button type="button" class="btn-secondary" id="synonym-tab-default" data-active="true" onclick="setSynonymOverlayMode('default_config')">⚙ Default Config</button>
-      <button type="button" class="btn-secondary" id="synonym-tab-upload" data-active="false" onclick="setSynonymOverlayMode('upload')">⬆ Upload YAML</button>
+      <button type="button" class="btn-secondary" id="synonym-tab-default" aria-pressed="true" onclick="setSynonymOverlayMode('default_config')">⚙ Default Config</button>
+      <button type="button" class="btn-secondary" id="synonym-tab-upload" aria-pressed="false" onclick="setSynonymOverlayMode('upload')">⬆ Upload YAML</button>
     </div>
   </div>
 
@@ -183,10 +189,10 @@
   <div id="synonym-pane-upload" style="display:none;margin-bottom:1rem">
     <input type="file" id="synonym_overlay_file" accept=".yaml,.yml,text/yaml,application/x-yaml">
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.55rem">
-      <button type="button" class="btn-secondary" id="synonym-scope-combined" data-active="true" onclick="setSynonymOverlayScope('combined')">Combined Upload</button>
-      <button type="button" class="btn-secondary" id="synonym-scope-skill" data-active="false" onclick="setSynonymOverlayScope('skill')">Skills Upload</button>
-      <button type="button" class="btn-secondary" id="synonym-scope-domain" data-active="false" onclick="setSynonymOverlayScope('domain')">Domain Upload</button>
-      <button type="button" class="btn-secondary" id="synonym-scope-role_family" data-active="false" onclick="setSynonymOverlayScope('role_family')">Role Family Upload</button>
+      <button type="button" class="btn-secondary" id="synonym-scope-combined" aria-pressed="true" onclick="setSynonymOverlayScope('combined')">Combined Upload</button>
+      <button type="button" class="btn-secondary" id="synonym-scope-skill" aria-pressed="false" onclick="setSynonymOverlayScope('skill')">Skills Upload</button>
+      <button type="button" class="btn-secondary" id="synonym-scope-domain" aria-pressed="false" onclick="setSynonymOverlayScope('domain')">Domain Upload</button>
+      <button type="button" class="btn-secondary" id="synonym-scope-role_family" aria-pressed="false" onclick="setSynonymOverlayScope('role_family')">Role Family Upload</button>
     </div>
     <span class="meta" style="display:block;margin-top:0.25rem">Run-scoped YAML can include <code>skill_synonyms</code>, <code>domain_alias_map</code>, <code>role_family_alias_map</code>, and optional neighbor maps. <code>Run All</code> uses this trigger-time overlay; <code>Stage by Stage</code> can replace it later before Rule Filter.</span>
     <span class="meta" style="display:block;margin-top:0.2rem">Field-specific scopes reject mixed sections to prevent accidental cross-field updates.</span>
@@ -197,15 +203,15 @@
   <div style="margin-bottom:1rem">
     <label class="section-helper" style="display:block;margin-bottom:0.4rem">Execution Mode</label>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-      <button type="button" class="btn-secondary" id="mode-tab-run_all" data-active="true" onclick="setRunMode('run_all')">▶ Run All</button>
-      <button type="button" class="btn-secondary" id="mode-tab-manual_staged" data-active="false" onclick="setRunMode('manual_staged')">⏸ Stage by Stage</button>
+      <button type="button" class="btn-secondary" id="mode-tab-run_all" aria-pressed="true" onclick="setRunMode('run_all')">▶ Run All</button>
+      <button type="button" class="btn-secondary" id="mode-tab-manual_staged" aria-pressed="false" onclick="setRunMode('manual_staged')">⏸ Stage by Stage</button>
     </div>
   </div>
 
   <hr>
 
   <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap">
-    <input type="text" id="config_path" value=".env.yaml" placeholder="config_path" style="width:140px">
+    <input type="text" id="config_path" value="config/env.yaml" placeholder="config_path" style="width:140px">
     <button type="button" id="trigger-btn" class="btn-primary" onclick="triggerRun()" style="min-width:140px">▶ Trigger Run</button>
     <span id="trigger-status" class="meta"></span>
   </div>
@@ -239,6 +245,7 @@
     <tbody>
       {% for run in runs %}
       {% set orch = run_orchestration_diagnostics.get(run.run_id, {}) %}
+      {% set status_projection = run_status_projection.get(run.run_id, {}) %}
       <tr>
         <td>
           <input
@@ -252,15 +259,15 @@
         <td><a href="/admin/runs/{{ run.run_id }}"><code>{{ run.run_id[:8] }}…</code></a></td>
         <td>
           <span class="run-status-text" data-status="{{ run.status.value }}">{{ run.status.value }}</span>
-          {% if run.archived_at %}<div class="meta" style="margin-top:0.15rem">archived</div>{% endif %}
+          {% if status_projection.is_archived %}<div class="meta" style="margin-top:0.15rem">archived</div>{% endif %}
         </td>
         <td class="meta">
           <span class="run-mode-text">{{ 'Stage by Stage' if run.run_mode == 'manual_staged' else 'Run All' }}</span>
-          {% if run.status.value == 'awaiting_continue' and run.next_stage %}
+          {% if status_projection.is_awaiting_continue and run.next_stage %}
           <div class="run-next-stage"><code>next: {{ run.next_stage }}</code></div>
           {% endif %}
         </td>
-        <td><code class="run-jobs-path" title="{{ run.jobs_path }}">{{ run.jobs_path }}</code></td>
+        <td class="jobs-path-cell"><code class="run-jobs-path" title="{{ run.jobs_path_display or run.jobs_path }}">{{ run.jobs_path_display or run.jobs_path }}</code></td>
         <td class="meta">
           {% if run.created_at %}
           <span class="run-created-at">
@@ -300,7 +307,7 @@ function setJobsMode(m) {
   _jobsMode = m;
   ['path','upload','paste'].forEach(k => {
     document.getElementById('jobs-pane-' + k).style.display = k === m ? '' : 'none';
-    document.getElementById('jobs-tab-' + k).dataset.active = String(k === m);
+    document.getElementById('jobs-tab-' + k).setAttribute('aria-pressed', String(k === m));
   });
 }
 
@@ -309,7 +316,7 @@ function setProfMode(m) {
   ['default', 'upload', 'paste'].forEach(k => {
     const key = k === 'default' ? 'default_config' : k;
     document.getElementById('prof-pane-' + k).style.display = key === m ? '' : 'none';
-    document.getElementById('prof-tab-' + k).dataset.active = String(key === m);
+    document.getElementById('prof-tab-' + k).setAttribute('aria-pressed', String(key === m));
   });
 }
 
@@ -318,7 +325,7 @@ function setSynonymOverlayMode(m) {
   ['default', 'upload'].forEach(k => {
     const key = k === 'default' ? 'default_config' : k;
     document.getElementById('synonym-pane-' + k).style.display = key === m ? '' : 'none';
-    document.getElementById('synonym-tab-' + k).dataset.active = String(key === m);
+    document.getElementById('synonym-tab-' + k).setAttribute('aria-pressed', String(key === m));
   });
 }
 
@@ -327,14 +334,14 @@ function setSynonymOverlayScope(scope) {
   ['combined', 'skill', 'domain', 'role_family'].forEach((key) => {
     const el = document.getElementById('synonym-scope-' + key);
     if (!el) return;
-    el.dataset.active = String(key === scope);
+    el.setAttribute('aria-pressed', String(key === scope));
   });
 }
 
 function setRunMode(m) {
   _runMode = m;
   ['run_all', 'manual_staged'].forEach(k => {
-    document.getElementById('mode-tab-' + k).dataset.active = String(k === m);
+    document.getElementById('mode-tab-' + k).setAttribute('aria-pressed', String(k === m));
   });
 }
 
@@ -364,7 +371,7 @@ async function triggerRun() {
 
     if (_profMode === 'upload') {
       const pf = document.getElementById('candidate_profile_file').files[0];
-      if (!pf) { alert('Please select a candidate profile JSON file.'); return; }
+      if (!pf) { alert('Please select a candidate profile JSON or YAML file.'); return; }
       fd.append('candidate_profile_file', pf);
     } else if (_profMode === 'paste') {
       fd.append('candidate_profile_text', document.getElementById('candidate_profile_text').value);
@@ -540,3 +547,4 @@ async function bulkLifecycleAction(action, btn) {
 restoreLifecycleNotice();
 </script>
 {% endblock %}
+

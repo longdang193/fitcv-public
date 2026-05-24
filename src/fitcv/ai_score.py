@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,21 +30,27 @@ from types import SimpleNamespace
 from fitcv.config import (
     get_gemini_model,
     get_ranking_prompt_id,
+    get_stage_runtime_concurrency,
+    get_stage_runtime_sleep_secs,
     resolve_model_routing_part,
     sqlite_mode_enabled,
 )
 from fitcv.contracts import RANKING_AI_SCORE_PROMPT_SCHEMA_VERSION
+from fitcv.persistence import build_bigquery_client, get_local_sqlite_path
 from fitcv.prompts import render_prompt
+from fitcv.ranking_contract import (
+    DEFAULT_FIT_LABEL_STRONG_THRESHOLD,
+    DEFAULT_FIT_LABEL_STRETCH_THRESHOLD,
+    VALID_FIT_LABELS,
+    fit_label_from_score,
+)
 
 logger = logging.getLogger(__name__)
 
 # ── constants ─────────────────────────────────────────────────────────────────
-
-_VALID_FIT_LABELS = frozenset({"strong", "stretch", "skip"})
-
-_DEFAULT_STRONG_THRESHOLD = 0.70
-_DEFAULT_STRETCH_THRESHOLD = 0.40
-
+_DEFAULT_STRONG_THRESHOLD = DEFAULT_FIT_LABEL_STRONG_THRESHOLD
+_DEFAULT_STRETCH_THRESHOLD = DEFAULT_FIT_LABEL_STRETCH_THRESHOLD
+_VALID_FIT_LABELS = VALID_FIT_LABELS
 
 def _extract_openai_responses_text(body: dict[str, Any]) -> str:
     """Extract assistant text from OpenAI-compatible /responses payloads."""
@@ -77,8 +84,8 @@ def build_ai_score_contract_fingerprint(config: dict[str, Any]) -> dict[str, Any
         "gemini_model": get_gemini_model(config),
         "prompt_schema_version": RANKING_AI_SCORE_PROMPT_SCHEMA_VERSION,
         "prompt_id": get_ranking_prompt_id(config),
-        "strong_threshold": float(thresholds.get("strong", _DEFAULT_STRONG_THRESHOLD)),
-        "stretch_threshold": float(thresholds.get("stretch", _DEFAULT_STRETCH_THRESHOLD)),
+        "strong_threshold": float(thresholds.get("strong", DEFAULT_FIT_LABEL_STRONG_THRESHOLD)),
+        "stretch_threshold": float(thresholds.get("stretch", DEFAULT_FIT_LABEL_STRETCH_THRESHOLD)),
     }
     return {
         "payload": payload,
@@ -99,8 +106,8 @@ def build_ai_score_input_fingerprint(
         jd_summary=build_job_summary_text(job),
         candidate_summary=candidate_summary,
         top_evidence=top_evidence[:2],
-        strong_threshold=float(thresholds.get("strong", _DEFAULT_STRONG_THRESHOLD)),
-        stretch_threshold=float(thresholds.get("stretch", _DEFAULT_STRETCH_THRESHOLD)),
+        strong_threshold=float(thresholds.get("strong", DEFAULT_FIT_LABEL_STRONG_THRESHOLD)),
+        stretch_threshold=float(thresholds.get("stretch", DEFAULT_FIT_LABEL_STRETCH_THRESHOLD)),
         config=config,
     )
     contract_record = build_ai_score_contract_fingerprint(config)
@@ -122,8 +129,8 @@ def build_scoring_prompt(
     candidate_summary: str,
     top_evidence: list[str],
     *,
-    strong_threshold: float = _DEFAULT_STRONG_THRESHOLD,
-    stretch_threshold: float = _DEFAULT_STRETCH_THRESHOLD,
+    strong_threshold: float = DEFAULT_FIT_LABEL_STRONG_THRESHOLD,
+    stretch_threshold: float = DEFAULT_FIT_LABEL_STRETCH_THRESHOLD,
     config: dict[str, Any] | None = None,
 ) -> str:
     """Build the structured reranking prompt for one job.
@@ -154,19 +161,6 @@ def build_scoring_prompt(
 
 
 # ── response parsing ──────────────────────────────────────────────────────────
-
-def _fit_label_from_score(score: float, config: dict[str, Any] | None = None) -> str:
-    """Derive fit_label from numeric score using thresholds from config or defaults."""
-    thresholds = {}
-    if config:
-        thresholds = config.get("fit_label_thresholds", {}) or {}
-    strong_threshold = float(thresholds.get("strong", 0.70))
-    stretch_threshold = float(thresholds.get("stretch", 0.40))
-    if score >= strong_threshold:
-        return "strong"
-    if score >= stretch_threshold:
-        return "stretch"
-    return "skip"
 
 
 def parse_score_response(response_text: str, config: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -214,13 +208,19 @@ def parse_score_response(response_text: str, config: dict[str, Any] | None = Non
         return failed
 
     # Clamp ai_score to [0.0, 1.0]
-    raw_score = float(data.get("ai_score", 0.0))
+    try:
+        raw_score = float(data.get("ai_score", 0.0))
+    except (TypeError, ValueError):
+        failed = _defaults.copy()
+        failed["score_reasoning"] = "Scoring response parse failure: invalid_ai_score"
+        failed["parser_status"] = "invalid_ai_score"
+        return failed
     ai_score = max(0.0, min(1.0, raw_score))
 
     # Validate / derive fit_label
     fit_label = str(data.get("fit_label", "")).lower().strip()
-    if fit_label not in _VALID_FIT_LABELS:
-        fit_label = _fit_label_from_score(ai_score, config=config)
+    if fit_label not in VALID_FIT_LABELS:
+        fit_label = fit_label_from_score(ai_score, config=config)
 
     return {
         "ai_score":          ai_score,
@@ -244,7 +244,6 @@ def _make_genai_client(config: dict[str, Any]) -> Any:
     2. GOOGLE_APPLICATION_CREDENTIALS → uses Vertex AI endpoint
        - Requires Vertex AI publisher model access for the project.
     """
-    import os
     import httpx
 
     routing = resolve_model_routing_part("ranking_ai_score", model_fallback=get_gemini_model(config))
@@ -348,8 +347,8 @@ def score_job(
         jd_summary=jd_summary,
         candidate_summary=candidate_summary,
         top_evidence=top_evidence[:2],
-        strong_threshold=float(thresholds.get("strong", _DEFAULT_STRONG_THRESHOLD)),
-        stretch_threshold=float(thresholds.get("stretch", _DEFAULT_STRETCH_THRESHOLD)),
+        strong_threshold=float(thresholds.get("strong", DEFAULT_FIT_LABEL_STRONG_THRESHOLD)),
+        stretch_threshold=float(thresholds.get("stretch", DEFAULT_FIT_LABEL_STRETCH_THRESHOLD)),
         config=config,
     )
 
@@ -374,7 +373,8 @@ def run_ai_scoring(
     """Score at most top_n shortlisted jobs.
 
     top_n defaults to config["pipeline"]["ai_score_top_n"] (50 if missing).
-    sleep between calls is config["rerank_sleep_secs"] (0.5 if missing).
+    sleep between calls prefers config["stage_runtime"]["ranking"]["sleep_secs"].
+    Falls back to config["rerank_sleep_secs"] (0.5 if missing).
 
     shortlist: list of job dicts from VECTOR_SEARCH (must include job_url and
                structured JD fields). Each item may optionally include
@@ -389,36 +389,61 @@ def run_ai_scoring(
         if top_n is not None
         else int((config.get("pipeline") or {}).get("ai_score_top_n") or config.get("rerank_top_n", 50))
     )
-    sleep_secs = float(config.get("rerank_sleep_secs", 0.5))
-    scored: list[dict[str, Any]] = []
-    for i, job in enumerate(shortlist[:effective_top_n]):
+    sleep_secs = get_stage_runtime_sleep_secs(
+        config,
+        stage="ranking",
+        default=0.5,
+        compatibility_fallback_key="rerank_sleep_secs",
+    )
+    ranking_concurrency = get_stage_runtime_concurrency(
+        config,
+        stage="ranking",
+        default=1,
+    )
+    selected_jobs = shortlist[:effective_top_n]
+
+    def _score_single(job: dict[str, Any]) -> dict[str, Any]:
         top_evidence = list(job.get("top_evidence", []) or [])[:2]
         try:
-            result = score_job(
+            return score_job(
                 job=job,
                 candidate_summary=candidate_summary,
                 top_evidence=top_evidence,
                 config=config,
             )
-            scored.append(result)
         except Exception as exc:  # noqa: BLE001
-            scored.append({
+            return {
                 "job_url": str(job.get("job_url", "")),
                 "ai_score": 0.0, "fit_label": "skip",
                 "score_reasoning": f"Scoring error: {exc}",
                 "matched_strengths": [], "key_risks": [],
                 "parser_status": "runtime_exception",
-            })
-        if i < len(shortlist[:effective_top_n]) - 1:
-            time.sleep(sleep_secs)
+            }
+
+    scored_by_index: dict[int, dict[str, Any]] = {}
+    if ranking_concurrency <= 1:
+        for i, job in enumerate(selected_jobs):
+            scored_by_index[i] = _score_single(job)
+            if i < len(selected_jobs) - 1:
+                time.sleep(sleep_secs)
+    else:
+        with ThreadPoolExecutor(max_workers=ranking_concurrency) as executor:
+            futures: dict[Any, int] = {}
+            for i, job in enumerate(selected_jobs):
+                futures[executor.submit(_score_single, job)] = i
+                if i < len(selected_jobs) - 1:
+                    time.sleep(sleep_secs)
+            for future in as_completed(futures):
+                scored_by_index[futures[future]] = future.result()
+
+    scored: list[dict[str, Any]] = []
+    for i in range(len(selected_jobs)):
+        scored.append(scored_by_index[i])
 
     return scored
 
 
 # ── integration: persist scores ───────────────────────────────────────────────
-
-def _local_sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
 
 
 
@@ -451,7 +476,7 @@ def store_ai_scores(
     now = datetime.now(tz=timezone.utc).isoformat()
 
     if sqlite_mode_enabled(config):
-        db_path = Path(_local_sqlite_path())
+        db_path = Path(get_local_sqlite_path())
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(db_path) as conn:
             _ensure_local_ai_score_results_table(conn)
@@ -491,17 +516,10 @@ def store_ai_scores(
             conn.commit()
         return
 
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
 
     project = str(config["gcp_project"])
     dataset = str(config["bigquery_dataset"])
-    key_path = str(config["service_account_key"])
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        client = bigquery.Client(project=project, credentials=credentials)
-    else:
-        client = bigquery.Client(project=project)
+    client = build_bigquery_client(config)
     table_ref = f"{project}.{dataset}.ai_score_results"
 
     rows = [
@@ -520,3 +538,4 @@ def store_ai_scores(
     errors = client.insert_rows_json(table_ref, rows)
     if errors:
         raise RuntimeError(f"BigQuery insert errors for ai_score_results: {errors}")
+

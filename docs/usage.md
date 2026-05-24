@@ -26,6 +26,37 @@ Entry point: `/admin/runs`
 4. inspect run detail tabs and stage artifacts
 5. export evidence (`export.json`, `cv-debug.json`, `settings-used.json`, stage artifacts, artifacts zip)
 
+### Run Detail Overview Navigation
+
+Run detail is now decision-first. Default view emphasizes status, outcome, warnings, next actions, stage snapshot, and effective-settings delta.
+
+Workflow entry routes:
+
+- synonym review workspace: `GET /admin/runs/{run_id}/synonym-review`
+- artifacts workspace: run detail exports section (`GET /admin/runs/{run_id}` + `#run-exports-workspace`)
+
+Diagnostics access:
+
+- diagnostics section entry: `#diag-synonym-fingerprints`
+- advanced diagnostics container: `#advanced-diagnostics`
+- exports workspace anchor: `#run-exports-workspace`
+
+Tooltip glossary semantics:
+
+- `confidence`: model certainty for suggested mapping
+- `triage mode`: freshness/reuse mode for recommendation decisions
+- `suppressed`: proposal hidden by suppression policy or duplicate resolution
+- `alias conflict`: alias already mapped to a different canonical value
+- `run-scoped overlay`: override applies only to this run, not global defaults
+
+Artifact truth note:
+
+- run-scoped persisted artifacts/endpoints are source of truth
+- local `artifacts/live_run_<run_id>/` is deterministic evidence mirror for portability/debug handoff
+- backfill missing historical mirrors with:
+  - `python scripts/backfill_live_run_artifacts.py --run-id <run_id> --dry-run`
+  - `python scripts/backfill_live_run_artifacts.py --run-id <run_id>`
+
 ## Lifecycle Actions
 
 Operator lifecycle actions are exposed through run-scoped admin routes:

@@ -15,41 +15,9 @@ lifecycle:
   - status: active
 """
 
-"""Rule-based job filtering — deterministic policy layer before semantic retrieval.
-
-Public API
-----------
-check_seniority          : seniority ladder match (±1 pass, ±2 reject, unknown=keep)
-check_location_type      : job location_type in preferred list
-check_contract_type      : contract_type in allowed list
-check_experience_level   : exclusion filter on raw LinkedIn experience_level label
-check_must_have_skills   : candidate must-haves present in JD (with synonym map)
-check_freshness          : published_at within global_job_filters.max_age_days window
-check_domain_preference  : job domain in preferred list (empty = accept all)
-check_applicant_count    : applications_count ≤ global_job_filters.applications_count_max
-apply_rule_filters       : compose all checks → {passed, rejected}
-store_filter_results     : persist results to BigQuery (integration)
-
-Return contract
----------------
-apply_rule_filters returns:
-    {
-        "passed": ["url1", "url3", ...],
-        "rejected": [
-            {"job_url": "url2", "reasons": ["seniority_mismatch", "contract_type_excluded"]}
-        ]
-    }
-
-Config keys consumed (loaded via config.py from taxonomy.yaml / skill_synonyms.yaml)
--------------------------------------------------------------------------------------
-config["seniority"]["ladder"]    : ordered list of seniority levels
-config["seniority"]["aliases"]   : alias → canonical mapping
-config["skill_synonyms"]         : alias → canonical skill mapping
-"""
 
 import logging
 import json
-import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -57,22 +25,21 @@ from fitcv.config import sqlite_mode_enabled
 
 logger = logging.getLogger(__name__)
 
+RULE_FILTER_SIGNALS: tuple[dict[str, Any], ...] = (
+    {"code": "seniority_mismatch", "label": "Seniority mismatch", "default_selected": True},
+    {"code": "location_type_excluded", "label": "Location type excluded", "default_selected": True},
+    {"code": "contract_type_excluded", "label": "Contract type excluded", "default_selected": True},
+    {"code": "experience_level_excluded", "label": "Experience level excluded", "default_selected": True},
+    {"code": "must_have_skill_missing", "label": "Missing must-have skills", "default_selected": False},
+    {"code": "domain_not_preferred", "label": "Domain not preferred", "default_selected": False},
+)
+
 RULE_FILTER_SIGNAL_LABELS: dict[str, str] = {
-    "seniority_mismatch": "Seniority mismatch",
-    "location_type_excluded": "Location type excluded",
-    "contract_type_excluded": "Contract type excluded",
-    "experience_level_excluded": "Experience level excluded",
-    "must_have_skill_missing": "Missing must-have skills",
-    "domain_not_preferred": "Domain not preferred",
+    str(item["code"]): str(item["label"]) for item in RULE_FILTER_SIGNALS
 }
-
 DEFAULT_SELECTED_RULE_FILTERS: list[str] = [
-    "seniority_mismatch",
-    "location_type_excluded",
-    "contract_type_excluded",
-    "experience_level_excluded",
+    str(item["code"]) for item in RULE_FILTER_SIGNALS if bool(item["default_selected"])
 ]
-
 KNOWN_RULE_FILTER_SIGNAL_CODES: set[str] = set(RULE_FILTER_SIGNAL_LABELS)
 
 
@@ -104,6 +71,19 @@ _FALLBACK_SKILL_SYNONYMS: dict[str, str] = {
 
 # ── config helpers ────────────────────────────────────────────────────────────
 
+
+def _normalized_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+    return []
+
+
+def _safe_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
 def _get_seniority_ladder(config: dict[str, Any] | None) -> list[str]:
     """Return the ordered seniority ladder from config, or the built-in fallback."""
     if config:
@@ -122,7 +102,7 @@ def _get_seniority_aliases(config: dict[str, Any] | None) -> dict[str, str]:
     return _FALLBACK_SENIORITY_ALIASES
 
 
-def _get_skill_synonyms(config: dict[str, Any] | None) -> dict[str, str]:
+def get_skill_synonyms(config: dict[str, Any] | None) -> dict[str, str]:
     """Return the skill synonym map from config, or the built-in fallback."""
     if config:
         synonyms = config.get("skill_synonyms")
@@ -132,17 +112,14 @@ def _get_skill_synonyms(config: dict[str, Any] | None) -> dict[str, str]:
 
 
 def _get_preferred_domains(prefs: dict[str, Any]) -> list[str]:
-    domains = prefs.get("domains")
+    domains = _normalized_string_list(prefs.get("domains"))
     if domains:
-        return [str(domain).lower() for domain in domains]
-    return [str(domain).lower() for domain in prefs.get("preferred_domains", [])]
+        return domains
+    return _normalized_string_list(prefs.get("preferred_domains"))
 
 
 def _get_excluded_contract_types(prefs: dict[str, Any]) -> list[str]:
-    excluded = prefs.get("exclude_contract_types")
-    if excluded:
-        return [str(contract_type).lower() for contract_type in excluded]
-    return []
+    return _normalized_string_list(prefs.get("exclude_contract_types"))
 
 
 def _get_selected_rule_filter_codes(config: dict[str, Any] | None) -> set[str]:
@@ -213,9 +190,9 @@ def check_seniority(
 
 # ── skill canonicalisation ────────────────────────────────────────────────────
 
-def _canonicalise_skill(skill: str, config: dict[str, Any] | None = None) -> str:
+def canonicalize_skill(skill: str, config: dict[str, Any] | None = None) -> str:
     """Return the canonical form of a skill name (lower-cased, synonym-resolved)."""
-    synonyms = _get_skill_synonyms(config)
+    synonyms = get_skill_synonyms(config)
     lower = skill.strip().lower()
     return synonyms.get(lower, lower)
 
@@ -227,7 +204,7 @@ def check_location_type(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
 
     Empty preferred_locations = no preference → accept everything.
     """
-    allowed = [t.lower() for t in prefs.get("location_types", [])]
+    allowed = _normalized_string_list(prefs.get("location_types"))
     if not allowed:
         return True
     location_type = str(job.get("location_type") or "").lower()
@@ -243,7 +220,7 @@ def check_contract_type(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
     if excluded and contract_type in excluded:
         return False
 
-    allowed = [str(contract_type).lower() for contract_type in prefs.get("contract_types", [])]
+    allowed = _normalized_string_list(prefs.get("contract_types"))
     if not allowed:
         return True
     return contract_type in allowed
@@ -255,7 +232,7 @@ def check_experience_level(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
     experience_level (raw LinkedIn label) is used for exclusion only.
     seniority (LLM-normalised) is the primary signal — handled by check_seniority.
     """
-    excluded = [str(experience_level).lower() for experience_level in prefs.get("exclude_experience_levels", [])]
+    excluded = _normalized_string_list(prefs.get("exclude_experience_levels"))
     experience_level = str(job.get("experience_level") or "").lower()
     if experience_level == "entry level":
         return True
@@ -355,7 +332,7 @@ def check_freshness(
     Missing or unparseable published_at → pass (fail open).
     """
     if global_settings is not None:
-        max_age = int(global_settings.get("global_job_filters.max_age_days", 30))
+        max_age = _safe_int(global_settings.get("global_job_filters.max_age_days", 30), 30)
     else:
         max_age = 30
     published_at = job.get("published_at")
@@ -584,3 +561,13 @@ def store_filter_results(
         errors = client.insert_rows_json(table_ref, rows)
         if errors:
             raise RuntimeError(f"BigQuery insert errors for rule_filter_results: {errors}")
+
+
+def _get_skill_synonyms(config: dict[str, Any] | None) -> dict[str, str]:
+    """Backward-compatible private alias for legacy imports."""
+    return get_skill_synonyms(config)
+
+
+def _canonicalise_skill(skill: str, config: dict[str, Any] | None = None) -> str:
+    """Backward-compatible private alias for legacy imports."""
+    return canonicalize_skill(skill, config)

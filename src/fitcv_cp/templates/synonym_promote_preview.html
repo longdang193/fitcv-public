@@ -10,9 +10,12 @@
 </div>
 
 <div class="card">
-  <h3 style="margin:0 0 0.6rem">Preview Summary</h3>
+  <h3 style="margin:0 0 0.6rem">Review Summary</h3>
   <div class="meta" style="margin-bottom:0.8rem">
-    Selected={{ preview.selected_count }},
+    approved_selected={{ preview.selected_count }},
+    ready={{ preview.ready_rows|length }},
+    already_global={{ preview.already_global_rows|length }},
+    blocked={{ preview.blocked_rows|length }},
     new={{ preview.counts.new_aliases }},
     unchanged={{ preview.counts.unchanged_aliases }},
     overridden={{ preview.counts.overridden_aliases }},
@@ -22,17 +25,30 @@
   <div class="meta" style="margin-bottom:0.8rem">
     This promotion is a merge/overlay into the global synonym map, not a full replacement.
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Proposal</th>
-        <th>Status</th>
-        <th>Diff</th>
-        <th>Reason</th>
-      </tr>
-    </thead>
+  <h4 style="margin:0.25rem 0 0.45rem">Ready to Promote</h4>
+  <table style="margin-bottom:0.85rem">
+    <thead><tr><th>Select</th><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
     <tbody>
-      {% for row in preview.rows %}
+      {% for row in preview.ready_rows %}
+      <tr>
+        <td><input type="checkbox" name="promote_proposal_id" value="{{ row.proposal_id }}" form="promote-commit-form" checked></td>
+        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.diff_type }}</td>
+        <td>{{ row.reason }}</td>
+      </tr>
+      {% endfor %}
+      {% if not preview.ready_rows %}
+      <tr><td colspan="5" class="meta">No rows ready to promote.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <h4 style="margin:0.25rem 0 0.45rem">Already Global (No Change)</h4>
+  <table style="margin-bottom:0.85rem">
+    <thead><tr><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for row in preview.already_global_rows %}
       <tr>
         <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
         <td>{{ row.status }}</td>
@@ -40,23 +56,88 @@
         <td>{{ row.reason }}</td>
       </tr>
       {% endfor %}
+      {% if not preview.already_global_rows %}
+      <tr><td colspan="4" class="meta">No already-global rows in this review set.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <h4 style="margin:0.25rem 0 0.45rem">Blocked / Conflict</h4>
+  <table>
+    <thead><tr><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for row in preview.blocked_rows %}
+      <tr>
+        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+        <td>{{ row.status }}</td>
+        <td>{{ row.diff_type }}</td>
+        <td>{{ row.reason }}</td>
+      </tr>
+      {% endfor %}
+      {% if not preview.blocked_rows %}
+      <tr><td colspan="4" class="meta">No blocked rows in this review set.</td></tr>
+      {% endif %}
     </tbody>
   </table>
 </div>
 
 <div class="card">
   <h3 style="margin:0 0 0.6rem">Confirm Promotion</h3>
+  <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.65rem">
+    <button class="btn-secondary" type="button" id="promote-select-all-btn">Select All</button>
+    <button class="btn-secondary" type="button" id="promote-clear-all-btn">Clear Selection</button>
+    <span class="meta" id="promote-selected-count">Selected: {{ preview.ready_rows|length }}</span>
+  </div>
   {% if preview.counts.conflict > 0 %}
   <div class="error-box">
     <strong>Promotion blocked</strong>
     Resolve conflicts in the selected set, then preview again.
   </div>
   {% endif %}
-  <form method="post" action="/admin/runs/{{ run.run_id }}/synonym-proposals/promote-commit" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">
+  <form id="promote-commit-form" method="post" action="/admin/runs/{{ run.run_id }}/synonym-proposals/promote-commit" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">
     <input type="hidden" name="selected_ids_csv" value="{{ selected_ids_csv }}">
     <input type="text" name="acted_by" value="admin" placeholder="actor" style="max-width:12rem">
     <input type="hidden" name="note" value="ui:promote-to-global">
     <button class="btn-primary" type="submit" {% if preview.counts.conflict > 0 %}disabled{% endif %}>Confirm Promote to Global</button>
   </form>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const promoteSelectAllBtn = document.getElementById('promote-select-all-btn');
+  const promoteClearAllBtn = document.getElementById('promote-clear-all-btn');
+  const promoteSelectedCount = document.getElementById('promote-selected-count');
+  const promoteCheckboxes = () => Array.from(
+    document.querySelectorAll('input[type="checkbox"][name="promote_proposal_id"]')
+  );
+
+  const refreshPromoteSelectedCount = () => {
+    if (!promoteSelectedCount) return;
+    const selected = promoteCheckboxes().filter((cb) => cb.checked).length;
+    promoteSelectedCount.textContent = `Selected: ${selected}`;
+  };
+
+  promoteCheckboxes().forEach((checkboxEl) => {
+    checkboxEl.addEventListener('change', refreshPromoteSelectedCount);
+  });
+
+  if (promoteSelectAllBtn) {
+    promoteSelectAllBtn.addEventListener('click', () => {
+      promoteCheckboxes().forEach((checkboxEl) => {
+        checkboxEl.checked = true;
+      });
+      refreshPromoteSelectedCount();
+    });
+  }
+  if (promoteClearAllBtn) {
+    promoteClearAllBtn.addEventListener('click', () => {
+      promoteCheckboxes().forEach((checkboxEl) => {
+        checkboxEl.checked = false;
+      });
+      refreshPromoteSelectedCount();
+    });
+  }
+
+  refreshPromoteSelectedCount();
+});
+</script>
 {% endblock %}

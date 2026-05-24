@@ -32,6 +32,22 @@ _OTEL_ENABLED = False
 _LANGFUSE_JSON_MAX_CHARS = 4000
 _LANGFUSE_COLLECTION_MAX_ITEMS = 25
 _LANGFUSE_MAPPING_MAX_ITEMS = 50
+_LANGFUSE_TRUNCATION_SUFFIX = "... [truncated]"
+
+LANGFUSE_LINK_STATUS_DISABLED = "disabled"
+LANGFUSE_LINK_STATUS_DEGRADED = "degraded"
+LANGFUSE_LINK_STATUS_UNVERIFIED = "unverified"
+LANGFUSE_LINK_STATUS_VERIFIED = "verified"
+
+LANGFUSE_DEGRADATION_DISABLED = "langfuse_disabled"
+LANGFUSE_DEGRADATION_BASE_URL_MISSING = "langfuse_base_url_missing"
+LANGFUSE_DEGRADATION_TRACE_ID_MISSING = "langfuse_trace_id_missing"
+LANGFUSE_DEGRADATION_INGESTION_UNVERIFIED = "langfuse_ingestion_unverified"
+
+TELEMETRY_EXPORT_STATUS_ENABLED = "export_enabled"
+TELEMETRY_EXPORT_STATUS_DISABLED = "disabled"
+TELEMETRY_EXPORT_STATUS_DEGRADED = "degraded"
+TELEMETRY_DEGRADATION_DISABLED = "otel_disabled"
 
 
 def reset_telemetry_runtime_for_tests() -> None:
@@ -75,30 +91,50 @@ def _parse_otlp_headers(value: str | None) -> dict[str, str]:
 def _truncate_langfuse_text(value: str, *, max_chars: int = _LANGFUSE_JSON_MAX_CHARS) -> str:
     if len(value) <= max_chars:
         return value
-    suffix = "... [truncated]"
+    suffix = _LANGFUSE_TRUNCATION_SUFFIX
     if max_chars <= len(suffix):
         return value[:max_chars]
     return f"{value[: max_chars - len(suffix)]}{suffix}"
 
 
-def _bounded_langfuse_value(value: Any) -> Any:
+def _bounded_langfuse_scalar_tree(
+    value: Any,
+    *,
+    text_max_chars: int,
+    mapping_max_items: int = _LANGFUSE_MAPPING_MAX_ITEMS,
+    collection_max_items: int = _LANGFUSE_COLLECTION_MAX_ITEMS,
+) -> Any:
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
-        return _truncate_langfuse_text(value)
+        return _truncate_langfuse_with_marker(value, max_chars=text_max_chars)
     if isinstance(value, Mapping):
-        bounded_items = list(value.items())[:_LANGFUSE_MAPPING_MAX_ITEMS]
+        bounded_items = list(value.items())[:mapping_max_items]
         return {
-            str(key): _bounded_langfuse_value(item_value)
+            str(key): _bounded_langfuse_scalar_tree(
+                item_value,
+                text_max_chars=text_max_chars,
+                mapping_max_items=mapping_max_items,
+                collection_max_items=collection_max_items,
+            )
             for key, item_value in bounded_items
             if item_value is not None
         }
     if isinstance(value, (list, tuple, set)):
         return [
-            _bounded_langfuse_value(item)
-            for item in list(value)[:_LANGFUSE_COLLECTION_MAX_ITEMS]
+            _bounded_langfuse_scalar_tree(
+                item,
+                text_max_chars=text_max_chars,
+                mapping_max_items=mapping_max_items,
+                collection_max_items=collection_max_items,
+            )
+            for item in list(value)[:collection_max_items]
         ]
-    return _truncate_langfuse_text(str(value))
+    return _truncate_langfuse_with_marker(str(value), max_chars=text_max_chars)
+
+
+def _bounded_langfuse_value(value: Any) -> Any:
+    return _bounded_langfuse_scalar_tree(value, text_max_chars=_LANGFUSE_JSON_MAX_CHARS)
 
 
 def serialize_langfuse_json(value: Any, *, max_chars: int = _LANGFUSE_JSON_MAX_CHARS) -> str | None:
@@ -172,7 +208,7 @@ def _truncate_langfuse_with_marker(
     value: str | None,
     *,
     max_chars: int,
-    truncation_suffix: str = "... [truncated]",
+    truncation_suffix: str = _LANGFUSE_TRUNCATION_SUFFIX,
 ) -> str | None:
     if value is None:
         return None
@@ -182,6 +218,19 @@ def _truncate_langfuse_with_marker(
     if max_chars <= len(truncation_suffix):
         return text[:max_chars]
     return f"{text[: max_chars - len(truncation_suffix)]}{truncation_suffix}"
+
+
+def _coerce_langfuse_iterable(values: Any) -> list[Any]:
+    if values is None:
+        return []
+    if isinstance(values, str):
+        return [values]
+    if isinstance(values, Mapping):
+        return list(values.values())
+    try:
+        return list(values)
+    except TypeError:
+        return [values]
 
 
 def bound_langfuse_excerpt(value: str | None, *, max_chars: int) -> str | None:
@@ -199,9 +248,7 @@ def bound_langfuse_list(
     max_item_chars: int,
     truncation_item_label: str = "[truncated]",
 ) -> list[str]:
-    if values is None:
-        return []
-    normalized_source = list(values)
+    normalized_source = _coerce_langfuse_iterable(values)
     bounded_values = normalized_source[:max_items]
     normalized_items = [
         _truncate_langfuse_with_marker(str(item), max_chars=max_item_chars) or ""
@@ -224,7 +271,7 @@ def bound_langfuse_issue_list(values: Any) -> list[str]:
 
 
 def _render_langfuse_bullets(values: Any) -> list[str]:
-    return [f"- {item}" for item in list(values or []) if str(item).strip()]
+    return [f"- {item}" for item in _coerce_langfuse_iterable(values) if str(item).strip()]
 
 
 def _render_langfuse_section(heading: str, body_lines: list[str]) -> list[str]:
@@ -275,23 +322,7 @@ def _bounded_langfuse_text(value: str | None, *, max_chars: int = _LANGFUSE_JSON
 
 
 def _bounded_langfuse_item_value(value: Any, *, text_max_chars: int = 1000) -> Any:
-    if value is None or isinstance(value, (bool, int, float)):
-        return value
-    if isinstance(value, str):
-        return _truncate_langfuse_with_marker(value, max_chars=text_max_chars)
-    if isinstance(value, Mapping):
-        bounded_items = list(value.items())[:_LANGFUSE_MAPPING_MAX_ITEMS]
-        return {
-            str(key): _bounded_langfuse_item_value(item_value, text_max_chars=text_max_chars)
-            for key, item_value in bounded_items
-            if item_value is not None
-        }
-    if isinstance(value, (list, tuple, set)):
-        return [
-            _bounded_langfuse_item_value(item, text_max_chars=text_max_chars)
-            for item in list(value)[:_LANGFUSE_COLLECTION_MAX_ITEMS]
-        ]
-    return _truncate_langfuse_with_marker(str(value), max_chars=text_max_chars)
+    return _bounded_langfuse_scalar_tree(value, text_max_chars=text_max_chars)
 
 
 def _normalized_langfuse_bool(value: Any) -> bool | None:
@@ -384,8 +415,9 @@ def build_langfuse_item_observation_attributes(
     prompt_name: str | None = None,
     extra_attributes: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    normalized_observation_type = observation_type or observation_name
     item_envelope = build_langfuse_item_observation_envelope(
-        observation_type=observation_name,
+        observation_type=normalized_observation_type,
         rendered_input=rendered_input,
         rendered_output=rendered_output,
         metadata=metadata,
@@ -402,7 +434,7 @@ def build_langfuse_item_observation_attributes(
     return _normalized_attributes(
         {
             "langfuse.observation.name": observation_name,
-            "langfuse.observation.type": observation_type,
+            "langfuse.observation.type": normalized_observation_type,
             "langfuse.observation.input": item_envelope.get("input"),
             "langfuse.observation.output": item_envelope.get("output"),
             "langfuse.observation.metadata": serialize_langfuse_json(metadata_payload),
@@ -513,15 +545,14 @@ def observe_span(name: str, *, attributes: Mapping[str, Any] | None = None) -> I
         return
     try:
         from opentelemetry import trace  # type: ignore
-
-        tracer = trace.get_tracer("fitcv.telemetry")
-        with tracer.start_as_current_span(name) as span:
-            for key, value in normalized_attributes.items():
-                span.set_attribute(key, value)
-            yield current_trace_context()
-            return
     except Exception:
         yield None
+        return
+    tracer = trace.get_tracer("fitcv.telemetry")
+    with tracer.start_as_current_span(name) as span:
+        for key, value in normalized_attributes.items():
+            span.set_attribute(key, value)
+        yield current_trace_context()
 
 
 def set_span_attributes(attributes: Mapping[str, Any] | None) -> None:
@@ -567,33 +598,33 @@ def langfuse_link_status(trace_id: str | None, *, verified: bool = False) -> dic
     enabled = _is_truthy(os.environ.get("FITCV_LANGFUSE_ENABLED"))
     if not enabled:
         return {
-            "status": "disabled",
-            "degradation_reason": "langfuse_disabled",
+            "status": LANGFUSE_LINK_STATUS_DISABLED,
+            "degradation_reason": LANGFUSE_DEGRADATION_DISABLED,
             "trace_url": None,
         }
     base_url = _normalized_env(os.environ.get("FITCV_LANGFUSE_BASE_URL"))
     if not base_url:
         return {
-            "status": "degraded",
-            "degradation_reason": "langfuse_base_url_missing",
+            "status": LANGFUSE_LINK_STATUS_DEGRADED,
+            "degradation_reason": LANGFUSE_DEGRADATION_BASE_URL_MISSING,
             "trace_url": None,
         }
     normalized_trace_id = _normalized_env(trace_id)
     if not normalized_trace_id:
         return {
-            "status": "degraded",
-            "degradation_reason": "langfuse_trace_id_missing",
+            "status": LANGFUSE_LINK_STATUS_DEGRADED,
+            "degradation_reason": LANGFUSE_DEGRADATION_TRACE_ID_MISSING,
             "trace_url": None,
         }
     if verified:
         return {
-            "status": "verified",
+            "status": LANGFUSE_LINK_STATUS_VERIFIED,
             "degradation_reason": None,
             "trace_url": f"{base_url.rstrip('/')}/trace/{normalized_trace_id}",
         }
     return {
-        "status": "unverified",
-        "degradation_reason": "langfuse_ingestion_unverified",
+        "status": LANGFUSE_LINK_STATUS_UNVERIFIED,
+        "degradation_reason": LANGFUSE_DEGRADATION_INGESTION_UNVERIFIED,
         "trace_url": f"{base_url.rstrip('/')}/trace/{normalized_trace_id}",
     }
 
@@ -601,11 +632,11 @@ def langfuse_link_status(trace_id: str | None, *, verified: bool = False) -> dic
 def telemetry_export_status() -> dict[str, Any]:
     setup = setup_telemetry_runtime()
     if bool(setup.get("enabled")):
-        return {"status": "export_enabled", "degradation_reason": None}
-    degraded_reason = str(setup.get("degraded_reason") or "otel_disabled")
-    if degraded_reason == "otel_disabled":
-        return {"status": "disabled", "degradation_reason": degraded_reason}
+        return {"status": TELEMETRY_EXPORT_STATUS_ENABLED, "degradation_reason": None}
+    degraded_reason = str(setup.get("degraded_reason") or TELEMETRY_DEGRADATION_DISABLED)
+    if degraded_reason == TELEMETRY_DEGRADATION_DISABLED:
+        return {"status": TELEMETRY_EXPORT_STATUS_DISABLED, "degradation_reason": degraded_reason}
     return {
-        "status": "degraded",
+        "status": TELEMETRY_EXPORT_STATUS_DEGRADED,
         "degradation_reason": degraded_reason,
     }

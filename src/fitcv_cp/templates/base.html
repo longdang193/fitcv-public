@@ -297,11 +297,50 @@ canonical: true
       transition: all 0.15s;
     }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    a.btn-secondary:hover { text-decoration: none; }
+    .btn-secondary[aria-pressed="true"],
     .btn-secondary[data-active="true"] {
       background: var(--accent-dim);
       border-color: var(--accent);
       color: var(--accent-text);
       font-weight: 600;
+    }
+    .btn-secondary[aria-pressed="false"],
+    .btn-secondary[data-active="false"] {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    a.truncate-link {
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: bottom;
+    }
+    a.truncate-link:hover { text-decoration: none; }
+    a.job-title-link { color: var(--accent); text-decoration: none; }
+    a.job-title-link:hover,
+    a.job-title-link:focus-visible { text-decoration: underline; }
+    .decision-toggle[aria-pressed="true"],
+    .decision-toggle[data-active="true"] {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+    .decision-toggle[aria-pressed="false"]:not(:hover):not(:focus-visible),
+    .decision-toggle[data-active="false"]:not(:hover):not(:focus-visible) {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .decision-toggle:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
 
     /* Section — settings section saves (Save Retrieval Settings, etc.) */
@@ -318,9 +357,17 @@ canonical: true
     }
     .btn-section:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+    .btn-secondary:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      border-color: var(--border);
+      color: var(--text-muted);
+      background: transparent;
+    }
+
     /* Legacy fallback — default button style (same as primary) */
     button { background: var(--accent); color: #fff; border: none; padding: 0.5rem 1.1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-    button:hover { background: var(--accent-hover); }
+    button:not(.btn-secondary):hover { background: var(--accent-hover); }
 
     /* ── Badges ───────────────────────────────────────────────────────────── */
     .badge {
@@ -339,6 +386,21 @@ canonical: true
     .badge-info      { background: var(--badge-info-bg);    color: var(--badge-info-fg); }
     .badge-warning   { background: var(--badge-warning-bg); color: var(--badge-warning-fg); }
     .badge-error     { background: var(--badge-error-bg);   color: var(--badge-error-fg); }
+    .fit-classification-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.55rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+      line-height: 1.1;
+      cursor: default;
+    }
 
     /* ── Forms & inputs ───────────────────────────────────────────────────── */
     input[type="text"],
@@ -441,6 +503,7 @@ canonical: true
   <nav>
     <span class="brand">⚡ FitCV Admin</span>
     <a href="/admin/runs">Runs</a>
+    <a href="/admin/bookmarks">Bookmarks</a>
     <a href="/admin/settings">Settings</a>
     <a href="/healthz">Health</a>
     <div class="nav-actions">

@@ -18,8 +18,25 @@ dump.rdb
 logs/
 .worktrees/
 data/uploads/
+data/*dataset_linkedin-jobs-scraper*.json
 .worktrees/
 .env
 .env.*
+!.env.example
 *.private.*
 *.local.*
+
+# SQLite WAL/SHM sidecars (created when WAL enabled)
+*.sqlite3-wal
+*.sqlite3-shm
+
+data/fitcv_cp.sqlite3
+# Local runtime/state databases (do not version)
+data/fitcv_cp_runtime.sqlite3*
+data/fitcv_cp_settings.sqlite3*
+data/fitcv_cp.sqlite3*
+
+# Live run evidence bundles (local only)
+artifacts/live_run_*/
+artifacts/stash_overlap/
+artifacts/tmp_*

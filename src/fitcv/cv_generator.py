@@ -16,7 +16,6 @@ lifecycle:
 """
 
 import json
-import os
 import re
 import textwrap
 from copy import deepcopy
@@ -25,14 +24,18 @@ from typing import Any
 
 from jinja2 import BaseLoader, Environment, TemplateError
 
+from fitcv.candidate_name_policy import resolved_candidate_profile_name
 from fitcv.candidate import flatten_skills
+from fitcv.placeholder_policy import (
+    is_placeholder_token as _shared_is_placeholder_token,
+    normalize_placeholder_token as _shared_normalize_placeholder_token,
+)
 from fitcv.config import (
     CV_SECTION_KEY_TO_NAME,
     CV_STRUCTURED_SECTION_KEYS,
     get_cv_generation_model,
     get_cv_generation_structured_prompt_id,
     get_required_structured_section_keys,
-    resolve_model_routing_part,
 )
 from fitcv.contracts import (
     ANALYSIS_CHANNEL_DEFINITIONS,
@@ -42,7 +45,14 @@ from fitcv.contracts import (
     ROLE_ALIGNMENT_CHANNEL,
     STRUCTURED_CV_SCHEMA_VERSION,
 )
+from fitcv.runtime_routing import resolve_cv_generation_routing, resolve_openai_compatible_api_key
 from fitcv.prompts import render_prompt
+from fitcv.section_policy import (
+    certification_evidence_lines,
+    certification_policy_decisions,
+)
+from fitcv.rule_filter import canonicalize_skill
+from fitcv.runtime_routing import resolve_cv_generation_routing, resolve_openai_compatible_api_key
 
 # ── template variant map ─────────────────────────────────────────────────────
 # Maps job_family values (populated by enrichment) to styling hints.
@@ -59,10 +69,6 @@ _DEFAULT_VARIANT = "standard"
 DEFAULT_CV_LOCALE = "en"
 DEFAULT_SUPPORTING_EVIDENCE_PER_ROLE = 1
 LEGACY_MARKDOWN_PROMPT_ID = "cv_generation.write.v1"
-_CANDIDATE_NAME_PLACEHOLDER_VALUES = {
-    "candidate name",
-    "your name",
-}
 _EDUCATION_PLACEHOLDER_TOKENS = {
     "",
     "none",
@@ -75,29 +81,23 @@ _EDUCATION_PLACEHOLDER_TOKENS = {
 }
 
 def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
-    routing = resolve_model_routing_part(
-        "cv_generation_structured_write",
-        model_fallback=get_cv_generation_model(config),
-    )
-    provider_name = str(routing.get("provider") or "").strip().lower()
+    routing = resolve_cv_generation_routing(config)
+    provider_name = routing.provider
     allowed_http_providers = {"openai", "openai_compatible", "9router"}
     if provider_name not in allowed_http_providers:
         raise RuntimeError(
             "cv_generation_structured_write provider must be configured in control-plane model_routing.parts as "
             "one of: openai, openai_compatible, 9router."
         )
-    base_url = str(routing.get("base_url") or "").strip()
+    base_url = routing.base_url
     if not base_url:
         raise RuntimeError("OpenAI-compatible CV generation routing requires provider base_url in control-plane config.")
-    api_key = (
-        str(os.environ.get("OPENAI_API_KEY") or "").strip()
-        or str(os.environ.get("OPENAI_COMPATIBLE_API_KEY") or "").strip()
-    )
+    api_key = resolve_openai_compatible_api_key()
     if not api_key:
         raise RuntimeError("OpenAI-compatible CV generation routing requires API key in env.")
-    wire_api = str(routing.get("wire_api") or "").strip().lower() or "responses"
-    timeout_seconds = float(str(routing.get("timeout_seconds") or "").strip() or "120")
-    model_override = str(routing.get("model") or "").strip()
+    wire_api = routing.wire_api
+    timeout_seconds = routing.timeout_seconds
+    model_override = routing.model
     if not model_override:
         raise RuntimeError(
             "cv_generation_structured_write model must be configured in control-plane model_routing.parts."
@@ -194,26 +194,6 @@ def _get_enabled_section_names(config: dict[str, Any] | None) -> list[str]:
     return enabled_sections
 
 
-def _normalize_candidate_name_token(value: str) -> str:
-    normalized = str(value or "")
-    normalized = normalized.replace("[", " ").replace("]", " ")
-    normalized = " ".join(normalized.split()).strip().lower()
-    return normalized
-
-
-def _is_candidate_name_placeholder(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    return _normalize_candidate_name_token(value) in _CANDIDATE_NAME_PLACEHOLDER_VALUES
-
-
-def _resolved_candidate_profile_name(profile: dict[str, Any] | None) -> str:
-    if not isinstance(profile, dict):
-        return ""
-    candidate_name = str(profile.get("name") or "").strip()
-    if not candidate_name or _is_candidate_name_placeholder(candidate_name):
-        return ""
-    return candidate_name
 
 
 def _filter_template_by_enabled_sections(template: str, enabled_sections: list[str]) -> str:
@@ -584,9 +564,23 @@ def _build_generation_prompt_context(
 ) -> dict[str, str]:
     title = str(jd.get("title") or "")
     required_skills = list(jd.get("required_skills") or [])
-    candidate_name = _resolved_candidate_profile_name(profile)
+    candidate_name = resolved_candidate_profile_name(profile)
 
     enabled_section_names = _get_enabled_section_names(config)
+
+    allowed_skill_set: set[str] = set()
+    for item in evidence:
+        for raw_skill in item.get("skills") or []:
+            text = str(raw_skill or "").strip()
+            if not text:
+                continue
+            allowed_skill_set.add(canonicalize_skill(text, config or {}))
+    allowed_skills = sorted(skill for skill in allowed_skill_set if skill)
+
+    allowed_certifications: list[str] = []
+    if "Certifications" in enabled_section_names and not allowed_certifications:
+        enabled_section_names = [name for name in enabled_section_names if name != "Certifications"]
+
     evidence_lines = _build_selected_evidence_lines(
         evidence,
         jd_skills=required_skills,
@@ -621,7 +615,6 @@ def _build_generation_prompt_context(
             constraint_lines.append(
                 "Do not output placeholder names such as Candidate Name, [Candidate Name], Your Name, or [Your Name]."
             )
-        approved_skills = flatten_skills(profile)
         known_employers = [
             str(exp.get("company") or "")
             for exp in (profile.get("experiences") or [])
@@ -642,10 +635,12 @@ def _build_generation_prompt_context(
                 "Do not invent project names. Only use project names from the candidate profile: "
                 + ", ".join(known_projects)
             )
-        if approved_skills:
+        if allowed_skills:
             constraint_lines.append(
-                "In the Skills section, only use skills from this approved list: "
-                + ", ".join(approved_skills)
+                "Allowed Skills (selected-evidence only): " + ", ".join(allowed_skills)
+            )
+            constraint_lines.append(
+                "In the Skills section, list only skills from Allowed Skills. Do not add profile-only skills."
             )
     if enabled_section_names:
         constraint_lines.append(
@@ -730,7 +725,12 @@ def _build_generation_prompt_context(
     filtered_template = _filter_template_by_enabled_sections(template, enabled_section_names)
     section_evidence_lines: list[str] = []
     if "Certifications" in enabled_section_names:
-        certification_lines = _format_certification_lines(profile)
+        cert_policy = certification_policy_decisions(
+            config=config,
+            profile=profile,
+            evidence_selected_certifications=[],
+        )
+        certification_lines = certification_evidence_lines(cert_policy)
         if certification_lines:
             section_evidence_lines.append(
                 "Use these candidate certifications when filling the Certifications section:\n"
@@ -782,6 +782,8 @@ def _build_generation_prompt_context(
         "evidence_usage_guidance": evidence_usage_guidance,
         "analysis_summary": analysis_summary,
         "constraints": constraints,
+        "allowed_skills": ", ".join(allowed_skills) or "(none)",
+        "allowed_certifications": ", ".join(allowed_certifications) or "(none)",
         "section_evidence": section_evidence,
         "output_template": filtered_template,
     }
@@ -833,6 +835,173 @@ def build_empty_structured_cv(
         "sections": _build_default_sections(profile=profile, jd=jd),
     }
 
+
+def build_live_structured_cv_response_schema(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    nullable_string_schema = {
+        "anyOf": [
+            {"type": "string"},
+            {"type": "null"},
+        ]
+    }
+    bullet_schema = {
+        "type": "string",
+    }
+    required_sections = [
+        "header",
+        "summary",
+        "experience",
+        "projects",
+        "education",
+        "skills",
+        "certifications",
+        "publications",
+        "languages",
+    ]
+    if config is not None:
+        required_sections = ["header", *get_required_structured_section_keys(config)]
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["sections"],
+        "properties": {
+            "sections": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": required_sections,
+                "properties": {
+                    "header": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["name", "title", "location", "contact"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "title": {"type": "string"},
+                            "location": nullable_string_schema,
+                            "contact": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["email", "phone", "linkedin"],
+                                "properties": {
+                                    "email": nullable_string_schema,
+                                    "phone": nullable_string_schema,
+                                    "linkedin": nullable_string_schema,
+                                },
+                            },
+                        },
+                    },
+                    "summary": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["text"],
+                        "properties": {
+                            "text": {"type": "string"},
+                        },
+                    },
+                    "experience": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["role", "company", "start", "end", "location", "bullets"],
+                            "properties": {
+                                "role": {"type": "string"},
+                                "company": {"type": "string"},
+                                "start": nullable_string_schema,
+                                "end": nullable_string_schema,
+                                "location": nullable_string_schema,
+                                "bullets": {"type": "array", "items": bullet_schema},
+                            },
+                        },
+                    },
+                    "projects": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["name", "context", "bullets"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "context": nullable_string_schema,
+                                "bullets": {"type": "array", "items": bullet_schema},
+                            },
+                        },
+                    },
+                    "education": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["degree", "institution", "field", "start", "end"],
+                            "properties": {
+                                "degree": {"type": "string"},
+                                "institution": {"type": "string"},
+                                "field": nullable_string_schema,
+                                "start": nullable_string_schema,
+                                "end": nullable_string_schema,
+                            },
+                        },
+                    },
+                    "skills": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["groups"],
+                        "properties": {
+                            "groups": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "additionalProperties": False,
+                                    "required": ["label", "items"],
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "items": {"type": "array", "items": {"type": "string"}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    "certifications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["name", "issuer", "year"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "issuer": nullable_string_schema,
+                                "year": nullable_string_schema,
+                            },
+                        },
+                    },
+                    "publications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["title", "publisher", "year"],
+                            "properties": {
+                                "title": {"type": "string"},
+                                "publisher": nullable_string_schema,
+                                "year": nullable_string_schema,
+                            },
+                        },
+                    },
+                    "languages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["name", "level"],
+                            "properties": {
+                                "name": {"type": "string"},
+                                "level": nullable_string_schema,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
 
 def validate_structured_cv(
     structured_cv: dict[str, Any],
@@ -935,14 +1104,11 @@ def _coerce_object_list(values: Any) -> list[dict[str, Any]]:
 
 
 def _normalize_placeholder_token(value: Any) -> str:
-    normalized = str(value or "").strip().lower()
-    normalized = normalized.replace("–", "-").replace("—", "-")
-    normalized = re.sub(r"\s+", " ", normalized)
-    return normalized
+    return _shared_normalize_placeholder_token(value)
 
 
 def _is_placeholder_token(value: Any) -> bool:
-    return _normalize_placeholder_token(value) in _EDUCATION_PLACEHOLDER_TOKENS
+    return _shared_is_placeholder_token(value)
 
 
 def _is_synthetic_education_entry(entry: dict[str, Any]) -> bool:
@@ -1038,6 +1204,122 @@ def _sanitize_education_entries(
 ) -> list[dict[str, Any]]:
     return _sanitize_section_entries("education", education_entries, config=config)
 
+def _normalize_header_section(
+    raw_sections: dict[str, Any],
+    default_sections: dict[str, Any],
+) -> dict[str, Any]:
+    raw_header = raw_sections.get("header")
+    if not isinstance(raw_header, dict):
+        raw_header = {}
+    return {
+        "name": str(raw_header.get("name") or default_sections["header"]["name"]).strip(),
+        "title": str(raw_header.get("title") or default_sections["header"]["title"]).strip(),
+        "location": str(raw_header.get("location") or default_sections["header"]["location"] or "").strip() or None,
+        "contact": _normalize_contact(raw_header, default_sections["header"]),
+    }
+
+def _normalize_summary_section(raw_sections: dict[str, Any]) -> dict[str, str]:
+    raw_summary = raw_sections.get("summary")
+    if isinstance(raw_summary, dict):
+        summary_text = str(raw_summary.get("text") or "").strip()
+    elif isinstance(raw_summary, str):
+        summary_text = raw_summary.strip()
+    else:
+        summary_text = ""
+    return {"text": summary_text}
+
+def _normalize_experience_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    experience_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("experience")):
+        experience_entries.append(
+            {
+                "role": str(item.get("role") or "").strip(),
+                "company": str(item.get("company") or "").strip(),
+                "start": str(item.get("start") or "").strip() or None,
+                "end": str(item.get("end") or "").strip() or None,
+                "location": str(item.get("location") or "").strip() or None,
+                "bullets": _normalize_bullets(item.get("bullets")),
+            }
+        )
+    return _sanitize_section_entries("experience", experience_entries, config=config)
+
+def _normalize_projects_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    project_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("projects")):
+        project_entries.append(
+            {
+                "name": str(item.get("name") or "").strip(),
+                "context": str(item.get("context") or "").strip() or None,
+                "bullets": _normalize_bullets(item.get("bullets")),
+            }
+        )
+    return _sanitize_section_entries("projects", project_entries, config=config)
+
+def _normalize_education_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    education_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("education")):
+        education_entries.append(
+            {
+                "degree": str(item.get("degree") or "").strip(),
+                "institution": str(item.get("institution") or "").strip(),
+                "field": str(item.get("field") or "").strip() or None,
+                "start": str(item.get("start") or "").strip() or None,
+                "end": str(item.get("end") or "").strip() or None,
+            }
+        )
+    return _sanitize_education_entries(education_entries, config=config)
+
+def _normalize_skills_section(raw_sections: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    raw_skills = raw_sections.get("skills")
+    raw_groups = raw_skills.get("groups") if isinstance(raw_skills, dict) else []
+    normalized_groups: list[dict[str, Any]] = []
+    if isinstance(raw_groups, list):
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            normalized_groups.append(
+                {
+                    "label": str(group.get("label") or "").strip(),
+                    "items": _coerce_string_list(group.get("items")),
+                }
+            )
+    return {"groups": normalized_groups}
+
+def _normalize_certifications_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    certification_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("certifications")):
+        certification_entries.append(
+            {
+                "name": str(item.get("name") or "").strip(),
+                "issuer": str(item.get("issuer") or "").strip() or None,
+                "year": str(item.get("year") or "").strip() or None,
+            }
+        )
+    return _sanitize_section_entries("certifications", certification_entries, config=config)
+
+def _normalize_publications_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    publication_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("publications")):
+        publication_entries.append(
+            {
+                "title": str(item.get("title") or "").strip(),
+                "publisher": str(item.get("publisher") or "").strip() or None,
+                "year": str(item.get("year") or "").strip() or None,
+            }
+        )
+    return _sanitize_section_entries("publications", publication_entries, config=config)
+
+def _normalize_languages_section(raw_sections: dict[str, Any], *, config: dict[str, Any]) -> list[dict[str, Any]]:
+    language_entries: list[dict[str, Any]] = []
+    for item in _coerce_object_list(raw_sections.get("languages")):
+        language_entries.append(
+            {
+                "name": str(item.get("name") or "").strip(),
+                "level": str(item.get("level") or "").strip() or None,
+            }
+        )
+    return _sanitize_section_entries("languages", language_entries, config=config)
+
 
 def _normalize_structured_cv(
     raw_structured_cv: dict[str, Any],
@@ -1058,132 +1340,17 @@ def _normalize_structured_cv(
         raw_sections = {}
     default_sections = normalized["sections"]
 
-    raw_header = raw_sections.get("header")
-    if not isinstance(raw_header, dict):
-        raw_header = {}
-    normalized["sections"]["header"] = {
-        "name": str(raw_header.get("name") or default_sections["header"]["name"]).strip(),
-        "title": str(raw_header.get("title") or default_sections["header"]["title"]).strip(),
-        "location": str(raw_header.get("location") or default_sections["header"]["location"] or "").strip() or None,
-        "contact": _normalize_contact(raw_header, default_sections["header"]),
-    }
+    normalized["sections"]["header"] = _normalize_header_section(raw_sections, default_sections)
+    normalized["sections"]["summary"] = _normalize_summary_section(raw_sections)
 
-    raw_summary = raw_sections.get("summary")
-    if isinstance(raw_summary, dict):
-        summary_text = str(raw_summary.get("text") or "").strip()
-    elif isinstance(raw_summary, str):
-        summary_text = raw_summary.strip()
-    else:
-        summary_text = ""
-    normalized["sections"]["summary"] = {"text": summary_text}
+    normalized["sections"]["experience"] = _normalize_experience_section(raw_sections, config=config)
+    normalized["sections"]["projects"] = _normalize_projects_section(raw_sections, config=config)
+    normalized["sections"]["education"] = _normalize_education_section(raw_sections, config=config)
+    normalized["sections"]["skills"] = _normalize_skills_section(raw_sections)
 
-    normalized["sections"]["experience"] = []
-    for item in _coerce_object_list(raw_sections.get("experience")):
-        normalized["sections"]["experience"].append(
-            {
-                "role": str(item.get("role") or "").strip(),
-                "company": str(item.get("company") or "").strip(),
-                "start": str(item.get("start") or "").strip() or None,
-                "end": str(item.get("end") or "").strip() or None,
-                "location": str(item.get("location") or "").strip() or None,
-                "bullets": _normalize_bullets(item.get("bullets")),
-            }
-        )
-    normalized["sections"]["experience"] = _sanitize_section_entries(
-        "experience",
-        normalized["sections"]["experience"],
-        config=config,
-    )
-
-    normalized["sections"]["projects"] = []
-    for item in _coerce_object_list(raw_sections.get("projects")):
-        normalized["sections"]["projects"].append(
-            {
-                "name": str(item.get("name") or "").strip(),
-                "context": str(item.get("context") or "").strip() or None,
-                "bullets": _normalize_bullets(item.get("bullets")),
-            }
-        )
-    normalized["sections"]["projects"] = _sanitize_section_entries(
-        "projects",
-        normalized["sections"]["projects"],
-        config=config,
-    )
-
-    normalized["sections"]["education"] = []
-    for item in _coerce_object_list(raw_sections.get("education")):
-        normalized["sections"]["education"].append(
-            {
-                "degree": str(item.get("degree") or "").strip(),
-                "institution": str(item.get("institution") or "").strip(),
-                "field": str(item.get("field") or "").strip() or None,
-                "start": str(item.get("start") or "").strip() or None,
-                "end": str(item.get("end") or "").strip() or None,
-            }
-        )
-    normalized["sections"]["education"] = _sanitize_education_entries(
-        normalized["sections"]["education"],
-        config=config,
-    )
-
-    raw_skills = raw_sections.get("skills")
-    raw_groups = raw_skills.get("groups") if isinstance(raw_skills, dict) else []
-    normalized_groups: list[dict[str, Any]] = []
-    if isinstance(raw_groups, list):
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            normalized_groups.append(
-                {
-                    "label": str(group.get("label") or "").strip(),
-                    "items": _coerce_string_list(group.get("items")),
-                }
-            )
-    normalized["sections"]["skills"] = {"groups": normalized_groups}
-
-    normalized["sections"]["certifications"] = []
-    for item in _coerce_object_list(raw_sections.get("certifications")):
-        normalized["sections"]["certifications"].append(
-            {
-                "name": str(item.get("name") or "").strip(),
-                "issuer": str(item.get("issuer") or "").strip() or None,
-                "year": str(item.get("year") or "").strip() or None,
-            }
-        )
-    normalized["sections"]["certifications"] = _sanitize_section_entries(
-        "certifications",
-        normalized["sections"]["certifications"],
-        config=config,
-    )
-
-    normalized["sections"]["publications"] = []
-    for item in _coerce_object_list(raw_sections.get("publications")):
-        normalized["sections"]["publications"].append(
-            {
-                "title": str(item.get("title") or "").strip(),
-                "publisher": str(item.get("publisher") or "").strip() or None,
-                "year": str(item.get("year") or "").strip() or None,
-            }
-        )
-    normalized["sections"]["publications"] = _sanitize_section_entries(
-        "publications",
-        normalized["sections"]["publications"],
-        config=config,
-    )
-
-    normalized["sections"]["languages"] = []
-    for item in _coerce_object_list(raw_sections.get("languages")):
-        normalized["sections"]["languages"].append(
-            {
-                "name": str(item.get("name") or "").strip(),
-                "level": str(item.get("level") or "").strip() or None,
-            }
-        )
-    normalized["sections"]["languages"] = _sanitize_section_entries(
-        "languages",
-        normalized["sections"]["languages"],
-        config=config,
-    )
+    normalized["sections"]["certifications"] = _normalize_certifications_section(raw_sections, config=config)
+    normalized["sections"]["publications"] = _normalize_publications_section(raw_sections, config=config)
+    normalized["sections"]["languages"] = _normalize_languages_section(raw_sections, config=config)
 
     validate_structured_cv(normalized, config=config)
     return normalized
@@ -1560,3 +1727,9 @@ def generate_cv(
         "structured_cv": structured_cv,
         "markdown": markdown,
     }
+
+
+
+
+
+

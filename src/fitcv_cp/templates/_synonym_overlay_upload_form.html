@@ -1,0 +1,10 @@
+<form method="post" action="/admin/runs/{{ run.run_id }}/synonym-overlay" enctype="multipart/form-data" style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap">
+  <input type="file" name="synonym_overlay_file" accept=".yaml,.yml,text/yaml,application/x-yaml" style="max-width:18rem">
+  <select name="overlay_upload_scope" style="min-width:11rem">
+    <option value="combined">Combined Upload</option>
+    <option value="skill">Skills Upload</option>
+    <option value="domain">Domain Upload</option>
+    <option value="role_family">Role Family Upload</option>
+  </select>
+  <button type="submit" class="btn-secondary">Replace Run Overlay YAML</button>
+</form>

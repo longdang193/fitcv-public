@@ -24,6 +24,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from fitcv_cp.runtime_contracts import (
+    is_truthy_env,
+    normalize_orchestration_status,
+    parse_bounded_float_env,
+)
 # Set spawn context BEFORE rq is imported — rq's scheduler module uses
 # get_context('fork') at import time, which fails on Windows.
 _orig_get_context = multiprocessing.get_context
@@ -65,17 +70,28 @@ _INLINE_JOB_STATUS: dict[str, str] = {}
 
 
 def _inline_execution_enabled() -> bool:
-    raw = str(os.environ.get("FITCV_CP_INLINE_EXECUTION", "") or "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
+    return is_truthy_env(os.environ.get("FITCV_CP_INLINE_EXECUTION"))
 
 
 def _inline_start_delay_seconds() -> float:
-    raw = str(os.environ.get("FITCV_CP_INLINE_START_DELAY_SECONDS", "0.05") or "0.05").strip()
-    try:
-        delay = float(raw)
-    except ValueError:
-        return 0.05
-    return max(0.0, min(delay, 1.0))
+    return parse_bounded_float_env(
+        os.environ.get("FITCV_CP_INLINE_START_DELAY_SECONDS", "0.05"),
+        default=0.05,
+        minimum=0.0,
+        maximum=1.0,
+    )
+
+
+def _enqueue_inline_after_delay(target: object, args: tuple[object, ...]) -> str:
+    queue_job_id = f"inline-{uuid.uuid4()}"
+    _INLINE_JOB_STATUS[queue_job_id] = "queued"
+    thread = threading.Thread(
+        target=target,
+        args=(queue_job_id, *args),
+        daemon=True,
+    )
+    thread.start()
+    return queue_job_id
 
 
 def _run_inline_job(job_id: str, run_id: str, jobs_path: str, config_path: str) -> None:
@@ -120,6 +136,54 @@ def _run_inline_job_after_delay(job_id: str, run_id: str, jobs_path: str, config
         time.sleep(delay_seconds)
     _run_inline_job(job_id, run_id, jobs_path, config_path)
 
+def _run_inline_cv_regenerate_once(
+    job_id: str,
+    run_id: str,
+    job_url: str,
+    actor: str,
+    note: str | None,
+) -> None:
+    from fitcv_cp import worker_job  # noqa: F401
+
+    _INLINE_JOB_STATUS[job_id] = "started"
+    try:
+        worker_job.execute_cv_regenerate_once(
+            run_id=run_id,
+            job_url=job_url,
+            actor=actor,
+            note=note,
+        )
+        _INLINE_JOB_STATUS[job_id] = "finished"
+    except ValueError as exc:
+        # Test harness can enqueue inline follow-up work after mocked run scope ends.
+        # Treat missing run as terminal/no-op instead of leaking thread exceptions.
+        if str(exc) == "run_not_found":
+            _INLINE_JOB_STATUS[job_id] = "missing_run"
+            return
+        _INLINE_JOB_STATUS[job_id] = "failed"
+        raise
+    except Exception:
+        _INLINE_JOB_STATUS[job_id] = "failed"
+        raise
+
+def _run_inline_cv_regenerate_once_after_delay(
+    job_id: str,
+    run_id: str,
+    job_url: str,
+    actor: str,
+    note: str | None,
+) -> None:
+    delay_seconds = _inline_start_delay_seconds()
+    if delay_seconds > 0:
+        time.sleep(delay_seconds)
+    _run_inline_cv_regenerate_once(
+        job_id=job_id,
+        run_id=run_id,
+        job_url=job_url,
+        actor=actor,
+        note=note,
+    )
+
 
 def get_queue(redis_url: str = "redis://redis:6379/0") -> Queue:
     global _queue
@@ -137,17 +201,14 @@ def enqueue_run_with_job_id(
     run_id: Optional[str] = None,
 ) -> tuple[str, str]:
     """Enqueue a pipeline run. Returns (run_id, rq_job_id)."""
+    _ = triggered_by  # backward-compatible placeholder; intentionally unused in queue transport.
     if run_id is None:
         run_id = str(uuid.uuid4())
     if _inline_execution_enabled():
-        job_id = f"inline-{uuid.uuid4()}"
-        _INLINE_JOB_STATUS[job_id] = "queued"
-        thread = threading.Thread(
-            target=_run_inline_job_after_delay,
-            args=(job_id, run_id, jobs_path, config_path),
-            daemon=True,
+        job_id = _enqueue_inline_after_delay(
+            _run_inline_job_after_delay,
+            (run_id, jobs_path, config_path),
         )
-        thread.start()
         return run_id, job_id
     from fitcv_cp import worker_job  # noqa: F401
     q = get_queue(redis_url)
@@ -178,6 +239,34 @@ def enqueue_run(
     )
     return run_id
 
+def enqueue_cv_regenerate_once_with_job_id(
+    *,
+    run_id: str,
+    job_url: str,
+    actor: str,
+    note: str | None = None,
+    redis_url: str = "redis://redis:6379/0",
+) -> str:
+    """Enqueue a bounded regenerate-once CV review job. Returns rq_job_id."""
+    if _inline_execution_enabled():
+        queue_job_id = _enqueue_inline_after_delay(
+            _run_inline_cv_regenerate_once_after_delay,
+            (run_id, job_url, actor, note),
+        )
+        return queue_job_id
+    from fitcv_cp import worker_job  # noqa: F401
+
+    q = get_queue(redis_url)
+    job = q.enqueue(
+        worker_job.execute_cv_regenerate_once,
+        run_id=run_id,
+        job_url=job_url,
+        actor=actor,
+        note=note,
+        job_timeout=1800,
+    )
+    return str(job.id)
+
 
 def cancel_queued_run(queue_job_id: str, redis_url: str = "redis://redis:6379/0") -> bool:
     """Attempt to cancel a queued RQ job before the worker claims it.
@@ -204,14 +293,14 @@ def cancel_queued_run(queue_job_id: str, redis_url: str = "redis://redis:6379/0"
 def get_queue_job_status(queue_job_id: str, redis_url: str = "redis://redis:6379/0") -> str:
     """Return canonical queue job status for orchestration adapter usage."""
     if queue_job_id.startswith("inline-"):
-        return _INLINE_JOB_STATUS.get(queue_job_id, "missing")
+        return normalize_orchestration_status(_INLINE_JOB_STATUS.get(queue_job_id, "missing"))
     from rq.exceptions import NoSuchJobError
 
     conn = redis.from_url(redis_url)
     try:
         job = Job.fetch(queue_job_id, connection=conn)
-        return str(job.get_status(refresh=True) or "unknown")
+        return normalize_orchestration_status(str(job.get_status(refresh=True) or "unknown"))
     except NoSuchJobError:
-        return "missing"
+        return normalize_orchestration_status("missing")
     except Exception:
-        return "unknown"
+        return normalize_orchestration_status("unknown")

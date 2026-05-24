@@ -32,6 +32,7 @@ import math
 import os
 import sqlite3
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -97,38 +98,139 @@ _STOPWORDS = {
 }
 
 
-def _cv_analysis_policy_settings(config: dict[str, Any] | None) -> dict[str, Any]:
+@dataclass(frozen=True)
+class SelectionQuotas:
+    experience_entry_top_k: int = DEFAULT_EXPERIENCE_ENTRY_TOP_K
+    project_entry_top_k: int = DEFAULT_PROJECT_ENTRY_TOP_K
+    achievement_top_k: int = DEFAULT_ACHIEVEMENT_TOP_K
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "experience_entry_top_k": int(self.experience_entry_top_k),
+            "project_entry_top_k": int(self.project_entry_top_k),
+            "achievement_top_k": int(self.achievement_top_k),
+        }
+
+
+@dataclass(frozen=True)
+class SelectionTrimming:
+    bullets_per_experience: int = DEFAULT_BULLETS_PER_EXPERIENCE
+    highlights_per_project: int = DEFAULT_HIGHLIGHTS_PER_PROJECT
+    stack_lines_per_project: int = DEFAULT_STACK_LINES_PER_PROJECT
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "bullets_per_experience": int(self.bullets_per_experience),
+            "highlights_per_project": int(self.highlights_per_project),
+            "stack_lines_per_project": int(self.stack_lines_per_project),
+        }
+
+
+@dataclass(frozen=True)
+class SelectionPolicy:
+    channel_weights: dict[str, float]
+    multi_channel_bonus: float
+    type_weight_factor: float
+    residual_score_factor: float
+    new_type_bonus: float
+    same_type_penalty: float
+    quotas: SelectionQuotas
+    trimming: SelectionTrimming
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "channel_weights": {str(key): float(value) for key, value in self.channel_weights.items()},
+            "multi_channel_bonus": float(self.multi_channel_bonus),
+            "type_weight_factor": float(self.type_weight_factor),
+            "residual_score_factor": float(self.residual_score_factor),
+            "new_type_bonus": float(self.new_type_bonus),
+            "same_type_penalty": float(self.same_type_penalty),
+            "quotas": self.quotas.as_dict(),
+            "trimming": self.trimming.as_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class SemanticAlignmentSettings:
+    enabled: bool
+    model: str
+    required_skill_lexical_weight: float
+    required_skill_semantic_weight: float
+    role_lexical_weight: float
+    role_semantic_weight: float
+    responsibility_lexical_weight: float
+    responsibility_semantic_weight: float
+    domain_lexical_weight: float
+    domain_semantic_weight: float
+    channel_pool_size: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": bool(self.enabled),
+            "model": str(self.model),
+            "required_skill_lexical_weight": float(self.required_skill_lexical_weight),
+            "required_skill_semantic_weight": float(self.required_skill_semantic_weight),
+            "role_lexical_weight": float(self.role_lexical_weight),
+            "role_semantic_weight": float(self.role_semantic_weight),
+            "responsibility_lexical_weight": float(self.responsibility_lexical_weight),
+            "responsibility_semantic_weight": float(self.responsibility_semantic_weight),
+            "domain_lexical_weight": float(self.domain_lexical_weight),
+            "domain_semantic_weight": float(self.domain_semantic_weight),
+            "channel_pool_size": int(self.channel_pool_size),
+        }
+
+
+def _selection_policy_model(config: dict[str, Any] | None) -> SelectionPolicy:
     selection_policy: dict[str, Any] = {}
     if isinstance(config, dict):
         selection_policy = dict((config.get("cv_analysis") or {}).get("selection_policy") or {})
     channel_weights = dict(selection_policy.get("channel_weights") or {})
-    return {
-        "channel_weights": {
+    quotas = dict(selection_policy.get("quotas") or {})
+    trimming = dict(selection_policy.get("trimming") or {})
+    return SelectionPolicy(
+        channel_weights={
             REQUIRED_SKILL_SUPPORT_CHANNEL: float(channel_weights.get(REQUIRED_SKILL_SUPPORT_CHANNEL, 0.40)),
             RESPONSIBILITY_ALIGNMENT_CHANNEL: float(channel_weights.get(RESPONSIBILITY_ALIGNMENT_CHANNEL, 0.30)),
             ROLE_ALIGNMENT_CHANNEL: float(channel_weights.get(ROLE_ALIGNMENT_CHANNEL, 0.15)),
             DOMAIN_ALIGNMENT_CHANNEL: float(channel_weights.get(DOMAIN_ALIGNMENT_CHANNEL, 0.15)),
         },
-        "multi_channel_bonus": float(selection_policy.get("multi_channel_bonus", 0.05)),
-        "type_weight_factor": float(selection_policy.get("type_weight_factor", 0.10)),
-        "residual_score_factor": float(selection_policy.get("residual_score_factor", 0.05)),
-        "new_type_bonus": float(selection_policy.get("new_type_bonus", 0.03)),
-        "same_type_penalty": float(selection_policy.get("same_type_penalty", 0.02)),
-        "quotas": {
-            "experience_entry_top_k": int(dict(selection_policy.get("quotas") or {}).get("experience_entry_top_k", DEFAULT_EXPERIENCE_ENTRY_TOP_K)),
-            "project_entry_top_k": int(dict(selection_policy.get("quotas") or {}).get("project_entry_top_k", DEFAULT_PROJECT_ENTRY_TOP_K)),
-            "achievement_top_k": int(dict(selection_policy.get("quotas") or {}).get("achievement_top_k", DEFAULT_ACHIEVEMENT_TOP_K)),
-        },
-        "trimming": {
-            "bullets_per_experience": int(dict(selection_policy.get("trimming") or {}).get("bullets_per_experience", DEFAULT_BULLETS_PER_EXPERIENCE)),
-            "highlights_per_project": int(dict(selection_policy.get("trimming") or {}).get("highlights_per_project", DEFAULT_HIGHLIGHTS_PER_PROJECT)),
-            "stack_lines_per_project": int(dict(selection_policy.get("trimming") or {}).get("stack_lines_per_project", DEFAULT_STACK_LINES_PER_PROJECT)),
-        },
-    }
+        multi_channel_bonus=float(selection_policy.get("multi_channel_bonus", 0.05)),
+        type_weight_factor=float(selection_policy.get("type_weight_factor", 0.10)),
+        residual_score_factor=float(selection_policy.get("residual_score_factor", 0.05)),
+        new_type_bonus=float(selection_policy.get("new_type_bonus", 0.03)),
+        same_type_penalty=float(selection_policy.get("same_type_penalty", 0.02)),
+        quotas=SelectionQuotas(
+            experience_entry_top_k=int(quotas.get("experience_entry_top_k", DEFAULT_EXPERIENCE_ENTRY_TOP_K)),
+            project_entry_top_k=int(quotas.get("project_entry_top_k", DEFAULT_PROJECT_ENTRY_TOP_K)),
+            achievement_top_k=int(quotas.get("achievement_top_k", DEFAULT_ACHIEVEMENT_TOP_K)),
+        ),
+        trimming=SelectionTrimming(
+            bullets_per_experience=int(trimming.get("bullets_per_experience", DEFAULT_BULLETS_PER_EXPERIENCE)),
+            highlights_per_project=int(trimming.get("highlights_per_project", DEFAULT_HIGHLIGHTS_PER_PROJECT)),
+            stack_lines_per_project=int(trimming.get("stack_lines_per_project", DEFAULT_STACK_LINES_PER_PROJECT)),
+        ),
+    )
+
+
+def _cv_analysis_policy_settings(config: dict[str, Any] | None) -> dict[str, Any]:
+    return _selection_policy_model(config).as_dict()
 
 
 def _normalize_optional_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _normalize_skill_synonyms_for_contract(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for raw_alias, raw_canonical in value.items():
+        alias = str(raw_alias or "").strip().casefold()
+        canonical = str(raw_canonical or "").strip().casefold()
+        if not alias or not canonical:
+            continue
+        normalized[alias] = canonical
+    return dict(sorted(normalized.items()))
 
 
 def _canonicalize_json_value(value: Any) -> Any:
@@ -166,9 +268,10 @@ def _normalize_text_list(values: Any) -> list[str]:
         text = _normalize_optional_text(value)
         if not text:
             continue
-        if text in seen_values:
+        lowered = text.lower()
+        if lowered in seen_values:
             continue
-        seen_values.add(text)
+        seen_values.add(lowered)
         normalized.append(text)
     return normalized
 
@@ -239,64 +342,68 @@ def _cosine_similarity(lhs: list[float], rhs: list[float]) -> float:
     return _clamp_score(numerator / (lhs_norm * rhs_norm))
 
 
-def _semantic_alignment_settings(config: dict[str, Any] | None) -> dict[str, Any]:
+def _semantic_alignment_settings_model(config: dict[str, Any] | None) -> SemanticAlignmentSettings:
     semantic_alignment: dict[str, Any] = {}
     if isinstance(config, dict):
         cv_analysis_config = dict(config.get("cv_analysis") or {})
         semantic_alignment = dict(cv_analysis_config.get("semantic_alignment") or {})
-    return {
-        "enabled": bool(
+    return SemanticAlignmentSettings(
+        enabled=bool(
             semantic_alignment.get("enabled", DEFAULT_SEMANTIC_ALIGNMENT_ENABLED)
             if isinstance(config, dict)
             else False
         ),
-        "model": str(semantic_alignment.get("model") or get_embedding_model(config or {})),
-        "required_skill_lexical_weight": float(
+        model=str(semantic_alignment.get("model") or get_embedding_model(config or {})),
+        required_skill_lexical_weight=float(
             semantic_alignment.get(
                 "required_skill_lexical_weight",
                 DEFAULT_REQUIRED_SKILL_LEXICAL_WEIGHT,
             )
         ),
-        "required_skill_semantic_weight": float(
+        required_skill_semantic_weight=float(
             semantic_alignment.get(
                 "required_skill_semantic_weight",
                 DEFAULT_REQUIRED_SKILL_SEMANTIC_WEIGHT,
             )
         ),
-        "role_lexical_weight": float(
+        role_lexical_weight=float(
             semantic_alignment.get(
                 "role_lexical_weight",
                 DEFAULT_ROLE_LEXICAL_WEIGHT,
             )
         ),
-        "role_semantic_weight": float(
+        role_semantic_weight=float(
             semantic_alignment.get(
                 "role_semantic_weight",
                 DEFAULT_ROLE_SEMANTIC_WEIGHT,
             )
         ),
-        "responsibility_lexical_weight": float(
+        responsibility_lexical_weight=float(
             semantic_alignment.get(
                 "responsibility_lexical_weight",
                 DEFAULT_RESPONSIBILITY_LEXICAL_WEIGHT,
             )
         ),
-        "responsibility_semantic_weight": float(
+        responsibility_semantic_weight=float(
             semantic_alignment.get(
                 "responsibility_semantic_weight",
                 DEFAULT_RESPONSIBILITY_SEMANTIC_WEIGHT,
             )
         ),
-        "domain_lexical_weight": float(
+        domain_lexical_weight=float(
             semantic_alignment.get("domain_lexical_weight", DEFAULT_DOMAIN_LEXICAL_WEIGHT)
         ),
-        "domain_semantic_weight": float(
+        domain_semantic_weight=float(
             semantic_alignment.get("domain_semantic_weight", DEFAULT_DOMAIN_SEMANTIC_WEIGHT)
         ),
-        "channel_pool_size": int(
+        channel_pool_size=int(
             semantic_alignment.get("channel_pool_size", DEFAULT_CHANNEL_POOL_SIZE)
         ),
-    }
+    )
+
+
+def _semantic_alignment_settings(config: dict[str, Any] | None) -> dict[str, Any]:
+    return _semantic_alignment_settings_model(config).as_dict()
 
 
 def _cv_analysis_profile_payload(profile: dict[str, Any]) -> dict[str, Any]:
@@ -316,6 +423,7 @@ def _cv_analysis_profile_payload(profile: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_cv_analysis_contract_fingerprint(config: dict[str, Any]) -> dict[str, Any]:
+    stable_skill_synonyms = _normalize_skill_synonyms_for_contract(config.get("skill_synonyms"))
     payload = {
         "schema_version": CV_ANALYSIS_REUSE_SCHEMA_VERSION,
         "evidence_top_k": int(config.get("pipeline", {}).get("evidence_top_k", 0) or 0),
@@ -323,7 +431,9 @@ def build_cv_analysis_contract_fingerprint(config: dict[str, Any]) -> dict[str, 
         "selection_policy": _cv_analysis_policy_settings(config),
         "fit_label_thresholds": dict(config.get("fit_label_thresholds") or {}),
         "role_taxonomy": dict(config.get("role_taxonomy") or {}),
-        "skill_synonyms_runtime": dict(config.get("skill_synonyms_runtime") or {}),
+        # Use semantic synonym map, not runtime counters/metadata, to keep
+        # reuse keys stable across runs when behavior is unchanged.
+        "skill_synonyms": stable_skill_synonyms,
     }
     return {
         "payload": payload,
@@ -1050,29 +1160,18 @@ def _score_required_skill_support_components(
     semantic_settings: dict[str, Any],
     runtime_state: dict[str, Any],
 ) -> dict[str, float]:
-    lexical_score = _score_required_skill_support(item, job_context)
-    semantic_score = 0.0
-    if semantic_settings["enabled"] and config is not None:
-        semantic_score = _semantic_similarity(
-            job_texts=_job_required_skill_texts(job_context),
-            item_text=_item_required_skill_text(item),
-            config=config,
-            model_name=str(semantic_settings["model"]),
-            runtime_state=runtime_state,
-        )
-    return {
-        "lexical": round(lexical_score, 6),
-        "semantic": round(semantic_score, 6),
-        "combined": round(
-            _hybrid_score(
-                lexical_score,
-                semantic_score,
-                float(semantic_settings["required_skill_lexical_weight"]),
-                float(semantic_settings["required_skill_semantic_weight"]),
-            ),
-            6,
-        ),
-    }
+    return _score_channel_components(
+        item,
+        job_context,
+        config=config,
+        semantic_settings=semantic_settings,
+        runtime_state=runtime_state,
+        lexical_score_fn=_score_required_skill_support,
+        semantic_job_texts_fn=_job_required_skill_texts,
+        semantic_item_text_fn=_item_required_skill_text,
+        lexical_weight_key="required_skill_lexical_weight",
+        semantic_weight_key="required_skill_semantic_weight",
+    )
 
 
 def _score_role_alignment(item: dict[str, Any], job_context: dict[str, Any]) -> float:
@@ -1102,29 +1201,18 @@ def _score_role_alignment_components(
     semantic_settings: dict[str, Any],
     runtime_state: dict[str, Any],
 ) -> dict[str, float]:
-    lexical_score = _score_role_alignment(item, job_context)
-    semantic_score = 0.0
-    if semantic_settings["enabled"] and config is not None:
-        semantic_score = _semantic_similarity(
-            job_texts=_job_role_texts(job_context),
-            item_text=_item_role_text(item),
-            config=config,
-            model_name=str(semantic_settings["model"]),
-            runtime_state=runtime_state,
-        )
-    return {
-        "lexical": round(lexical_score, 6),
-        "semantic": round(semantic_score, 6),
-        "combined": round(
-            _hybrid_score(
-                lexical_score,
-                semantic_score,
-                float(semantic_settings["role_lexical_weight"]),
-                float(semantic_settings["role_semantic_weight"]),
-            ),
-            6,
-        ),
-    }
+    return _score_channel_components(
+        item,
+        job_context,
+        config=config,
+        semantic_settings=semantic_settings,
+        runtime_state=runtime_state,
+        lexical_score_fn=_score_role_alignment,
+        semantic_job_texts_fn=_job_role_texts,
+        semantic_item_text_fn=_item_role_text,
+        lexical_weight_key="role_lexical_weight",
+        semantic_weight_key="role_semantic_weight",
+    )
 
 
 def _score_domain_alignment_lexical(item: dict[str, Any], job_context: dict[str, Any]) -> float:
@@ -1164,6 +1252,78 @@ def _hybrid_score(lexical_score: float, semantic_score: float, lexical_weight: f
     return _clamp_score((lexical_score * lexical_weight) + (semantic_score * semantic_weight))
 
 
+def _score_components(
+    lexical_score: float,
+    semantic_score: float,
+    *,
+    lexical_weight: float,
+    semantic_weight: float,
+) -> dict[str, float]:
+    return {
+        "lexical": round(lexical_score, 6),
+        "semantic": round(semantic_score, 6),
+        "combined": round(
+            _hybrid_score(
+                lexical_score,
+                semantic_score,
+                lexical_weight,
+                semantic_weight,
+            ),
+            6,
+        ),
+    }
+
+def _effective_channel_weights(
+    semantic_settings: dict[str, Any],
+    *,
+    lexical_weight_key: str,
+    semantic_weight_key: str,
+) -> tuple[float, float]:
+    if bool(semantic_settings.get("enabled")):
+        return (
+            float(semantic_settings[lexical_weight_key]),
+            float(semantic_settings[semantic_weight_key]),
+        )
+    # Semantic alignment is disabled, so channel scoring must be lexical-only.
+    return (1.0, 0.0)
+
+
+def _score_channel_components(
+    item: dict[str, Any],
+    job_context: dict[str, Any],
+    *,
+    config: dict[str, Any] | None,
+    semantic_settings: dict[str, Any],
+    runtime_state: dict[str, Any],
+    lexical_score_fn: Any,
+    semantic_job_texts_fn: Any,
+    semantic_item_text_fn: Any,
+    lexical_weight_key: str,
+    semantic_weight_key: str,
+) -> dict[str, float]:
+    lexical_score = float(lexical_score_fn(item, job_context))
+    semantic_score = 0.0
+    lexical_weight, semantic_weight = _effective_channel_weights(
+        semantic_settings,
+        lexical_weight_key=lexical_weight_key,
+        semantic_weight_key=semantic_weight_key,
+    )
+    if semantic_settings["enabled"] and config is not None:
+        semantic_score = _semantic_similarity(
+            job_texts=[str(value) for value in semantic_job_texts_fn(job_context) if value],
+            item_text=str(semantic_item_text_fn(item)),
+            config=config,
+            model_name=str(semantic_settings["model"]),
+            runtime_state=runtime_state,
+        )
+    return _score_components(
+        lexical_score,
+        semantic_score,
+        lexical_weight=lexical_weight,
+        semantic_weight=semantic_weight,
+    )
+
+
 def _score_domain_alignment_components(
     item: dict[str, Any],
     job_context: dict[str, Any],
@@ -1172,29 +1332,18 @@ def _score_domain_alignment_components(
     semantic_settings: dict[str, Any],
     runtime_state: dict[str, Any],
 ) -> dict[str, float]:
-    lexical_score = _score_domain_alignment_lexical(item, job_context)
-    semantic_score = 0.0
-    if semantic_settings["enabled"] and config is not None:
-        semantic_score = _semantic_similarity(
-            job_texts=[_job_domain_text(job_context)],
-            item_text=_item_domain_text(item),
-            config=config,
-            model_name=str(semantic_settings["model"]),
-            runtime_state=runtime_state,
-        )
-    return {
-        "lexical": round(lexical_score, 6),
-        "semantic": round(semantic_score, 6),
-        "combined": round(
-            _hybrid_score(
-                lexical_score,
-                semantic_score,
-                float(semantic_settings["domain_lexical_weight"]),
-                float(semantic_settings["domain_semantic_weight"]),
-            ),
-            6,
-        ),
-    }
+    return _score_channel_components(
+        item,
+        job_context,
+        config=config,
+        semantic_settings=semantic_settings,
+        runtime_state=runtime_state,
+        lexical_score_fn=_score_domain_alignment_lexical,
+        semantic_job_texts_fn=lambda ctx: [_job_domain_text(ctx)],
+        semantic_item_text_fn=_item_domain_text,
+        lexical_weight_key="domain_lexical_weight",
+        semantic_weight_key="domain_semantic_weight",
+    )
 
 
 def _score_responsibility_alignment_components(
@@ -1205,29 +1354,18 @@ def _score_responsibility_alignment_components(
     semantic_settings: dict[str, Any],
     runtime_state: dict[str, Any],
 ) -> dict[str, float]:
-    lexical_score = _score_responsibility_alignment_lexical(item, job_context)
-    semantic_score = 0.0
-    if semantic_settings["enabled"] and config is not None:
-        semantic_score = _semantic_similarity(
-            job_texts=[str(value) for value in list(job_context.get("responsibilities") or []) if value],
-            item_text=_item_responsibility_text(item),
-            config=config,
-            model_name=str(semantic_settings["model"]),
-            runtime_state=runtime_state,
-        )
-    return {
-        "lexical": round(lexical_score, 6),
-        "semantic": round(semantic_score, 6),
-        "combined": round(
-            _hybrid_score(
-                lexical_score,
-                semantic_score,
-                float(semantic_settings["responsibility_lexical_weight"]),
-                float(semantic_settings["responsibility_semantic_weight"]),
-            ),
-            6,
-        ),
-    }
+    return _score_channel_components(
+        item,
+        job_context,
+        config=config,
+        semantic_settings=semantic_settings,
+        runtime_state=runtime_state,
+        lexical_score_fn=_score_responsibility_alignment_lexical,
+        semantic_job_texts_fn=lambda ctx: list(ctx.get("responsibilities") or []),
+        semantic_item_text_fn=_item_responsibility_text,
+        lexical_weight_key="responsibility_lexical_weight",
+        semantic_weight_key="responsibility_semantic_weight",
+    )
 
 
 def _channel_score_components(
@@ -1239,32 +1377,15 @@ def _channel_score_components(
     semantic_settings: dict[str, Any],
     runtime_state: dict[str, Any],
 ) -> dict[str, float]:
-    if channel == REQUIRED_SKILL_SUPPORT_CHANNEL:
-        return _score_required_skill_support_components(
-            item,
-            job_context,
-            config=config,
-            semantic_settings=semantic_settings,
-            runtime_state=runtime_state,
-        )
-    if channel == ROLE_ALIGNMENT_CHANNEL:
-        return _score_role_alignment_components(
-            item,
-            job_context,
-            config=config,
-            semantic_settings=semantic_settings,
-            runtime_state=runtime_state,
-        )
-    if channel == DOMAIN_ALIGNMENT_CHANNEL:
-        return _score_domain_alignment_components(
-            item,
-            job_context,
-            config=config,
-            semantic_settings=semantic_settings,
-            runtime_state=runtime_state,
-        )
-    if channel == RESPONSIBILITY_ALIGNMENT_CHANNEL:
-        return _score_responsibility_alignment_components(
+    channel_scorers = {
+        REQUIRED_SKILL_SUPPORT_CHANNEL: _score_required_skill_support_components,
+        ROLE_ALIGNMENT_CHANNEL: _score_role_alignment_components,
+        DOMAIN_ALIGNMENT_CHANNEL: _score_domain_alignment_components,
+        RESPONSIBILITY_ALIGNMENT_CHANNEL: _score_responsibility_alignment_components,
+    }
+    scorer = channel_scorers.get(channel)
+    if scorer is not None:
+        return scorer(
             item,
             job_context,
             config=config,
@@ -1275,12 +1396,13 @@ def _channel_score_components(
 
 
 def _channel_rationale(channel: str, item: dict[str, Any], job_context: dict[str, Any]) -> list[str]:
-    if channel == REQUIRED_SKILL_SUPPORT_CHANNEL:
+    def _required_skill_rationale() -> list[str]:
         required_skills = _canonicalize_term_set(list(job_context.get("required_skills") or []))
         item_skills = _canonicalize_term_set(list(item.get("skills") or []))
         matched = sorted(required_skills & item_skills)
         return matched[:3]
-    if channel == ROLE_ALIGNMENT_CHANNEL:
+
+    def _role_rationale() -> list[str]:
         item_family = _item_role_family(item)
         job_family = _normalize_text(job_context.get("job_family"))
         reasons: list[str] = []
@@ -1290,7 +1412,8 @@ def _channel_rationale(channel: str, item: dict[str, Any], job_context: dict[str
         if role_name:
             reasons.append(role_name)
         return reasons[:3]
-    if channel == DOMAIN_ALIGNMENT_CHANNEL:
+
+    def _domain_rationale() -> list[str]:
         matched_domains = sorted(
             _canonicalize_term_set(list(item.get("domain_tags") or []))
             & _canonicalize_term_set(
@@ -1301,7 +1424,8 @@ def _channel_rationale(channel: str, item: dict[str, Any], job_context: dict[str
             )
         )
         return matched_domains[:3]
-    if channel == RESPONSIBILITY_ALIGNMENT_CHANNEL:
+
+    def _responsibility_rationale() -> list[str]:
         themes = [str(theme) for theme in list(item.get("responsibility_themes") or []) if theme]
         if themes:
             return themes[:3]
@@ -1310,7 +1434,16 @@ def _channel_rationale(channel: str, item: dict[str, Any], job_context: dict[str
             list(job_context.get("responsibilities") or []),
             1,
         )
-    return []
+    rationale_resolvers = {
+        REQUIRED_SKILL_SUPPORT_CHANNEL: _required_skill_rationale,
+        ROLE_ALIGNMENT_CHANNEL: _role_rationale,
+        DOMAIN_ALIGNMENT_CHANNEL: _domain_rationale,
+        RESPONSIBILITY_ALIGNMENT_CHANNEL: _responsibility_rationale,
+    }
+    resolver = rationale_resolvers.get(channel)
+    if resolver is None:
+        return []
+    return resolver()
 
 
 def _select_channel_candidates(
@@ -1561,6 +1694,97 @@ def _top_unselected_candidates(
     return [_debug_candidate_sample(item) for item in ranked_unselected[:limit]]
 
 
+@dataclass
+class _EvidenceSelectionEngine:
+    job_context: dict[str, Any]
+    policy: dict[str, Any]
+    top_k: int
+
+    def run(self, channel_pools: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+        merged_pool = _merge_channel_pools(channel_pools)
+        selected_evidence = _select_final_evidence(
+            merged_pool,
+            top_k=self.top_k,
+            job_context=self.job_context,
+            policy=self.policy,
+        )
+        unselected_top_candidates = _top_unselected_candidates(
+            merged_pool,
+            selected_evidence,
+            policy=self.policy,
+        )
+        return {
+            "merged_pool": merged_pool,
+            "selected_evidence": selected_evidence,
+            "unselected_top_candidates": unselected_top_candidates,
+        }
+
+
+def _build_retrieve_evidence_bundle_payload(
+    *,
+    channel_pools: dict[str, list[dict[str, Any]]],
+    semantic_settings: dict[str, Any],
+    semantic_alignment: dict[str, Any],
+    selection_policy: dict[str, Any],
+    selected_evidence: list[dict[str, Any]],
+    merged_pool: list[dict[str, Any]],
+    unselected_top_candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    required_skill_lexical_weight, required_skill_semantic_weight = _effective_channel_weights(
+        semantic_settings,
+        lexical_weight_key="required_skill_lexical_weight",
+        semantic_weight_key="required_skill_semantic_weight",
+    )
+    role_lexical_weight, role_semantic_weight = _effective_channel_weights(
+        semantic_settings,
+        lexical_weight_key="role_lexical_weight",
+        semantic_weight_key="role_semantic_weight",
+    )
+    responsibility_lexical_weight, responsibility_semantic_weight = _effective_channel_weights(
+        semantic_settings,
+        lexical_weight_key="responsibility_lexical_weight",
+        semantic_weight_key="responsibility_semantic_weight",
+    )
+    domain_lexical_weight, domain_semantic_weight = _effective_channel_weights(
+        semantic_settings,
+        lexical_weight_key="domain_lexical_weight",
+        semantic_weight_key="domain_semantic_weight",
+    )
+    return {
+        "selected_evidence": selected_evidence,
+        "selected_evidence_ids": [str(item.get("evidence_id") or "") for item in selected_evidence],
+        "channel_counts": {
+            channel: len(channel_pools.get(channel, []))
+            for channel in RETRIEVAL_CHANNELS
+        },
+        "effective_channel_pool_size": int(semantic_settings["channel_pool_size"]),
+        "merged_pool_size": sum(len(pool) for pool in channel_pools.values()),
+        "deduped_pool_size": len(merged_pool),
+        "selected_evidence_count": len(selected_evidence),
+        "unselected_top_candidates": unselected_top_candidates,
+        "hybrid_alignment": {
+            "required_skill_support": {
+                "lexical_weight": round(required_skill_lexical_weight, 6),
+                "semantic_weight": round(required_skill_semantic_weight, 6),
+            },
+            "role_alignment": {
+                "lexical_weight": round(role_lexical_weight, 6),
+                "semantic_weight": round(role_semantic_weight, 6),
+            },
+            "responsibility": {
+                "lexical_weight": round(responsibility_lexical_weight, 6),
+                "semantic_weight": round(responsibility_semantic_weight, 6),
+            },
+            "domain": {
+                "lexical_weight": round(domain_lexical_weight, 6),
+                "semantic_weight": round(domain_semantic_weight, 6),
+            },
+        },
+        "semantic_alignment": semantic_alignment,
+        "selection_policy": selection_policy,
+    }
+
+
 def retrieve_evidence_bundle(
     profile: dict[str, Any],
     job_context: dict[str, Any] | list[str],
@@ -1586,59 +1810,31 @@ def retrieve_evidence_bundle(
         )
         for channel in RETRIEVAL_CHANNELS
     }
-    merged_pool = _merge_channel_pools(channel_pools)
-    selected_evidence = _select_final_evidence(
-        merged_pool,
-        top_k=top_k,
+    selection_engine = _EvidenceSelectionEngine(
         job_context=coerced_job_context,
         policy=selection_policy,
+        top_k=top_k,
     )
+    selection_result = selection_engine.run(channel_pools)
+    merged_pool = list(selection_result["merged_pool"])
+    selected_evidence = list(selection_result["selected_evidence"])
     semantic_alignment = {
         "enabled": bool(semantic_settings["enabled"]),
         "semantic_methods": _semantic_methods(bool(semantic_settings["enabled"])),
         "reuse_state": _semantic_reuse_state(runtime_state),
         "embedding_counts": _semantic_embedding_counts(runtime_state),
     }
-    hybrid_alignment = {
-        "required_skill_support": {
-            "lexical_weight": round(float(semantic_settings["required_skill_lexical_weight"]), 6),
-            "semantic_weight": round(float(semantic_settings["required_skill_semantic_weight"]), 6),
-        },
-        "role_alignment": {
-            "lexical_weight": round(float(semantic_settings["role_lexical_weight"]), 6),
-            "semantic_weight": round(float(semantic_settings["role_semantic_weight"]), 6),
-        },
-        "responsibility": {
-            "lexical_weight": round(float(semantic_settings["responsibility_lexical_weight"]), 6),
-            "semantic_weight": round(float(semantic_settings["responsibility_semantic_weight"]), 6),
-        },
-        "domain": {
-            "lexical_weight": round(float(semantic_settings["domain_lexical_weight"]), 6),
-            "semantic_weight": round(float(semantic_settings["domain_semantic_weight"]), 6),
-        },
-    }
     for item in selected_evidence:
         item["semantic_alignment"] = dict(semantic_alignment)
-    return {
-        "selected_evidence": selected_evidence,
-        "selected_evidence_ids": [str(item.get("evidence_id") or "") for item in selected_evidence],
-        "channel_counts": {
-            channel: len(channel_pools.get(channel, []))
-            for channel in RETRIEVAL_CHANNELS
-        },
-        "effective_channel_pool_size": int(semantic_settings["channel_pool_size"]),
-        "merged_pool_size": sum(len(pool) for pool in channel_pools.values()),
-        "deduped_pool_size": len(merged_pool),
-        "selected_evidence_count": len(selected_evidence),
-        "unselected_top_candidates": _top_unselected_candidates(
-            merged_pool,
-            selected_evidence,
-            policy=selection_policy,
-        ),
-        "hybrid_alignment": hybrid_alignment,
-        "semantic_alignment": semantic_alignment,
-        "selection_policy": selection_policy,
-    }
+    return _build_retrieve_evidence_bundle_payload(
+        channel_pools=channel_pools,
+        semantic_settings=semantic_settings,
+        semantic_alignment=semantic_alignment,
+        selection_policy=selection_policy,
+        selected_evidence=selected_evidence,
+        merged_pool=merged_pool,
+        unselected_top_candidates=list(selection_result["unselected_top_candidates"]),
+    )
 
 
 def retrieve_evidence(
@@ -1691,63 +1887,106 @@ def _ensure_local_evidence_selections_table(conn: sqlite3.Connection) -> None:
 
 
 
-def store_evidence_selection(
+@dataclass(frozen=True)
+class EvidenceSelectionRecord:
+    job_url: str
+    evidence_id: str
+    evidence_type: str
+    name: str
+    skills: list[str]
+    business_value: str
+    score: float
+    source_ref: str
+    selected_at: str
+
+
+def _normalize_evidence_selection_records(
     job_url: str,
     evidence: list[dict[str, Any]],
+    *,
+    selected_at: str,
+) -> list[EvidenceSelectionRecord]:
+    return [
+        EvidenceSelectionRecord(
+            job_url=str(job_url),
+            evidence_id=str(item["evidence_id"]),
+            evidence_type=str(item["evidence_type"]),
+            name=str(item["name"]),
+            skills=list(item.get("skills") or []),
+            business_value=str(item.get("business_value") or ""),
+            score=float(item.get("selection_score") or item.get("score") or 0.0),
+            source_ref=str(item["source_ref"]),
+            selected_at=selected_at,
+        )
+        for item in evidence
+    ]
+
+
+def _record_to_sqlite_params(record: EvidenceSelectionRecord) -> tuple[str, str, str, str, str, str, float, str, str]:
+    return (
+        record.job_url,
+        record.evidence_id,
+        record.evidence_type,
+        record.name,
+        json.dumps(record.skills, ensure_ascii=False),
+        record.business_value,
+        record.score,
+        record.source_ref,
+        record.selected_at,
+    )
+
+
+def _record_to_bigquery_row(record: EvidenceSelectionRecord) -> dict[str, Any]:
+    return {
+        "job_url": record.job_url,
+        "evidence_id": record.evidence_id,
+        "evidence_type": record.evidence_type,
+        "name": record.name,
+        "skills": list(record.skills),
+        "business_value": record.business_value,
+        "score": record.score,
+        "source_ref": record.source_ref,
+        "selected_at": record.selected_at,
+    }
+
+
+
+def _persist_selection_sqlite(records: list[EvidenceSelectionRecord]) -> None:
+    db_path = Path(_local_sqlite_path())
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        _ensure_local_evidence_selections_table(conn)
+        conn.executemany(
+            """
+            INSERT INTO evidence_selections(
+                job_url,
+                evidence_id,
+                evidence_type,
+                name,
+                skills_json,
+                business_value,
+                score,
+                source_ref,
+                selected_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_url, evidence_id) DO UPDATE SET
+                evidence_type = excluded.evidence_type,
+                name = excluded.name,
+                skills_json = excluded.skills_json,
+                business_value = excluded.business_value,
+                score = excluded.score,
+                source_ref = excluded.source_ref,
+                selected_at = excluded.selected_at
+            """,
+            [_record_to_sqlite_params(record) for record in records],
+        )
+        conn.commit()
+
+def _persist_selection_bigquery(
+    records: list[EvidenceSelectionRecord],
     config: dict[str, Any],
 ) -> None:
-    """Insert evidence selection rows into fitcv.evidence_selections."""
-    if not evidence:
-        return
-
-    now = datetime.now(tz=timezone.utc).isoformat()
-
-    if sqlite_mode_enabled(config):
-        db_path = Path(_local_sqlite_path())
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(db_path) as conn:
-            _ensure_local_evidence_selections_table(conn)
-            conn.executemany(
-                """
-                INSERT INTO evidence_selections(
-                    job_url,
-                    evidence_id,
-                    evidence_type,
-                    name,
-                    skills_json,
-                    business_value,
-                    score,
-                    source_ref,
-                    selected_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(job_url, evidence_id) DO UPDATE SET
-                    evidence_type = excluded.evidence_type,
-                    name = excluded.name,
-                    skills_json = excluded.skills_json,
-                    business_value = excluded.business_value,
-                    score = excluded.score,
-                    source_ref = excluded.source_ref,
-                    selected_at = excluded.selected_at
-                """,
-                [
-                    (
-                        str(job_url),
-                        str(item["evidence_id"]),
-                        str(item["evidence_type"]),
-                        str(item["name"]),
-                        json.dumps(list(item.get("skills") or []), ensure_ascii=False),
-                        str(item.get("business_value") or ""),
-                        float(item.get("selection_score") or item.get("score") or 0.0),
-                        str(item["source_ref"]),
-                        now,
-                    )
-                    for item in evidence
-                ],
-            )
-            conn.commit()
-        return
-
     from google.cloud import bigquery  # type: ignore[import-not-found]
     from google.oauth2 import service_account  # type: ignore[import-not-found]
 
@@ -1761,22 +2000,29 @@ def store_evidence_selection(
     else:
         client = bigquery.Client(project=project)
     table_ref = f"{project}.{dataset}.evidence_selections"
-
-    rows = [
-        {
-            "job_url": str(job_url),
-            "evidence_id": str(item["evidence_id"]),
-            "evidence_type": str(item["evidence_type"]),
-            "name": str(item["name"]),
-            "skills": list(item.get("skills") or []),
-            "business_value": str(item.get("business_value") or ""),
-            "score": float(item.get("selection_score") or item.get("score") or 0.0),
-            "source_ref": str(item["source_ref"]),
-            "selected_at": now,
-        }
-        for item in evidence
-    ]
-
+    rows = [_record_to_bigquery_row(record) for record in records]
     errors = client.insert_rows_json(table_ref, rows)
     if errors:
         raise RuntimeError(f"BigQuery insert errors for evidence_selections: {errors}")
+
+def store_evidence_selection(
+    job_url: str,
+    evidence: list[dict[str, Any]],
+    config: dict[str, Any],
+) -> None:
+    """Insert evidence selection rows into fitcv.evidence_selections."""
+    if not evidence:
+        return
+
+    now = datetime.now(tz=timezone.utc).isoformat()
+    records = _normalize_evidence_selection_records(
+        job_url,
+        evidence,
+        selected_at=now,
+    )
+
+    if sqlite_mode_enabled(config):
+        _persist_selection_sqlite(records)
+        return
+
+    _persist_selection_bigquery(records, config)

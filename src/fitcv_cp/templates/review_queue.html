@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Review Queue — Run {{ run.run_id[:8] }} — FitCV Admin{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>Agentic Review Queue <code>{{ run.run_id }}</code></h1>
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <span class="badge badge-{{ run.status.value }}">{{ run.status.value }}</span>
+    <span class="badge badge-info">{{ run_mode_label }}</span>
+    <a href="/admin/runs/{{ run.run_id }}" class="btn-secondary">← Back to Run Detail</a>
+  </div>
+</div>
+
+{% with show_resolved_rows=true %}
+{% include "_cv_review_queue.html" %}
+{% endwith %}
+
+{% endblock %}

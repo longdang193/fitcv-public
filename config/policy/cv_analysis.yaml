@@ -12,7 +12,7 @@
 
 cv_analysis:
   semantic_alignment:
-    enabled: false
+    enabled: true
     model: text-embedding-005
     required_skill_lexical_weight: 0.70
     required_skill_semantic_weight: 0.30

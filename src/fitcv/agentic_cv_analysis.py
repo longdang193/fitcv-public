@@ -15,6 +15,7 @@ lifecycle:
   - status: active
 """
 
+import time
 from typing import Any, Final, Literal, TypedDict, cast
 
 from fitcv.candidate import flatten_skills
@@ -413,6 +414,12 @@ def _build_evidence_selection_summary(
     )
 
 
+def _cv_analysis_sleep_secs(config: dict[str, Any]) -> float:
+    stage_runtime = dict(config.get("stage_runtime") or {})
+    cv_analysis_runtime = dict(stage_runtime.get("cv_analysis") or {})
+    return float(cv_analysis_runtime.get("sleep_secs", 0.0))
+
+
 def analyze_ranked_job(
     job: dict[str, Any],
     profile: dict[str, Any],
@@ -445,6 +452,9 @@ def analyze_ranked_job(
     evidence_selection_summary: dict[str, Any] = {}
     gap_summary: dict[str, Any] | None = None
     try:
+        sleep_secs = _cv_analysis_sleep_secs(config)
+        if sleep_secs > 0:
+            time.sleep(sleep_secs)
         evidence_top_k = int(top_k if top_k is not None else config["pipeline"]["evidence_top_k"])
         evidence_bundle = retrieve_evidence_bundle(
             profile,

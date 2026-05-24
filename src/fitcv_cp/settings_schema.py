@@ -39,24 +39,34 @@ _RULE_FILTER_SELECTABLE_OPTIONS = [
     "must_have_skill_missing",
     "domain_not_preferred",
 ]
-_RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS = {
+_RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS: frozenset[str] = frozenset(
+    {
     "cv_analysis.semantic_alignment.responsibility_lexical_weight",
     "cv_analysis.semantic_alignment.responsibility_semantic_weight",
-}
-_DOMAIN_ALIGNMENT_WEIGHT_KEYS = {
+    }
+)
+_DOMAIN_ALIGNMENT_WEIGHT_KEYS: frozenset[str] = frozenset(
+    {
     "cv_analysis.semantic_alignment.domain_lexical_weight",
     "cv_analysis.semantic_alignment.domain_semantic_weight",
-}
-_REQUIRED_SKILL_ALIGNMENT_WEIGHT_KEYS = {
+    }
+)
+_REQUIRED_SKILL_ALIGNMENT_WEIGHT_KEYS: frozenset[str] = frozenset(
+    {
     "cv_analysis.semantic_alignment.required_skill_lexical_weight",
     "cv_analysis.semantic_alignment.required_skill_semantic_weight",
-}
-_ROLE_ALIGNMENT_WEIGHT_KEYS = {
+    }
+)
+_ROLE_ALIGNMENT_WEIGHT_KEYS: frozenset[str] = frozenset(
+    {
     "cv_analysis.semantic_alignment.role_lexical_weight",
     "cv_analysis.semantic_alignment.role_semantic_weight",
-}
+    }
+)
 _UI_SURFACE_EDITABLE = "editable"
 _UI_SURFACE_METADATA_ONLY = "metadata_only"
+_UI_DEPRECATION_ACTIVE = "active"
+_UI_DEPRECATION_HIDDEN = "hidden_deprecated"
 _AGENTIC_SECTION_CORE = "agentic-core"
 _AGENTIC_SECTION_ADVANCED = "agentic-advanced"
 _EXCLUDED_AGENTIC_KEYS: frozenset[str] = frozenset(
@@ -131,9 +141,9 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "synonym_management.apply_to_run_enabled",
         "type": "bool",
-        "default": False,
-        "label": "Synonym Apply-to-Run Enabled",
-        "description": "Allow review actions and apply-approved-to-run overlay writes for synonym proposals.",
+        "default": True,
+        "label": "Synonym Apply-to-Run (Manual Capability Gate)",
+        "description": "Permission gate for apply-to-run capability. OFF blocks both manual and automatic apply actions. ON allows manual apply. Automatic apply still needs its own automation toggle.",
         "group": "agentic",
         "config_path": ["synonym_management", "apply_to_run_enabled"],
         "agentic_section": _AGENTIC_SECTION_CORE,
@@ -141,9 +151,9 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "synonym_management.promote_global_enabled",
         "type": "bool",
-        "default": False,
-        "label": "Synonym Promote-Global Enabled",
-        "description": "Allow promotion of approved synonym proposals into the global synonym map.",
+        "default": True,
+        "label": "Synonym Promote-Global (Manual Capability Gate)",
+        "description": "Permission gate for promote-global capability. OFF blocks both manual and automatic promote actions. ON allows manual promote. Automatic promote still needs its own automation toggle.",
         "group": "agentic",
         "config_path": ["synonym_management", "promote_global_enabled"],
         "agentic_section": _AGENTIC_SECTION_CORE,
@@ -169,11 +179,61 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "agentic_section": _AGENTIC_SECTION_CORE,
     },
     {
+        "key": "reuse.enrich.enabled",
+        "type": "bool",
+        "default": True,
+        "label": "Reuse Enrichment Results",
+        "description": "Reuse cached enrichment results on exact-match fingerprints; disable to force fresh enrichment.",
+        "group": "agentic",
+        "config_path": ["reuse", "enrich", "enabled"],
+        "agentic_section": _AGENTIC_SECTION_CORE,
+    },
+    {
+        "key": "reuse.ranking.enabled",
+        "type": "bool",
+        "default": True,
+        "label": "Reuse Ranking Scores",
+        "description": "Reuse exact-match ranking AI scores; disable to force fresh reranking compute.",
+        "group": "agentic",
+        "config_path": ["reuse", "ranking", "enabled"],
+        "agentic_section": _AGENTIC_SECTION_CORE,
+    },
+    {
+        "key": "reuse.cv_analysis.enabled",
+        "type": "bool",
+        "default": True,
+        "label": "Reuse CV Analysis",
+        "description": "Reuse exact-match cv_analysis outputs; disable to force fresh late-stage analysis.",
+        "group": "agentic",
+        "config_path": ["reuse", "cv_analysis", "enabled"],
+        "agentic_section": _AGENTIC_SECTION_CORE,
+    },
+    {
+        "key": "reuse.cv_generation.enabled",
+        "type": "bool",
+        "default": True,
+        "label": "Reuse CV Generation",
+        "description": "Reuse exact-match CV generation artifacts; disable to force fresh markdown generation.",
+        "group": "agentic",
+        "config_path": ["reuse", "cv_generation", "enabled"],
+        "agentic_section": _AGENTIC_SECTION_CORE,
+    },
+    {
+        "key": "reuse.synonym_triage.enabled",
+        "type": "bool",
+        "default": True,
+        "label": "Reuse Synonym Triage",
+        "description": "Canonical synonym triage reuse gate; when unset, legacy synonym-management reuse key remains backward compatible.",
+        "group": "agentic",
+        "config_path": ["reuse", "synonym_triage", "enabled"],
+        "agentic_section": _AGENTIC_SECTION_CORE,
+    },
+    {
         "key": "synonym_management.auto_apply_recommendation_enabled",
         "type": "bool",
         "default": False,
-        "label": "Auto Apply Recommendation",
-        "description": "Automatically apply recommended synonym proposal actions after triage refresh when safety checks pass.",
+        "label": "Auto Apply Recommendation (Automatic Execution)",
+        "description": "Automation policy toggle. When ON, system can auto-apply recommended actions after safety checks pass. Requires Synonym Apply-to-Run gate ON and never bypasses that gate.",
         "group": "agentic",
         "config_path": ["synonym_management", "auto_apply_recommendation_enabled"],
         "agentic_section": _AGENTIC_SECTION_CORE,
@@ -182,8 +242,8 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "key": "synonym_management.auto_promote_global_enabled",
         "type": "bool",
         "default": False,
-        "label": "Auto Promote to Global",
-        "description": "Automatically promote approved synonym proposals to global map only after validation and conflict checks pass.",
+        "label": "Auto Promote to Global (Automatic Execution)",
+        "description": "Automation policy toggle. When ON, system can auto-promote approved actions after validation and conflict checks pass. Requires Synonym Promote-Global gate ON and never bypasses that gate.",
         "group": "agentic",
         "config_path": ["synonym_management", "auto_promote_global_enabled"],
         "agentic_section": _AGENTIC_SECTION_CORE,
@@ -312,22 +372,105 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
     },
     # ── Timing / Throttling ───────────────────────────────────────────────────
     {
+        "key": "stage_runtime.enrich.sleep_secs",
+        "type": "float",
+        "default": 0.0,
+        "label": "API Delay: Enrichment Stage",
+        "description": "Canonical delay between enrich-stage API calls for shared throttling.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "enrich", "sleep_secs"],
+    },
+    {
+        "key": "stage_runtime.enrich.batch_size",
+        "type": "int",
+        "default": 10,
+        "label": "Batch Size: Enrichment Stage",
+        "description": "Canonical enrich-stage batch size before each scheduling boundary.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "enrich", "batch_size"],
+    },
+    {
+        "key": "stage_runtime.enrich.concurrency",
+        "type": "int",
+        "default": 8,
+        "label": "Concurrency: Enrichment Stage",
+        "description": "Canonical enrich-stage concurrent batch worker count.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "enrich", "concurrency"],
+    },
+    {
+        "key": "stage_runtime.ranking.sleep_secs",
+        "type": "float",
+        "default": 0.0,
+        "label": "API Delay: Ranking Stage",
+        "description": "Canonical delay between ranking-stage AI scoring calls.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "ranking", "sleep_secs"],
+    },
+    {
+        "key": "stage_runtime.ranking.concurrency",
+        "type": "int",
+        "default": 4,
+        "label": "Concurrency: Ranking Stage",
+        "description": "Canonical ranking-stage concurrent AI scoring worker count.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "ranking", "concurrency"],
+    },
+    {
+        "key": "stage_runtime.cv_analysis.sleep_secs",
+        "type": "float",
+        "default": 0.0,
+        "label": "API Delay: CV Analysis Stage",
+        "description": "Canonical delay between cv_analysis stage AI calls when enabled.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "cv_analysis", "sleep_secs"],
+    },
+    {
+        "key": "stage_runtime.cv_analysis.concurrency",
+        "type": "int",
+        "default": 4,
+        "label": "Concurrency: CV Analysis Stage",
+        "description": "Canonical cv_analysis stage concurrent worker count.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "cv_analysis", "concurrency"],
+    },
+    {
+        "key": "stage_runtime.cv_generation.sleep_secs",
+        "type": "float",
+        "default": 0.0,
+        "label": "API Delay: CV Generation Stage",
+        "description": "Canonical delay between cv_generation stage AI calls when enabled.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "cv_generation", "sleep_secs"],
+    },
+    {
+        "key": "stage_runtime.cv_generation.concurrency",
+        "type": "int",
+        "default": 4,
+        "label": "Concurrency: CV Generation Stage",
+        "description": "Canonical cv_generation stage concurrent worker count.",
+        "group": "timing",
+        "config_path": ["stage_runtime", "cv_generation", "concurrency"],
+    },
+    {
         "key": "enrichment_sleep_secs",
         "type": "float",
-        "default": 1.0,
+        "default": 0.0,
         "label": "API Delay: Data Enrichment",
         "description": "Seconds to wait between calls to the web scraping/enrichment API to avoid rate limiting.",
         "group": "timing",
         "config_path": ["enrichment_sleep_secs"],
+        "compatibility_alias_for": "stage_runtime.enrich.sleep_secs",
     },
     {
         "key": "rerank_sleep_secs",
         "type": "float",
-        "default": 0.5,
+        "default": 0.0,
         "label": "API Delay: AI Reranking",
         "description": "Seconds to wait between concurrent/sequential LLM calls during candidate scoring.",
         "group": "timing",
         "config_path": ["rerank_sleep_secs"],
+        "compatibility_alias_for": "stage_runtime.ranking.sleep_secs",
     },
     {
         "key": "enrichment_batch_size",
@@ -337,15 +480,17 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "description": "How many jobs each enrich worker batch handles at once before the next scheduling boundary.",
         "group": "timing",
         "config_path": ["enrichment_batch_size"],
+        "compatibility_alias_for": "stage_runtime.enrich.batch_size",
     },
     {
         "key": "enrichment_concurrency",
         "type": "int",
-        "default": 1,
+        "default": 8,
         "label": "Enrichment Concurrency",
         "description": "How many enrich batches may run concurrently. Higher values can improve throughput, but the stage still uses shared rate limiting so gains are not linear.",
         "group": "timing",
         "config_path": ["enrichment_concurrency"],
+        "compatibility_alias_for": "stage_runtime.enrich.concurrency",
     },
     # ── Run Lifecycle ─────────────────────────────────────────────────────────
     {
@@ -518,6 +663,7 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "description": "Choose the model that writes final CV content for future runs.",
         "options": _CV_GENERATION_MODELS,
         "ui_surface": _UI_SURFACE_EDITABLE,
+        "ui_deprecation_state": _UI_DEPRECATION_HIDDEN,
         "group": "cv_composition",
         "config_path": ["cv", "generation", "model"],
     },
@@ -649,7 +795,37 @@ def _hydrate_schema_defaults_from_config() -> None:
         entry["default"] = resolved_default
 
 
-_hydrate_schema_defaults_from_config()
+def _copy_schema_entries(schema: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    copied: list[dict[str, Any]] = []
+    for entry in schema:
+        cloned = dict(entry)
+        if isinstance(cloned.get("default"), list):
+            cloned["default"] = list(cloned["default"])
+        copied.append(cloned)
+    return copied
+
+def settings_schema_with_runtime_defaults(
+    baseline_config: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    schema = _copy_schema_entries(SETTINGS_SCHEMA)
+    if baseline_config is None:
+        try:
+            baseline_config = load_config()
+        except Exception:
+            baseline_config = {}
+
+    for entry in schema:
+        config_path = entry.get("config_path")
+        if not isinstance(config_path, list) or not config_path:
+            continue
+        resolved_default = _resolve_config_path_default(baseline_config, config_path)
+        if resolved_default is None:
+            continue
+        if isinstance(entry.get("default"), list) and isinstance(resolved_default, list):
+            entry["default"] = [str(value) for value in resolved_default]
+            continue
+        entry["default"] = resolved_default
+    return schema
 
 # ── Ranking group registry ────────────────────────────────────────────────────
 # Maps URL group slug → ordered list of schema keys in that group.
@@ -693,6 +869,15 @@ SETTINGS_SECTIONS: dict[str, list[str]] = {
         "pipeline.evidence_top_k",
     ],
     "timing": [
+        "stage_runtime.enrich.sleep_secs",
+        "stage_runtime.enrich.batch_size",
+        "stage_runtime.enrich.concurrency",
+        "stage_runtime.ranking.sleep_secs",
+        "stage_runtime.ranking.concurrency",
+        "stage_runtime.cv_analysis.sleep_secs",
+        "stage_runtime.cv_analysis.concurrency",
+        "stage_runtime.cv_generation.sleep_secs",
+        "stage_runtime.cv_generation.concurrency",
         "enrichment_sleep_secs",
         "rerank_sleep_secs",
         "enrichment_batch_size",
@@ -711,17 +896,53 @@ SETTINGS_SECTIONS: dict[str, list[str]] = {
 }
 
 
-def _build_agentic_settings_sections() -> dict[str, list[str]]:
-    sections: dict[str, list[str]] = {}
-    for entry in SETTINGS_SCHEMA:
-        section = entry.get("agentic_section")
-        if not isinstance(section, str) or not section:
-            continue
-        sections.setdefault(section, []).append(entry["key"])
-    return sections
+AGENTIC_ENABLEMENT_SECTION_KEYS: list[str] = [
+    "cv.agentic_late_stage.enabled",
+    "cv_analysis.semantic_alignment.enabled",
+    "synonym_management.propose_enabled",
+    "synonym_management.apply_to_run_enabled",
+    "synonym_management.promote_global_enabled",
+    "reuse.enrich.enabled",
+    "reuse.ranking.enabled",
+    "reuse.cv_analysis.enabled",
+    "reuse.cv_generation.enabled",
+    "reuse.synonym_triage.enabled",
+]
 
+AGENTIC_REUSE_SECTION_KEYS: list[str] = [
+    "reuse.enrich.enabled",
+    "reuse.ranking.enabled",
+    "reuse.cv_analysis.enabled",
+    "reuse.cv_generation.enabled",
+    "reuse.synonym_triage.enabled",
+]
 
-AGENTIC_SETTINGS_SECTIONS: dict[str, list[str]] = _build_agentic_settings_sections()
+AGENTIC_AUTOMATION_SECTION_KEYS: list[str] = [
+    "synonym_management.auto_triage_recommendation_enabled",
+    "synonym_management.triage_recommendation_reuse_enabled",
+    "synonym_management.auto_apply_recommendation_enabled",
+    "synonym_management.auto_promote_global_enabled",
+    "synonym_management.auto_accept_ai_action_enabled",
+]
+
+AGENTIC_ADVANCED_SECTION_KEYS: list[str] = [
+    "cv_analysis.semantic_alignment.model",
+    "cv_analysis.semantic_alignment.required_skill_lexical_weight",
+    "cv_analysis.semantic_alignment.required_skill_semantic_weight",
+    "cv_analysis.semantic_alignment.role_lexical_weight",
+    "cv_analysis.semantic_alignment.role_semantic_weight",
+    "cv_analysis.semantic_alignment.responsibility_lexical_weight",
+    "cv_analysis.semantic_alignment.responsibility_semantic_weight",
+    "cv_analysis.semantic_alignment.domain_lexical_weight",
+    "cv_analysis.semantic_alignment.domain_semantic_weight",
+    "cv_analysis.semantic_alignment.channel_pool_size",
+]
+
+AGENTIC_SETTINGS_SECTIONS: dict[str, list[str]] = {
+    "agentic-enablement": list(AGENTIC_ENABLEMENT_SECTION_KEYS),
+    "agentic-automation": list(AGENTIC_AUTOMATION_SECTION_KEYS),
+    "agentic-advanced": list(AGENTIC_ADVANCED_SECTION_KEYS),
+}
 
 # ── CV Generation settings schema ──────────────────────────────────────────
 # Kept for reference and documentation only.  The actual schema entries live
@@ -771,6 +992,13 @@ _EDITABLE_KEYS: frozenset[str] = frozenset(
     for entry in SETTINGS_SCHEMA
     if entry.get("ui_surface", _UI_SURFACE_EDITABLE) == _UI_SURFACE_EDITABLE
 )
+_HIDDEN_DEPRECATED_KEYS: frozenset[str] = frozenset(
+    entry["key"]
+    for entry in SETTINGS_SCHEMA
+    if entry.get("ui_deprecation_state") == _UI_DEPRECATION_HIDDEN
+)
+# Transitional overlap contract: hidden-deprecated keys must not remain editable unless explicitly allowlisted.
+_EDITABLE_HIDDEN_DEPRECATED_ALLOWLIST: frozenset[str] = frozenset({"cv_generation_model"})
 _AGENTIC_KEYS: frozenset[str] = frozenset(
     entry["key"]
     for entry in SETTINGS_SCHEMA
@@ -789,6 +1017,508 @@ _PREFERENCE_WEIGHT_KEYS: frozenset[str] = frozenset(
     s["key"] for s in SETTINGS_SCHEMA if s["key"].startswith("preference_fit_weights.")
 )
 
+# Declarative constraint registry (Task 4 Step 1): behavior still enforced by legacy checks below.
+_RELATIONAL_ORDER_CONSTRAINTS: tuple[tuple[str, str, str], ...] = (
+    (
+        "pipeline.vector_search_top_n",
+        "pipeline.ai_score_top_n",
+        "pipeline.ai_score_top_n ({rhs}) must be <= pipeline.vector_search_top_n ({lhs})",
+    ),
+    (
+        "pipeline.ai_score_top_n",
+        "pipeline.final_top_n",
+        "pipeline.final_top_n ({rhs}) must be <= pipeline.ai_score_top_n ({lhs})",
+    ),
+    (
+        "fit_label_thresholds.strong",
+        "fit_label_thresholds.stretch",
+        "fit_label_thresholds.strong ({lhs}) must be > stretch ({rhs})",
+    ),
+    (
+        "gap_thresholds.strong_min_matched_ratio",
+        "gap_thresholds.stretch_min_matched_ratio",
+        "gap_thresholds.strong_min_matched_ratio ({lhs}) must be > stretch ({rhs})",
+    ),
+)
+
+_WEIGHT_SUM_CONSTRAINTS: tuple[tuple[frozenset[str], str], ...] = (
+    (_WEIGHT_KEYS, "ranking_weights"),
+    (_PREFERENCE_WEIGHT_KEYS, "preference_fit_weights"),
+    (_RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS, "cv_analysis responsibility semantic alignment weights"),
+    (_REQUIRED_SKILL_ALIGNMENT_WEIGHT_KEYS, "cv_analysis required-skill semantic alignment weights"),
+    (_ROLE_ALIGNMENT_WEIGHT_KEYS, "cv_analysis role semantic alignment weights"),
+    (_DOMAIN_ALIGNMENT_WEIGHT_KEYS, "cv_analysis domain semantic alignment weights"),
+)
+
+
+_IA_DOMAIN_GENERAL = "general"
+_IA_DOMAIN_LAYERS = "layers"
+_IA_DOMAIN_STAGES = "stages"
+_IA_DOMAIN_RULES = "rules"
+_IA_DOMAIN_INTEGRATIONS = "integrations"
+_IA_DOMAIN_ADVANCED = "advanced"
+COMPLEXITY_VIEW_BASIC = "basic"
+COMPLEXITY_VIEW_ADVANCED = "advanced"
+COMPLEXITY_VIEW_ALL = "all"
+
+DECISION_STATUS_NEEDS_REVIEW = "needs_review"
+DECISION_STATUS_RECOMMENDED = "recommended"
+DECISION_STATUS_CONFIGURED = "configured"
+DECISION_STATUS_ADVANCED = "advanced"
+DECISION_STATUS_ALL = "all"
+
+REASON_CODE_MISSING_REQUIRED = "missing_required"
+REASON_CODE_CONFLICT = "conflict"
+REASON_CODE_LOW_CONFIDENCE = "low_confidence"
+REASON_CODE_QUALITY_RISK = "quality_risk"
+REASON_CODE_CHANGED_FROM_DEFAULT = "changed_from_default"
+REASON_CODE_RECOMMENDED_DELTA = "recommended_delta"
+REASON_CODE_ADVANCED_ONLY = "advanced_only"
+REASON_CODE_UNUSED = "unused"
+
+_DECISION_STATUS_PRIORITY: dict[str, int] = {
+    DECISION_STATUS_NEEDS_REVIEW: 0,
+    DECISION_STATUS_RECOMMENDED: 1,
+    DECISION_STATUS_CONFIGURED: 2,
+    DECISION_STATUS_ADVANCED: 3,
+    DECISION_STATUS_ALL: 4,
+}
+
+_BLOCKING_REASON_CODES: frozenset[str] = frozenset(
+    {
+        REASON_CODE_MISSING_REQUIRED,
+        REASON_CODE_CONFLICT,
+        REASON_CODE_LOW_CONFIDENCE,
+        REASON_CODE_QUALITY_RISK,
+    }
+)
+
+_WORKFLOW_STAGE_NORMALIZE = "normalize"
+_WORKFLOW_STAGE_ENRICH = "enrich"
+_WORKFLOW_STAGE_RULE_FILTER = "rule_filter"
+_WORKFLOW_STAGE_SHORTLIST = "shortlist"
+_WORKFLOW_STAGE_RANKING = "ranking"
+_WORKFLOW_STAGE_CV_ANALYSIS = "cv_analysis"
+_WORKFLOW_STAGE_CV_GENERATION = "cv_generation"
+
+_GROUP_TO_IA_DOMAIN: dict[str, str] = {
+    "retrieval": _IA_DOMAIN_STAGES,
+    "global_job_filters": _IA_DOMAIN_RULES,
+    "rule_filter": _IA_DOMAIN_RULES,
+    "run_lifecycle": _IA_DOMAIN_STAGES,
+    "ranking": _IA_DOMAIN_RULES,
+    "timing": _IA_DOMAIN_ADVANCED,
+    "agentic": _IA_DOMAIN_INTEGRATIONS,
+    "cv_composition": _IA_DOMAIN_GENERAL,
+    "cv_validation": _IA_DOMAIN_STAGES,
+    "cv_preset": _IA_DOMAIN_LAYERS,
+}
+
+_GROUP_TO_WORKFLOW_STAGES: dict[str, tuple[str, ...]] = {
+    "retrieval": (
+        _WORKFLOW_STAGE_NORMALIZE,
+        _WORKFLOW_STAGE_ENRICH,
+        _WORKFLOW_STAGE_RULE_FILTER,
+        _WORKFLOW_STAGE_SHORTLIST,
+    ),
+    "global_job_filters": (
+        _WORKFLOW_STAGE_ENRICH,
+        _WORKFLOW_STAGE_RULE_FILTER,
+    ),
+    "rule_filter": (
+        _WORKFLOW_STAGE_RULE_FILTER,
+    ),
+    "run_lifecycle": (
+        _WORKFLOW_STAGE_NORMALIZE,
+        _WORKFLOW_STAGE_ENRICH,
+        _WORKFLOW_STAGE_RULE_FILTER,
+        _WORKFLOW_STAGE_SHORTLIST,
+        _WORKFLOW_STAGE_RANKING,
+        _WORKFLOW_STAGE_CV_ANALYSIS,
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+    "ranking": (
+        _WORKFLOW_STAGE_SHORTLIST,
+        _WORKFLOW_STAGE_RANKING,
+        _WORKFLOW_STAGE_CV_ANALYSIS,
+    ),
+    "timing": (
+        _WORKFLOW_STAGE_ENRICH,
+        _WORKFLOW_STAGE_RANKING,
+        _WORKFLOW_STAGE_CV_ANALYSIS,
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+    "agentic": (
+        _WORKFLOW_STAGE_CV_ANALYSIS,
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+    "cv_composition": (
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+    "cv_validation": (
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+    "cv_preset": (
+        _WORKFLOW_STAGE_CV_ANALYSIS,
+        _WORKFLOW_STAGE_CV_GENERATION,
+    ),
+}
+
+_GROUP_TO_APPLIES_WHEN: dict[str, str] = {
+    "retrieval": "Used while constructing and narrowing candidate sets before final scoring and synthesis.",
+    "global_job_filters": "Used when deterministic global filters evaluate enriched jobs.",
+    "rule_filter": "Used when rule-filter stage decides reject vs pass marks.",
+    "run_lifecycle": "Used by control-plane timeout guard for queued/running/manual-wait runs.",
+    "ranking": "Used during reranking, fit labeling, and gap classification.",
+    "timing": "Used by enrich, ranking, cv_analysis, and cv_generation runtime throttling/concurrency controls.",
+    "agentic": "Used only when agentic late-stage path or synonym-management controls are active.",
+    "cv_composition": "Used when CV generation decides section visibility and output composition intent.",
+    "cv_validation": "Used by post-generation CV validation checks.",
+    "cv_preset": "Used when resolving CV preset/model defaults for generation.",
+}
+
+_STAGE_CROSS_STAGE = "cross_stage"
+
+_KEY_TO_STAGE_ID: dict[str, str] = {
+    # shortlist
+    "pipeline.vector_search_top_n": _WORKFLOW_STAGE_SHORTLIST,
+    # ranking
+    "pipeline.ai_score_top_n": _WORKFLOW_STAGE_RANKING,
+    "pipeline.final_top_n": _WORKFLOW_STAGE_RANKING,
+    "reuse.ranking.enabled": _WORKFLOW_STAGE_RANKING,
+    "stage_runtime.ranking.sleep_secs": _WORKFLOW_STAGE_RANKING,
+    "stage_runtime.ranking.concurrency": _WORKFLOW_STAGE_RANKING,
+    "rerank_sleep_secs": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.ai_score": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.must_have_match": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.vector_similarity": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.title_relevance": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.seniority_fit": _WORKFLOW_STAGE_RANKING,
+    "ranking_weights.preference_fit": _WORKFLOW_STAGE_RANKING,
+    "preference_fit_weights.domain": _WORKFLOW_STAGE_RANKING,
+    "preference_fit_weights.role_family": _WORKFLOW_STAGE_RANKING,
+    "preference_fit_weights.location_type": _WORKFLOW_STAGE_RANKING,
+    "fit_label_thresholds.strong": _WORKFLOW_STAGE_RANKING,
+    "fit_label_thresholds.stretch": _WORKFLOW_STAGE_RANKING,
+    "gap_thresholds.strong_min_matched_ratio": _WORKFLOW_STAGE_RANKING,
+    "gap_thresholds.stretch_min_matched_ratio": _WORKFLOW_STAGE_RANKING,
+    # cv_analysis
+    "pipeline.evidence_top_k": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "reuse.cv_analysis.enabled": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "stage_runtime.cv_analysis.sleep_secs": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "stage_runtime.cv_analysis.concurrency": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv.agentic_late_stage.enabled": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.enabled": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.model": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.required_skill_lexical_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.required_skill_semantic_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.role_lexical_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.role_semantic_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.responsibility_lexical_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.responsibility_semantic_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.domain_lexical_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.domain_semantic_weight": _WORKFLOW_STAGE_CV_ANALYSIS,
+    "cv_analysis.semantic_alignment.channel_pool_size": _WORKFLOW_STAGE_CV_ANALYSIS,
+    # enrich
+    "global_job_filters.applications_count_max": _WORKFLOW_STAGE_ENRICH,
+    "global_job_filters.max_age_days": _WORKFLOW_STAGE_ENRICH,
+    "stage_runtime.enrich.sleep_secs": _WORKFLOW_STAGE_ENRICH,
+    "stage_runtime.enrich.batch_size": _WORKFLOW_STAGE_ENRICH,
+    "stage_runtime.enrich.concurrency": _WORKFLOW_STAGE_ENRICH,
+    "enrichment_sleep_secs": _WORKFLOW_STAGE_ENRICH,
+    "enrichment_batch_size": _WORKFLOW_STAGE_ENRICH,
+    "enrichment_concurrency": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.propose_enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.apply_to_run_enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.promote_global_enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.auto_triage_recommendation_enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.triage_recommendation_reuse_enabled": _WORKFLOW_STAGE_ENRICH,
+    "reuse.enrich.enabled": _WORKFLOW_STAGE_ENRICH,
+    "reuse.synonym_triage.enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.auto_apply_recommendation_enabled": _WORKFLOW_STAGE_ENRICH,
+    "synonym_management.auto_promote_global_enabled": _WORKFLOW_STAGE_ENRICH,
+    # rule_filter
+    "rule_filter.selected_filters": _WORKFLOW_STAGE_RULE_FILTER,
+    # cv_generation
+    "cv_generation_model": _WORKFLOW_STAGE_CV_GENERATION,
+    "stage_runtime.cv_generation.sleep_secs": _WORKFLOW_STAGE_CV_GENERATION,
+    "stage_runtime.cv_generation.concurrency": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_preset": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_summary_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_education_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_experience_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_skills_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_certifications_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_projects_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_publications_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_languages_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "cv_max_pages": _WORKFLOW_STAGE_CV_GENERATION,
+    "reuse.cv_generation.enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    "synonym_management.auto_accept_ai_action_enabled": _WORKFLOW_STAGE_CV_GENERATION,
+    # cross-stage runtime guardrail
+    "run_lifecycle.max_runtime_minutes": _STAGE_CROSS_STAGE,
+}
+
+_CONTROL_SURFACE_STANDARD_PIPELINE = "standard_pipeline"
+_CONTROL_SURFACE_AGENTIC_RUNTIME = "agentic_runtime"
+_CONTROL_SURFACE_SHARED = "shared"
+
+_GROUP_TO_CONTROL_SURFACE: dict[str, str] = {
+    "retrieval": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "global_job_filters": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "rule_filter": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "ranking": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "cv_composition": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "cv_validation": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "cv_preset": _CONTROL_SURFACE_STANDARD_PIPELINE,
+    "run_lifecycle": _CONTROL_SURFACE_SHARED,
+    "timing": _CONTROL_SURFACE_SHARED,
+    "agentic": _CONTROL_SURFACE_AGENTIC_RUNTIME,
+}
+
+_DECISION_AREA_ENABLEMENT = "enablement"
+_DECISION_AREA_BEHAVIOR = "behavior"
+_DECISION_AREA_QUALITY_TARGETS = "quality_targets"
+_DECISION_AREA_THROUGHPUT = "throughput"
+_DECISION_AREA_AUTOMATION = "automation"
+_DECISION_AREA_SAFEGUARDS = "safeguards"
+_DECISION_AREA_DIAGNOSTICS = "diagnostics"
+
+_HIGH_RISK_GROUPS: frozenset[str] = frozenset({"ranking", "timing"})
+_MEDIUM_RISK_GROUPS: frozenset[str] = frozenset(
+    {"retrieval", "agentic", "run_lifecycle", "global_job_filters", "rule_filter"}
+)
+_DANGER_ZONE_GROUPS: frozenset[str] = frozenset({"timing", "run_lifecycle"})
+
+def _risk_for_entry(entry: dict[str, Any]) -> str:
+    group = str(entry.get("group") or "")
+    key = str(entry.get("key") or "")
+    entry_type = str(entry.get("type") or "")
+    if key in _METADATA_ONLY_KEYS:
+        return "low"
+    if group in _HIGH_RISK_GROUPS:
+        return "high"
+    if group in _MEDIUM_RISK_GROUPS:
+        return "medium"
+    if entry_type == "float":
+        return "high"
+    return "low"
+
+def _default_ia_domain(entry: dict[str, Any]) -> str:
+    key = str(entry.get("key") or "")
+    if key in _METADATA_ONLY_KEYS:
+        return _IA_DOMAIN_LAYERS
+    group = str(entry.get("group") or "")
+    return _GROUP_TO_IA_DOMAIN.get(group, _IA_DOMAIN_ADVANCED)
+
+def _default_stage_id(entry: dict[str, Any]) -> str:
+    key = str(entry.get("key") or "")
+    return _KEY_TO_STAGE_ID.get(key, _STAGE_CROSS_STAGE)
+
+
+def _default_workflow_stages(entry: dict[str, Any], stage_id: str) -> list[str]:
+    group = str(entry.get("group") or "")
+    group_stages = list(_GROUP_TO_WORKFLOW_STAGES.get(group, ()))
+    if not group_stages:
+        return [stage_id]
+    if stage_id not in group_stages:
+        group_stages.append(stage_id)
+    return group_stages
+
+def _default_control_surface(entry: dict[str, Any]) -> str:
+    key = str(entry.get("key") or "")
+    if key.startswith("cv_analysis.semantic_alignment."):
+        return _CONTROL_SURFACE_AGENTIC_RUNTIME
+    group = str(entry.get("group") or "")
+    return _GROUP_TO_CONTROL_SURFACE.get(group, _CONTROL_SURFACE_SHARED)
+
+def _default_decision_area(entry: dict[str, Any]) -> str:
+    key = str(entry.get("key") or "")
+    group = str(entry.get("group") or "")
+    if key in _METADATA_ONLY_KEYS:
+        return _DECISION_AREA_DIAGNOSTICS
+    if group == "agentic":
+        if key.startswith("synonym_management.auto_") or key.endswith("_recommendation_enabled"):
+            return _DECISION_AREA_AUTOMATION
+        if key in {
+            "cv.agentic_late_stage.enabled",
+            "synonym_management.propose_enabled",
+            "synonym_management.apply_to_run_enabled",
+            "synonym_management.promote_global_enabled",
+        }:
+            return _DECISION_AREA_ENABLEMENT
+    if key.startswith("cv_analysis.semantic_alignment."):
+        if key.endswith("_weight"):
+            return _DECISION_AREA_QUALITY_TARGETS
+        if key.endswith("channel_pool_size"):
+            return _DECISION_AREA_THROUGHPUT
+        if key.endswith(".model") or key.endswith(".enabled"):
+            return _DECISION_AREA_ENABLEMENT if key.endswith(".enabled") else _DECISION_AREA_DIAGNOSTICS
+    if group == "retrieval":
+        return _DECISION_AREA_THROUGHPUT
+    if group == "ranking":
+        return _DECISION_AREA_QUALITY_TARGETS
+    if group in {"global_job_filters", "rule_filter", "run_lifecycle", "cv_validation"}:
+        return _DECISION_AREA_SAFEGUARDS
+    if group in {"cv_composition", "cv_preset"}:
+        return _DECISION_AREA_BEHAVIOR
+    if group == "timing":
+        return _DECISION_AREA_THROUGHPUT
+    return _DECISION_AREA_BEHAVIOR
+
+def _build_settings_ia_metadata() -> dict[str, dict[str, Any]]:
+    metadata: dict[str, dict[str, Any]] = {}
+    for entry in SETTINGS_SCHEMA:
+        key = str(entry["key"])
+        group = str(entry.get("group") or "")
+        risk = _risk_for_entry(entry)
+        stage_id = _default_stage_id(entry)
+        metadata[key] = {
+            "domain": _default_ia_domain(entry),
+            "stage": stage_id,
+            "control_surface": _default_control_surface(entry),
+            "decision_area": _default_decision_area(entry),
+            # Keep per-key canonical stage and workflow participation explicitly separated.
+            "workflow_stages": _default_workflow_stages(entry, stage_id),
+            "risk": risk,
+            "runtime_used": key not in _METADATA_ONLY_KEYS,
+            "metadata_only": key in _METADATA_ONLY_KEYS,
+            "override_policy": "hidden_until_enabled" if key not in _METADATA_ONLY_KEYS else "disabled",
+            "can_override": key not in _METADATA_ONLY_KEYS,
+            "is_dangerous": risk == "high" or group in _DANGER_ZONE_GROUPS,
+            "advanced": _default_ia_domain(entry) == _IA_DOMAIN_ADVANCED,
+            "complexity_view": COMPLEXITY_VIEW_ADVANCED if _default_ia_domain(entry) == _IA_DOMAIN_ADVANCED else COMPLEXITY_VIEW_BASIC,
+            "unused": False,
+            "recommended_delta": False,
+            "decision_status": DECISION_STATUS_CONFIGURED,
+            "reason_codes": [],
+            "applies_when": _GROUP_TO_APPLIES_WHEN.get(
+                group,
+                "Used in advanced runtime flow according to this setting group.",
+            ),
+        }
+    return metadata
+
+SETTINGS_IA_METADATA_BY_KEY: dict[str, dict[str, Any]] = _build_settings_ia_metadata()
+
+def _validate_settings_ia_metadata_coverage() -> None:
+    schema_keys = {entry["key"] for entry in SETTINGS_SCHEMA}
+    metadata_keys = set(SETTINGS_IA_METADATA_BY_KEY.keys())
+    missing = schema_keys - metadata_keys
+    extra = metadata_keys - schema_keys
+    if missing:
+        raise RuntimeError(f"SETTINGS_IA_METADATA_BY_KEY missing keys: {sorted(missing)!r}")
+    if extra:
+        raise RuntimeError(f"SETTINGS_IA_METADATA_BY_KEY has unknown keys: {sorted(extra)!r}")
+
+def _validate_settings_surface_contract() -> None:
+    overlap = (_EDITABLE_KEYS & _HIDDEN_DEPRECATED_KEYS) - _EDITABLE_HIDDEN_DEPRECATED_ALLOWLIST
+    if overlap:
+        raise RuntimeError(
+            f"Editable hidden-deprecated overlap keys must be explicitly allowlisted: {sorted(overlap)!r}"
+        )
+
+_validate_settings_ia_metadata_coverage()
+_validate_settings_surface_contract()
+
+def settings_ia_metadata_by_key() -> dict[str, dict[str, Any]]:
+    return {key: dict(value) for key, value in SETTINGS_IA_METADATA_BY_KEY.items()}
+
+def settings_keys_for_intent_layer(layer: str) -> list[str]:
+    return settings_keys_for_domain(layer)
+
+def settings_keys_for_domain(domain: str) -> list[str]:
+    return sorted(
+        key
+        for key, meta in SETTINGS_IA_METADATA_BY_KEY.items()
+        if str(meta.get("domain")) == domain
+    )
+
+def settings_keys_for_workflow_stage(stage: str) -> list[str]:
+    return sorted(
+        key
+        for key, meta in SETTINGS_IA_METADATA_BY_KEY.items()
+        if stage in list(meta.get("workflow_stages") or [])
+    )
+
+def settings_keys_for_stage(stage: str) -> list[str]:
+    return sorted(
+        key
+        for key, meta in SETTINGS_IA_METADATA_BY_KEY.items()
+        if str(meta.get("stage") or "") == stage
+    )
+
+def settings_keys_for_control_surface(control_surface: str) -> list[str]:
+    return sorted(
+        key
+        for key, meta in SETTINGS_IA_METADATA_BY_KEY.items()
+        if str(meta.get("control_surface") or "") == control_surface
+    )
+
+def settings_ia_contract_for_key(key: str) -> dict[str, Any]:
+    if key not in SETTINGS_IA_METADATA_BY_KEY:
+        raise KeyError(key)
+    return dict(SETTINGS_IA_METADATA_BY_KEY[key])
+
+def decision_status_sort_key(status: str) -> int:
+    return _DECISION_STATUS_PRIORITY.get(str(status), _DECISION_STATUS_PRIORITY[DECISION_STATUS_ALL])
+
+def reason_code_is_blocking(reason_code: str) -> bool:
+    return str(reason_code) in _BLOCKING_REASON_CODES
+
+def derive_settings_decision_state(
+    *,
+    is_advanced: bool,
+    is_unused: bool,
+    is_changed_from_default: bool,
+    has_recommended_delta: bool,
+    has_conflict: bool = False,
+    has_missing_required: bool = False,
+    has_low_confidence: bool = False,
+    has_quality_risk: bool = False,
+) -> dict[str, Any]:
+    reason_codes: list[str] = []
+    if has_missing_required:
+        reason_codes.append(REASON_CODE_MISSING_REQUIRED)
+    if has_conflict:
+        reason_codes.append(REASON_CODE_CONFLICT)
+    if has_low_confidence:
+        reason_codes.append(REASON_CODE_LOW_CONFIDENCE)
+    if has_quality_risk:
+        reason_codes.append(REASON_CODE_QUALITY_RISK)
+    if is_changed_from_default:
+        reason_codes.append(REASON_CODE_CHANGED_FROM_DEFAULT)
+    if has_recommended_delta:
+        reason_codes.append(REASON_CODE_RECOMMENDED_DELTA)
+    if is_advanced:
+        reason_codes.append(REASON_CODE_ADVANCED_ONLY)
+    if is_unused:
+        reason_codes.append(REASON_CODE_UNUSED)
+
+    if any(code in _BLOCKING_REASON_CODES for code in reason_codes):
+        status = DECISION_STATUS_NEEDS_REVIEW
+    elif has_recommended_delta:
+        status = DECISION_STATUS_RECOMMENDED
+    elif is_advanced:
+        status = DECISION_STATUS_ADVANCED
+    else:
+        status = DECISION_STATUS_CONFIGURED
+
+    return {
+        "decision_status": status,
+        "reason_codes": reason_codes,
+        "advanced": bool(is_advanced),
+        "unused": bool(is_unused),
+        "recommended_delta": bool(has_recommended_delta),
+        "is_blocking": status == DECISION_STATUS_NEEDS_REVIEW,
+    }
+
+def danger_zone_settings_keys() -> list[str]:
+    return sorted(
+        key
+        for key, meta in SETTINGS_IA_METADATA_BY_KEY.items()
+        if bool(meta.get("is_dangerous"))
+    )
 
 def metadata_only_settings_keys() -> set[str]:
     return set(_METADATA_ONLY_KEYS)
@@ -808,6 +1538,10 @@ def metadata_only_agentic_settings_keys() -> set[str]:
 
 def excluded_agentic_settings_keys() -> set[str]:
     return set(_EXCLUDED_AGENTIC_KEYS)
+
+
+def hidden_deprecated_settings_keys() -> set[str]:
+    return set(_HIDDEN_DEPRECATED_KEYS)
 
 
 # ── coercion ──────────────────────────────────────────────────────────────────
@@ -845,7 +1579,8 @@ def validate_settings(settings: dict[str, Any]) -> None:
     Raises ValidationError with a descriptive message on any violation.
     settings values must already be coerced to their declared Python types.
     """
-    for key, value in settings.items():
+    normalized = _normalize_settings_aliases(settings)
+    for key, value in normalized.items():
         if key not in _ALL_SCHEMA_BY_KEY:
             raise ValidationError(f"Unknown setting key: '{key}'")
         entry = _ALL_SCHEMA_BY_KEY[key]
@@ -898,70 +1633,20 @@ def validate_settings(settings: dict[str, Any]) -> None:
                     )
 
     # ── relational constraints ────────────────────────────────────────────────
-    vs = settings.get("pipeline.vector_search_top_n")
-    ai = settings.get("pipeline.ai_score_top_n")
-    fn = settings.get("pipeline.final_top_n")
-    if isinstance(vs, int) and isinstance(ai, int) and ai > vs:
-        raise ValidationError(
-            f"pipeline.ai_score_top_n ({ai}) must be <= pipeline.vector_search_top_n ({vs})"
-        )
-    if isinstance(ai, int) and isinstance(fn, int) and fn > ai:
-        raise ValidationError(
-            f"pipeline.final_top_n ({fn}) must be <= pipeline.ai_score_top_n ({ai})"
-        )
+    for lhs_key, rhs_key, message_template in _RELATIONAL_ORDER_CONSTRAINTS:
+        lhs = normalized.get(lhs_key)
+        rhs = normalized.get(rhs_key)
+        if isinstance(lhs, (int, float)) and isinstance(rhs, (int, float)) and rhs > lhs:
+            raise ValidationError(message_template.format(lhs=lhs, rhs=rhs))
 
-    strong = settings.get("fit_label_thresholds.strong")
-    stretch = settings.get("fit_label_thresholds.stretch")
-    if isinstance(strong, float) and isinstance(stretch, float) and strong <= stretch:
-        raise ValidationError(
-            f"fit_label_thresholds.strong ({strong}) must be > stretch ({stretch})"
-        )
-
-    g_strong = settings.get("gap_thresholds.strong_min_matched_ratio")
-    g_stretch = settings.get("gap_thresholds.stretch_min_matched_ratio")
-    if isinstance(g_strong, float) and isinstance(g_stretch, float) and g_strong <= g_stretch:
-        raise ValidationError(
-            f"gap_thresholds.strong_min_matched_ratio ({g_strong}) must be > stretch ({g_stretch})"
-        )
-
-    # Ranking weights sum-to-1 only checked when all 6 are present
-    if _WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[k]) for k in _WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"ranking_weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-    if _PREFERENCE_WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[k]) for k in _PREFERENCE_WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"preference_fit_weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-    if _RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[key]) for key in _RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"cv_analysis responsibility semantic alignment weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-    if _REQUIRED_SKILL_ALIGNMENT_WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[key]) for key in _REQUIRED_SKILL_ALIGNMENT_WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"cv_analysis required-skill semantic alignment weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-    if _ROLE_ALIGNMENT_WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[key]) for key in _ROLE_ALIGNMENT_WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"cv_analysis role semantic alignment weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-    if _DOMAIN_ALIGNMENT_WEIGHT_KEYS <= set(settings.keys()):
-        total = sum(float(settings[key]) for key in _DOMAIN_ALIGNMENT_WEIGHT_KEYS)
-        if abs(total - 1.0) > 0.01:
-            raise ValidationError(
-                f"cv_analysis domain semantic alignment weights must sum to 1.0 (± 0.01), got {total:.4f}"
-            )
-
+    # Weight-family sum-to-1 checks only run when each full family is present.
+    for keys, label in _WEIGHT_SUM_CONSTRAINTS:
+        if keys <= set(normalized.keys()):
+            total = sum(float(normalized[key]) for key in keys)
+            if abs(total - 1.0) > 0.01:
+                raise ValidationError(
+                    f"{label} must sum to 1.0 (± 0.01), got {total:.4f}"
+                )
 
 # ── config application ────────────────────────────────────────────────────────
 
@@ -971,9 +1656,30 @@ def apply_settings_to_config(config: dict[str, Any], settings: dict[str, Any]) -
     Uses config_path from the schema registry to navigate nested dicts.
     settings values must already be coerced to their declared Python types.
     """
-    for key, value in settings.items():
+    normalized = _normalize_settings_aliases(settings)
+    for key, value in normalized.items():
         path = _ALL_SCHEMA_BY_KEY[key]["config_path"]
         target = config
         for part in path[:-1]:
             target = target.setdefault(part, {})
         target[path[-1]] = value
+
+_LEGACY_THROUGHPUT_ALIAS_TO_CANONICAL: dict[str, str] = {
+    "enrichment_sleep_secs": "stage_runtime.enrich.sleep_secs",
+    "rerank_sleep_secs": "stage_runtime.ranking.sleep_secs",
+    "enrichment_batch_size": "stage_runtime.enrich.batch_size",
+    "enrichment_concurrency": "stage_runtime.enrich.concurrency",
+}
+
+def _normalize_settings_aliases(settings: dict[str, Any]) -> dict[str, Any]:
+    """Apply canonical-over-legacy precedence for throughput compatibility aliases."""
+    normalized = dict(settings)
+    for legacy_key, canonical_key in _LEGACY_THROUGHPUT_ALIAS_TO_CANONICAL.items():
+        if canonical_key in normalized:
+            continue
+        if legacy_key in normalized:
+            normalized[canonical_key] = normalized[legacy_key]
+    return normalized
+
+
+

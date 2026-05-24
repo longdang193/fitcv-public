@@ -19,7 +19,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import yaml
 
@@ -29,6 +29,8 @@ from fitcv.config import sqlite_mode_enabled
 # ── required profile sections ─────────────────────────────────────────────────
 
 _REQUIRED_SECTIONS = ["experiences", "skills", "projects", "achievements", "preferences"]
+_ID_BEARING_SECTIONS = ("experiences", "projects", "achievements", "certifications", "education")
+_EVIDENCE_REF_SECTIONS = ("skills", "achievements")
 _ROLE_INFERENCE_LIMIT = 4
 _MAX_INFERRED_ROLE_FAMILIES = 2
 _MAX_INFERRED_DOMAINS = 3
@@ -147,7 +149,31 @@ def _normalize_profile_alignment_metadata(profile: dict[str, Any]) -> dict[str, 
         achievements.append(normalized_achievement)
     normalized["achievements"] = achievements
 
+    normalized["skills"] = _normalize_skill_entries(normalized.get("skills"))
+
     return normalized
+
+
+def _normalize_skill_entries(values: Any) -> list[Any]:
+    if not isinstance(values, list):
+        return []
+    normalized: list[Any] = []
+    for value in values:
+        if isinstance(value, dict):
+            normalized.append(value)
+            continue
+        if isinstance(value, str):
+            skill_name = value.strip()
+            if skill_name:
+                normalized.append({"name": skill_name})
+            continue
+        normalized.append(value)
+    return normalized
+
+
+def _ensure_normalized_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    """Return profile with additive alignment metadata normalized."""
+    return _normalize_profile_alignment_metadata(profile)
 
 
 # ── loading ───────────────────────────────────────────────────────────────────
@@ -163,9 +189,7 @@ def load_profile_yaml(path: str | Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Candidate profile not found: {file_path}")
     with open(file_path, encoding="utf-8") as f:
         loaded = yaml.safe_load(f)
-    if not isinstance(loaded, dict):
-        raise ValueError(f"Candidate profile must be a YAML object, got {type(loaded).__name__}")
-    return _normalize_profile_alignment_metadata(cast(dict[str, Any], loaded))
+    return _validate_profile_payload(loaded, "YAML")
 
 
 def load_profile_json_text(payload: str) -> dict[str, Any]:
@@ -175,22 +199,52 @@ def load_profile_json_text(payload: str) -> dict[str, Any]:
         ValueError: if payload is not valid JSON, not a top-level object,
                     or fails existing `validate_profile()` validation.
     """
+    profile = _parse_json_profile_payload(payload)
+    return _validate_profile_payload(profile, "JSON")
+
+
+def _parse_json_profile_payload(payload: str) -> Any:
     import json
     try:
-        profile = json.loads(payload)
+        return json.loads(payload)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON in candidate profile: {exc}") from exc
 
+def _validate_profile_payload(profile: Any, source_format: str) -> dict[str, Any]:
     if not isinstance(profile, dict):
         raise ValueError(
-            f"Candidate profile must be a JSON object, got {type(profile).__name__}"
+            f"Candidate profile must be a {source_format} object, got {type(profile).__name__}"
         )
-
     errors = validate_profile(profile)
     if errors:
         raise ValueError(f"Candidate profile validation failed: {'; '.join(errors)}")
+    normalized_profile = _ensure_normalized_profile(profile)
+    return normalized_profile  # type: ignore[return-value]
 
-    return _normalize_profile_alignment_metadata(profile)  # type: ignore[return-value]
+def load_profile_text(payload: str, *, format_hint: str = "auto") -> dict[str, Any]:
+    """Parse and validate a candidate profile from JSON or YAML text.
+
+    `format_hint` may be "json", "yaml", or "auto" (default).
+    """
+    hint = str(format_hint or "auto").strip().lower()
+    if hint not in {"json", "yaml", "auto"}:
+        raise ValueError(f"Unsupported candidate profile format_hint: {format_hint!r}")
+
+    if hint in {"json", "auto"}:
+        try:
+            return _validate_profile_payload(_parse_json_profile_payload(payload), "JSON")
+        except ValueError:
+            if hint == "json":
+                raise
+
+    if hint in {"yaml", "auto"}:
+        try:
+            parsed_yaml = yaml.safe_load(payload)
+        except yaml.YAMLError as exc:
+            raise ValueError("Invalid YAML in candidate profile") from exc
+        return _validate_profile_payload(parsed_yaml, "YAML")
+
+    raise ValueError("Candidate profile must be valid JSON or YAML")
 def _normalize_text(value: str | None) -> str:
     if not value:
         return ""
@@ -372,6 +426,7 @@ def infer_effective_preferences(
     profile: dict[str, Any],
     config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    profile = _ensure_normalized_profile(profile)
     preferences = dict(profile.get("preferences") or {})
     inferred_preferences: dict[str, Any] = {}
     preference_sources: dict[str, str] = {}
@@ -438,12 +493,11 @@ def validate_profile(profile: dict[str, Any]) -> list[str]:
         return errors  # ID checks require sections; bail early
 
     # ── 2. ID uniqueness ──────────────────────────────────────────────────────
-    all_ids: list[str] = (
-        [str(e.get("id", "")) for e in profile.get("experiences", [])]
-        + [str(p.get("id", "")) for p in profile.get("projects", [])]
-        + [str(a.get("id", "")) for a in profile.get("achievements", [])]
-        + [str(ed.get("id", "")) for ed in profile.get("education", [])]
-    )
+    all_ids: list[str] = []
+    for section in _ID_BEARING_SECTIONS:
+        for item in profile.get(section, []):
+            if isinstance(item, dict):
+                all_ids.append(str(item.get("id", "")))
     seen_ids: set[str] = set()
     for id_val in all_ids:
         if not id_val:
@@ -455,18 +509,20 @@ def validate_profile(profile: dict[str, Any]) -> list[str]:
 
     # ── 3. dangling evidence_refs ─────────────────────────────────────────────
     known_ids: set[str] = set(all_ids)
-    for skill in profile.get("skills", []):
-        for ref in skill.get("evidence_refs", []):
-            if ref not in known_ids:
-                errors.append(
-                    f"Dangling evidence_ref '{ref}' in skill '{skill.get('name', '?')}'"
-                )
-    for ach in profile.get("achievements", []):
-        for ref in ach.get("evidence_refs", []):
-            if ref not in known_ids:
-                errors.append(
-                    f"Dangling evidence_ref '{ref}' in achievement '{ach.get('id', '?')}'"
-                )
+    for section in _EVIDENCE_REF_SECTIONS:
+        entries = profile.get(section, [])
+        if section == "skills":
+            entries = _normalize_skill_entries(entries)
+        for entry in entries:
+            if not isinstance(entry, dict):
+                errors.append(f"Invalid {section[:-1]} entry type: {type(entry).__name__}")
+                continue
+            for ref in entry.get("evidence_refs", []):
+                if ref not in known_ids:
+                    label = entry.get("name", "?") if section == "skills" else entry.get("id", "?")
+                    errors.append(
+                        f"Dangling evidence_ref '{ref}' in {section[:-1]} '{label}'"
+                    )
 
     return errors
 
@@ -519,6 +575,7 @@ def prepare_profile_rows(profile: dict[str, Any]) -> dict[str, list[dict[str, An
     Returns a dict with keys: profile, experiences, projects, skills, achievements.
     Each value is a list of row dicts ready for BigQuery insertion.
     """
+    profile = _ensure_normalized_profile(profile)
     now = datetime.now(tz=timezone.utc).isoformat()
     profile_id = str(uuid.uuid4())
     prefs = profile.get("preferences", {})
@@ -540,8 +597,12 @@ def prepare_profile_rows(profile: dict[str, Any]) -> dict[str, list[dict[str, An
     # ── candidate_experiences (1 row per bullet) ──────────────────────────────
     experience_rows: list[dict[str, Any]] = []
     for exp in profile.get("experiences", []):
+        if not isinstance(exp, dict):
+            continue
         exp_id = str(exp.get("id", ""))
         for idx, bullet in enumerate(exp.get("bullets", [])):
+            if not isinstance(bullet, dict):
+                continue
             experience_rows.append({
                 "exp_id":           exp_id,
                 "role":             exp.get("role", ""),
@@ -557,41 +618,51 @@ def prepare_profile_rows(profile: dict[str, Any]) -> dict[str, list[dict[str, An
             })
 
     # ── candidate_projects ────────────────────────────────────────────────────
-    project_rows: list[dict[str, Any]] = [
-        {
+    project_rows: list[dict[str, Any]] = []
+    for proj in profile.get("projects", []):
+        if not isinstance(proj, dict):
+            continue
+        project_rows.append({
             "project_id":     str(proj.get("id", "")),
             "name":           proj.get("name", ""),
             "skills":         proj.get("skills", []),
             "business_value": proj.get("business_value", ""),
             "evidence":       proj.get("evidence", ""),
             "updated_at":     now,
-        }
-        for proj in profile.get("projects", [])
-    ]
+        })
 
     # ── candidate_skills ──────────────────────────────────────────────────────
-    skill_rows: list[dict[str, Any]] = [
-        {
-            "skill_name":    str(skill.get("name", "")),
-            "level":         skill.get("level", ""),
-            "years":         skill.get("years"),
-            "evidence_refs": skill.get("evidence_refs", []),
-            "updated_at":    now,
-        }
-        for skill in profile.get("skills", [])
-    ]
+    skill_rows: list[dict[str, Any]] = []
+    for skill in profile.get("skills", []):
+        if isinstance(skill, dict):
+            skill_rows.append({
+                "skill_name":    str(skill.get("name", "")),
+                "level":         skill.get("level", ""),
+                "years":         skill.get("years"),
+                "evidence_refs": skill.get("evidence_refs", []),
+                "updated_at":    now,
+            })
+        else:
+            skill_rows.append({
+                "skill_name":    str(skill or ""),
+                "level":         "",
+                "years":         None,
+                "evidence_refs": [],
+                "updated_at":    now,
+            })
 
     # ── candidate_achievements ────────────────────────────────────────────────
-    achievement_rows: list[dict[str, Any]] = [
-        {
+    achievement_rows: list[dict[str, Any]] = []
+    for ach in profile.get("achievements", []):
+        if not isinstance(ach, dict):
+            continue
+        achievement_rows.append({
             "achievement_id": str(ach.get("id", "")),
             "text":           ach.get("text", ""),
             "category":       ach.get("category", ""),
             "evidence_refs":  ach.get("evidence_refs", []),
             "updated_at":     now,
-        }
-        for ach in profile.get("achievements", [])
-    ]
+        })
 
     return {
         "profile":      profile_rows,

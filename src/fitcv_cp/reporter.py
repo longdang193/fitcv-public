@@ -29,6 +29,7 @@ from fitcv.telemetry import (
 )
 from fitcv_cp.bq_store import append_event
 from fitcv_cp.models import RunEvent
+from fitcv_cp.runtime_contracts import is_truthy_env
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,6 @@ _SENSITIVE_KEY_PARTS = {
     "cookie",
 }
 
-
-def _is_truthy(value: str | None) -> bool:
-    normalized = str(value or "").strip().lower()
-    return normalized in {"1", "true", "yes", "on"}
 
 
 def _truncate_string(value: str) -> str:
@@ -92,7 +89,7 @@ def _build_langfuse_rich_io_contract(
     message: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    if not _is_truthy(os.environ.get("FITCV_LANGFUSE_RICH_IO_ENABLED")):
+    if not is_truthy_env(os.environ.get("FITCV_LANGFUSE_RICH_IO_ENABLED")):
         return {
             "status": "disabled",
             "degradation_reason": "langfuse_rich_io_disabled",
@@ -151,7 +148,7 @@ def _build_langfuse_rich_io_contract(
 
 
 def _langfuse_ingestion_enabled() -> bool:
-    return _is_truthy(os.environ.get("FITCV_LANGFUSE_RICH_IO_ENABLED"))
+    return is_truthy_env(os.environ.get("FITCV_LANGFUSE_RICH_IO_ENABLED"))
 
 
 def _build_langfuse_ingestion_headers() -> dict[str, str] | None:
@@ -320,3 +317,6 @@ class PipelineReporter:
                 )
         except Exception as exc:
             logger.warning("Reporter failed to write event: %s", exc)
+
+
+

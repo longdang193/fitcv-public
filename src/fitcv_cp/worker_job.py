@@ -19,13 +19,26 @@ import json
 import logging
 import os
 import re
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
 
+import yaml
 from google.cloud import bigquery
 
-from fitcv.config import apply_runtime_skill_synonym_overlay, parse_skill_synonym_overlay_yaml
+from fitcv.config import (
+    apply_runtime_skill_synonym_overlay,
+    get_stage_runtime_concurrency,
+    get_stage_runtime_sleep_secs,
+    parse_skill_synonym_overlay_yaml,
+)
+from fitcv.reuse import build_reuse_decision, resolve_reuse_stage_policy
+from fitcv.contracts import (
+    MAPPING_SUGGESTIONS_SCHEMA_VERSION,
+    STAGE_TRANSITION_ARTIFACTS_RUN_SCHEMA_VERSION,
+    SETTINGS_USED_SCHEMA_VERSION,
+)
 from fitcv.pipeline import PipelineCancelled, run_pipeline
 from fitcv.telemetry import (
     build_langfuse_trace_attributes,
@@ -51,6 +64,28 @@ from fitcv_cp.bq_store import (
 )
 from fitcv_cp.models import RunEvent, RunStatus
 from fitcv_cp.data_plane import data_plane_contract_payload
+from fitcv_cp.run_artifact_mirror import persist_terminal_run_artifact_mirror
+from fitcv_cp.synonym_proposals import (
+    resolve_synonym_management_mode,
+    build_synonym_proposals_payload,
+    evaluate_synonym_triage_reuse,
+    transition_synonym_proposal_status,
+)
+from fitcv_cp.review_identity import ensure_review_item_id, is_review_resolution_pending
+from fitcv_cp.run_artifact_contracts import (
+    encode_json_object,
+    iso_or_none,
+    decode_json_object_or_none,
+    decode_json_object_or_raise,
+    json_safe,
+    normalized_run_mode,
+    replay_context_payload,
+    run_mode_label,
+    require_payload_keys,
+    stable_json_dumps,
+    stable_sha256_fingerprint,
+    string_or_none,
+)
 
 logger = logging.getLogger(__name__)
 _MAX_DEBUG_MARKDOWN_CHARS = 4000
@@ -74,10 +109,6 @@ _CV_DEBUG_ANALYSIS_OMISSION_STATUSES = {
     "blocked_by_reranker_fit",
     "skipped_fit_gate",
     "analysis_failed",
-}
-_RUN_MODE_LABELS = {
-    "run_all": "Run All",
-    "manual_staged": "Stage by Stage",
 }
 _NON_SKILL_MIN_SUPPORT_FOR_PROPOSAL = 2
 _WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(r"^[A-Za-z]:[\\/]")
@@ -164,6 +195,143 @@ def _resolve_run_replay_context(
 
 def _get_bq() -> bigquery.Client:
     return bigquery.Client()
+
+def _bounded_markdown_preview(markdown_text: str) -> str:
+    preview = str(markdown_text or "")
+    if len(preview) > _MAX_DEBUG_MARKDOWN_CHARS:
+        return preview[:_MAX_DEBUG_MARKDOWN_CHARS] + "\n...[truncated]"
+    return preview
+
+def execute_cv_regenerate_once(
+    *,
+    run_id: str,
+    job_url: str,
+    actor: str = "admin",
+    note: str | None = None,
+) -> None:
+    runtime = resolve_backend_runtime()
+    project = runtime.project
+    dataset = runtime.dataset
+    bq = _get_bq() if runtime.backend_type == "bigquery" else None
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    append_event(
+        RunEvent(
+            run_id=run_id,
+            event_id=str(uuid.uuid4()),
+            stage="cv_regenerate_once_started",
+            level="info",
+            message="Regenerate-once worker started",
+            created_at=now,
+            payload_json=json.dumps(
+                {
+                    "job_url": job_url,
+                    "actor": actor,
+                    "note": note,
+                },
+                ensure_ascii=False,
+            ),
+        ),
+        bq,
+        project=project,
+        dataset=dataset,
+    )
+    try:
+        run = get_run(run_id, bq, project=project, dataset=dataset)
+        if run is None:
+            raise ValueError("run_not_found")
+        raw_payload = str(getattr(run, "cv_generation_debug_json", "") or "").strip()
+        if not raw_payload:
+            raise ValueError("missing_cv_generation_debug")
+        payload = decode_json_object_or_raise(raw_payload)
+        records_key = "debug_records" if isinstance(payload.get("debug_records"), list) else "cv_generation_debug_records"
+        records = payload.get(records_key)
+        if not isinstance(records, list):
+            raise ValueError("missing_debug_records")
+        target_record: dict[str, Any] | None = None
+        for item in records:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("job_url") or "").strip() != str(job_url or "").strip():
+                continue
+            if str(item.get("status") or "").strip() != "review_required":
+                continue
+            target_record = item
+            break
+        if target_record is None:
+            raise ValueError("review_required_record_not_found")
+        source_markdown = (
+            str(target_record.get("markdown_full") or "").strip()
+            or str(target_record.get("markdown_preview") or "").strip()
+            or str(target_record.get("markdown_final") or "").strip()
+        )
+        if not source_markdown:
+            raise ValueError("missing_draft_for_regeneration")
+        preview = _bounded_markdown_preview(source_markdown)
+        fingerprint = hashlib.sha256(source_markdown.encode("utf-8")).hexdigest()
+        attempts = int(target_record.get("regeneration_attempt_count") or 0) + 1
+        target_record["markdown_full"] = source_markdown
+        target_record["markdown_preview"] = preview
+        target_record["markdown_final"] = preview
+        target_record["last_regenerated_at"] = now.isoformat()
+        target_record["regenerated_draft_fingerprint"] = fingerprint
+        target_record["regeneration_attempt_count"] = attempts
+        target_record["last_regeneration_actor"] = str(actor or "admin").strip() or "admin"
+        payload[records_key] = records
+        update_run_cv_generation_debug(
+            run_id,
+            json.dumps(payload, ensure_ascii=False),
+            bq,
+            project=project,
+            dataset=dataset,
+        )
+        append_event(
+            RunEvent(
+                run_id=run_id,
+                event_id=str(uuid.uuid4()),
+                stage="cv_regenerate_once_succeeded",
+                level="info",
+                message="Regenerate-once worker completed",
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                payload_json=json.dumps(
+                    {
+                        "job_url": job_url,
+                        "actor": actor,
+                        "note": note,
+                        "regeneration_attempt_count": attempts,
+                        "regenerated_draft_fingerprint": fingerprint,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+            bq,
+            project=project,
+            dataset=dataset,
+        )
+    except Exception as exc:
+        append_event(
+            RunEvent(
+                run_id=run_id,
+                event_id=str(uuid.uuid4()),
+                stage="cv_regenerate_once_failed",
+                level="error",
+                message=f"Regenerate-once worker failed: {exc}",
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                payload_json=json.dumps(
+                    {
+                        "job_url": job_url,
+                        "actor": actor,
+                        "note": note,
+                        "error": str(exc),
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+            bq,
+            project=project,
+            dataset=dataset,
+        )
+        raise
 
 
 def _normalize_runtime_service_account_key(
@@ -285,13 +453,18 @@ def _build_late_stage_mode_payload(
 ) -> dict[str, Any]:
     existing_payload = summary.get("late_stage_mode")
     if isinstance(existing_payload, dict):
-        return dict(existing_payload)
-    agentic_enabled = _config_agentic_late_stage_enabled(effective_config)
+        normalized = dict(existing_payload)
+        normalized["late_stage_mode"] = "agentic"
+        normalized["agentic_late_stage_enabled"] = True
+        normalized["mode_source"] = "cv.agentic_late_stage.unified_runtime"
+        normalized["agentic_status"] = "completed"
+        return normalized
+    _ = _config_agentic_late_stage_enabled(effective_config)
     return {
-        "late_stage_mode": "agentic" if agentic_enabled else "non_agentic",
-        "agentic_late_stage_enabled": agentic_enabled,
-        "mode_source": "cv.agentic_late_stage.enabled",
-        "agentic_status": "completed" if agentic_enabled else "not_applicable",
+        "late_stage_mode": "agentic",
+        "agentic_late_stage_enabled": True,
+        "mode_source": "cv.agentic_late_stage.unified_runtime",
+        "agentic_status": "completed",
     }
 
 
@@ -305,35 +478,8 @@ def _build_results_export_payload(
     finished_at: datetime.datetime,
     replay_context: dict[str, Any],
 ) -> str:
-    def _json_safe(value: Any) -> Any:
-        if isinstance(value, datetime.datetime):
-            return value.isoformat()
-        if isinstance(value, datetime.date):
-            return value.isoformat()
-        if isinstance(value, dict):
-            return {str(k): _json_safe(v) for k, v in value.items()}
-        if isinstance(value, list):
-            return [_json_safe(item) for item in value]
-        if isinstance(value, tuple):
-            return [_json_safe(item) for item in value]
-        if isinstance(value, set):
-            return [_json_safe(item) for item in sorted(value)]
-        return value
-
-    def _string_or_none(value: Any) -> str | None:
-        return value if isinstance(value, str) else None
-
-    def _normalized_run_mode(value: Any) -> str:
-        run_mode = _string_or_none(value)
-        if run_mode in _RUN_MODE_LABELS:
-            return run_mode
-        return "run_all"
-
-    def _iso_or_none(value: Any) -> str | None:
-        return value.isoformat() if isinstance(value, datetime.datetime) else None
-
     diagnostic_support = {
-        "late_stage_reuse_snapshots": _json_safe(summary.get("late_stage_reuse_snapshots") or {}),
+        "late_stage_reuse_snapshots": json_safe(summary.get("late_stage_reuse_snapshots") or {}),
     }
     stage_result_summary: dict[str, Any] = {}
     stage_transition_artifacts = dict(summary.get("stage_transition_artifacts") or {})
@@ -349,7 +495,7 @@ def _build_results_export_payload(
         )
         stage_result_summary[str(stage_id)] = {
             "status": str(block.get("status") or ""),
-            "decision": _json_safe(stage_result.get("decision") or {}),
+            "decision": json_safe(stage_result.get("decision") or {}),
             "policy_version": str(stage_result.get("policy_version") or ""),
             "trace_context": {
                 "trace_id": str(trace_context.get("trace_id") or ""),
@@ -364,16 +510,17 @@ def _build_results_export_payload(
     payload = {
         "run_id": run_id,
         "results_schema_version": "results_job_ledger_v3",
+        "schema_version": "results_job_ledger_v3",
         "status": RunStatus.SUCCEEDED.value,
-        "triggered_by": _string_or_none(getattr(run_record, "triggered_by", "")) or "",
-        "run_mode": _normalized_run_mode(getattr(run_record, "run_mode", None)),
-        "run_mode_label": _RUN_MODE_LABELS[_normalized_run_mode(getattr(run_record, "run_mode", None))],
-        "created_at": _iso_or_none(getattr(run_record, "created_at", None)),
-        "started_at": _iso_or_none(getattr(run_record, "started_at", None)),
+        "triggered_by": string_or_none(getattr(run_record, "triggered_by", "")) or "",
+        "run_mode": normalized_run_mode(getattr(run_record, "run_mode", None)),
+        "run_mode_label": run_mode_label(getattr(run_record, "run_mode", None)),
+        "created_at": iso_or_none(getattr(run_record, "created_at", None)),
+        "started_at": iso_or_none(getattr(run_record, "started_at", None)),
         "finished_at": finished_at.isoformat(),
-        "jobs_path": _string_or_none(getattr(run_record, "jobs_path", "")) or "",
-        "jobs_input_source": _string_or_none(getattr(run_record, "jobs_input_source", None)),
-        "candidate_profile_source": _string_or_none(getattr(run_record, "candidate_profile_source", None)),
+        "jobs_path": string_or_none(getattr(run_record, "jobs_path", "")) or "",
+        "jobs_input_source": string_or_none(getattr(run_record, "jobs_input_source", None)),
+        "candidate_profile_source": string_or_none(getattr(run_record, "candidate_profile_source", None)),
         "summary": {
             "total_jobs": int(summary.get("total_jobs", 0)),
             "passed_filter": int(summary.get("passed_filter", 0)),
@@ -383,22 +530,23 @@ def _build_results_export_payload(
         "late_stage_mode": _build_late_stage_mode_payload(summary=summary),
         "stage_result_summary": stage_result_summary,
         "data_plane": data_plane_contract_payload(effective_config),
-        "replay_context": {
-            "replay_mode": str(replay_context.get("replay_mode") or "strict"),
-            "replay_source_run_id": str(replay_context.get("replay_source_run_id") or run_id),
-            "policy_registry_version": str(replay_context.get("policy_registry_version") or "policy_registry.v1"),
-            "policy_envelope_signature": str(replay_context.get("policy_envelope_signature") or ""),
-        },
-        "results": _json_safe(export_results),
+        "replay_context": replay_context_payload(replay_context=replay_context, run_id=run_id),
+        "results": json_safe(export_results),
     }
     if diagnostic_support["late_stage_reuse_snapshots"]:
         payload["diagnostic_support"] = diagnostic_support
-    return json.dumps(payload, ensure_ascii=False)
+    require_payload_keys(
+        payload,
+        required_keys={"run_id", "schema_version", "created_at", "replay_context"},
+        context="results_export_payload",
+    )
+    return encode_json_object(payload)
 
 
 def _collect_late_stage_reuse_snapshots(
     *,
     current_run_id: str,
+    allow_checkpointed_sources: bool,
     bq: Any,
     project: str,
     dataset: str,
@@ -420,25 +568,11 @@ def _collect_late_stage_reuse_snapshots(
         logger.warning("[run_id=%s] Failed to list prior runs for reuse lookup: %s", current_run_id, exc)
         return snapshots
 
-    for prior_run in prior_runs:
-        if prior_run.run_id == current_run_id:
-            continue
-        if prior_run.status != RunStatus.SUCCEEDED or not prior_run.results_export_json:
-            continue
-        try:
-            payload = json.loads(prior_run.results_export_json)
-        except Exception as exc:
-            logger.warning(
-                "[run_id=%s] Failed to parse prior results_export_json for reuse lookup [source_run_id=%s]: %s",
-                current_run_id,
-                prior_run.run_id,
-                exc,
-            )
-            continue
-        diagnostic_support = dict(payload.get("diagnostic_support") or {})
+    def _merge_reuse_payload(source_payload: dict[str, Any]) -> None:
+        diagnostic_support = dict(source_payload.get("diagnostic_support") or {})
         reuse_payload = dict(
             diagnostic_support.get("late_stage_reuse_snapshots")
-            or payload.get("late_stage_reuse_snapshots")
+            or source_payload.get("late_stage_reuse_snapshots")
             or {}
         )
         snapshots["ranking_ai_scores"].extend(
@@ -455,6 +589,77 @@ def _collect_late_stage_reuse_snapshots(
                 if isinstance(item, dict)
             ]
         )
+        if snapshots["ranking_ai_scores"] or snapshots["cv_analysis_records"]:
+            return
+        stage_root = dict(source_payload.get("artifacts") or source_payload)
+        stage_blocks = dict(stage_root.get("stages") or {})
+        ranking_block = dict(stage_blocks.get("ranking") or {})
+        ranking_rows = [item for item in list(ranking_block.get("outputs_sample") or []) if isinstance(item, dict)]
+        for row in ranking_rows:
+            fingerprint = str(row.get("ai_score_input_fingerprint") or "").strip()
+            job_url = str(row.get("job_url") or "").strip()
+            if not fingerprint or not job_url:
+                continue
+            snapshots["ranking_ai_scores"].append(
+                {
+                    "job_url": job_url,
+                    "ai_score_input_fingerprint": fingerprint,
+                    "ai_score_row": dict(row),
+                }
+            )
+        cv_analysis_block = dict(stage_blocks.get("cv_analysis") or {})
+        cv_analysis_rows = []
+        cv_analysis_rows.extend(
+            [item for item in list(cv_analysis_block.get("outputs_sample") or []) if isinstance(item, dict)]
+        )
+        cv_analysis_rows.extend(
+            [item for item in list(cv_analysis_block.get("dropped_or_changed_sample") or []) if isinstance(item, dict)]
+        )
+        for row in cv_analysis_rows:
+            fingerprint = str(row.get("analysis_input_fingerprint") or "").strip()
+            job_url = str(row.get("job_url") or "").strip()
+            if not fingerprint or not job_url:
+                continue
+            snapshots["cv_analysis_records"].append(
+                {
+                    "job_url": job_url,
+                    "analysis_input_fingerprint": fingerprint,
+                    "analysis_record": dict(row),
+                }
+            )
+
+    for prior_run in prior_runs:
+        if prior_run.run_id == current_run_id:
+            continue
+        if prior_run.status == RunStatus.SUCCEEDED and prior_run.results_export_json:
+            try:
+                payload = json.loads(prior_run.results_export_json)
+            except Exception as exc:
+                logger.warning(
+                    "[run_id=%s] Failed to parse prior results_export_json for reuse lookup [source_run_id=%s]: %s",
+                    current_run_id,
+                    prior_run.run_id,
+                    exc,
+                )
+            else:
+                _merge_reuse_payload(payload)
+                continue
+        if not allow_checkpointed_sources:
+            continue
+        stage_payload_raw = str(getattr(prior_run, "stage_transition_artifacts_json", "") or "").strip()
+        if not stage_payload_raw:
+            continue
+        try:
+            stage_payload = json.loads(stage_payload_raw)
+        except Exception as exc:
+            logger.warning(
+                "[run_id=%s] Failed to parse prior stage_transition_artifacts_json for reuse lookup [source_run_id=%s]: %s",
+                current_run_id,
+                prior_run.run_id,
+                exc,
+            )
+            continue
+        _merge_reuse_payload(stage_payload)
     return snapshots
 
 
@@ -465,29 +670,33 @@ def _build_cv_generation_debug_payload(
     summary: dict[str, Any],
     finished_at: datetime.datetime,
 ) -> str:
-    def _string_or_none(value: Any) -> str | None:
-        return value if isinstance(value, str) else None
-
-    def _normalized_run_mode(value: Any) -> str:
-        run_mode = _string_or_none(value)
-        if run_mode in _RUN_MODE_LABELS:
-            return run_mode
-        return "run_all"
-
     def _truncate_large_fields(record: dict[str, Any]) -> dict[str, Any]:
         truncated = dict(record)
         markdown_final = truncated.get("markdown_final")
-        if isinstance(markdown_final, str) and len(markdown_final) > _MAX_DEBUG_MARKDOWN_CHARS:
-            truncated["markdown_final"] = markdown_final[:_MAX_DEBUG_MARKDOWN_CHARS] + "\n...[truncated]"
+        if isinstance(markdown_final, str):
+            markdown_preview = markdown_final
+            if len(markdown_preview) > _MAX_DEBUG_MARKDOWN_CHARS:
+                markdown_preview = markdown_preview[:_MAX_DEBUG_MARKDOWN_CHARS] + "\n...[truncated]"
+            # Keep authoritative draft separate from bounded preview/debug payload.
+            truncated["markdown_full"] = markdown_final
+            truncated["markdown_preview"] = markdown_preview
+            # Legacy field remains bounded for compatibility with older readers.
+            truncated["markdown_final"] = markdown_preview
         return truncated
 
     debug_records = [
         _truncate_large_fields(record)
         for record in list(summary.get("cv_generation_debug_records") or [])
     ]
-    for record in debug_records:
+    for idx, record in enumerate(debug_records):
         if not isinstance(record, dict):
             continue
+        if str(record.get("status") or "").strip() == "review_required":
+            ensure_review_item_id(
+                run_id=run_id,
+                record=record,
+                fallback_index=idx + 1,
+            )
         ranking_fit_label = record.get("ranking_fit_label")
         reranker_fit_label = record.get("reranker_fit_label")
         if ranking_fit_label is None and reranker_fit_label is not None:
@@ -526,8 +735,9 @@ def _build_cv_generation_debug_payload(
         "run_id": run_id,
         "status": RunStatus.SUCCEEDED.value,
         "debug_schema_version": "cv_generation_debug_v3",
-        "run_mode": _normalized_run_mode(getattr(run_record, "run_mode", None)),
-        "run_mode_label": _RUN_MODE_LABELS[_normalized_run_mode(getattr(run_record, "run_mode", None))],
+        "schema_version": "cv_generation_debug_v3",
+        "run_mode": normalized_run_mode(getattr(run_record, "run_mode", None)),
+        "run_mode_label": run_mode_label(getattr(run_record, "run_mode", None)),
         "created_at": finished_at.isoformat(),
         "ranked_jobs_total": ranked_jobs_total,
         "debug_records_captured": len(debug_records),
@@ -541,8 +751,38 @@ def _build_cv_generation_debug_payload(
         payload["agentic_live_trace"] = dict(summary["agentic_live_trace"])
     if isinstance(summary.get("cv_analysis_trace"), dict):
         payload["cv_analysis_trace"] = dict(summary["cv_analysis_trace"])
-    return json.dumps(payload, ensure_ascii=False)
+    require_payload_keys(
+        payload,
+        required_keys={"run_id", "schema_version", "created_at", "debug_records"},
+        context="cv_generation_debug_payload",
+    )
+    return encode_json_object(payload)
 
+
+def _build_stage_transition_artifacts_payload_dict(
+    *,
+    run_id: str,
+    summary: dict[str, Any],
+    finished_at: datetime.datetime,
+    run_status: RunStatus = RunStatus.SUCCEEDED,
+    degradation_reason: str | None = None,
+) -> dict[str, Any]:
+    stage_artifacts = dict(summary.get("stage_transition_artifacts") or {})
+    snapshot_complete = bool(stage_artifacts) and run_status == RunStatus.SUCCEEDED
+    resolved_reason = (
+        str(degradation_reason or "").strip()
+        or ("partial_snapshot_non_terminal_success" if run_status != RunStatus.SUCCEEDED else "")
+    )
+    return {
+        "run_id": run_id,
+        "status": run_status.value,
+        "artifact_schema_version": STAGE_TRANSITION_ARTIFACTS_RUN_SCHEMA_VERSION,
+        "schema_version": STAGE_TRANSITION_ARTIFACTS_RUN_SCHEMA_VERSION,
+        "created_at": finished_at.isoformat(),
+        "snapshot_complete": snapshot_complete,
+        "degradation_reason": resolved_reason,
+        "artifacts": stage_artifacts,
+    }
 
 def _build_stage_transition_artifacts_payload(
     *,
@@ -552,22 +792,15 @@ def _build_stage_transition_artifacts_payload(
     run_status: RunStatus = RunStatus.SUCCEEDED,
     degradation_reason: str | None = None,
 ) -> str:
-    stage_artifacts = dict(summary.get("stage_transition_artifacts") or {})
-    snapshot_complete = bool(stage_artifacts) and run_status == RunStatus.SUCCEEDED
-    resolved_reason = (
-        str(degradation_reason or "").strip()
-        or ("partial_snapshot_non_terminal_success" if run_status != RunStatus.SUCCEEDED else "")
+    return encode_json_object(
+        _build_stage_transition_artifacts_payload_dict(
+            run_id=run_id,
+            summary=summary,
+            finished_at=finished_at,
+            run_status=run_status,
+            degradation_reason=degradation_reason,
+        )
     )
-    payload = {
-        "run_id": run_id,
-        "status": run_status.value,
-        "artifact_schema_version": "stage_transition_artifacts_run_v1",
-        "created_at": finished_at.isoformat(),
-        "snapshot_complete": snapshot_complete,
-        "degradation_reason": resolved_reason,
-        "artifacts": stage_artifacts,
-    }
-    return json.dumps(payload, ensure_ascii=False)
 
 
 def _build_manual_checkpoint_payload(
@@ -580,22 +813,23 @@ def _build_manual_checkpoint_payload(
     payload = {
         "run_id": run_id,
         "checkpoint_schema_version": "manual_checkpoint_v1",
+        "schema_version": "manual_checkpoint_v1",
         "created_at": created_at.isoformat(),
         "paused_after_stage": summary.get("paused_after_stage"),
         "next_stage": summary.get("next_stage"),
         "completed_stages": list(summary.get("completed_stages") or []),
         "checkpoint_payload": summary.get("checkpoint_payload") or {},
-        "replay_context": {
-            "replay_mode": str(replay_context.get("replay_mode") or "strict"),
-            "replay_source_run_id": str(replay_context.get("replay_source_run_id") or run_id),
-            "policy_registry_version": str(replay_context.get("policy_registry_version") or "policy_registry.v1"),
-            "policy_envelope_signature": str(replay_context.get("policy_envelope_signature") or ""),
-        },
+        "replay_context": replay_context_payload(replay_context=replay_context, run_id=run_id),
     }
-    return json.dumps(payload, ensure_ascii=False)
+    require_payload_keys(
+        payload,
+        required_keys={"run_id", "schema_version", "created_at", "replay_context"},
+        context="manual_checkpoint_payload",
+    )
+    return encode_json_object(payload)
 
 
-def _build_settings_used_payload(
+def _build_settings_used_payload_dict(
     *,
     run_id: str,
     run_record: Any,
@@ -603,8 +837,52 @@ def _build_settings_used_payload(
     config_path: str,
     finished_at: datetime.datetime,
     replay_context: dict[str, Any],
-) -> str:
+) -> dict[str, Any]:
     effective_settings = dict(effective_config or {})
+
+    def _materialize_stage_runtime_snapshot(settings: dict[str, Any]) -> None:
+        """Persist canonical stage_runtime values in settings-used snapshots."""
+        stage_runtime = dict(settings.get("stage_runtime") or {})
+
+        def _stage_block(stage: str) -> dict[str, Any]:
+            block = dict(stage_runtime.get(stage) or {})
+            stage_runtime[stage] = block
+            return block
+
+        enrich = _stage_block("enrich")
+        if "sleep_secs" not in enrich:
+            enrich["sleep_secs"] = settings.get("enrichment_sleep_secs", 0.5)
+        if "batch_size" not in enrich:
+            enrich["batch_size"] = settings.get("enrichment_batch_size", 10)
+        if "concurrency" not in enrich:
+            enrich["concurrency"] = settings.get("enrichment_concurrency", 1)
+
+        ranking = _stage_block("ranking")
+        if "sleep_secs" not in ranking:
+            ranking["sleep_secs"] = get_stage_runtime_sleep_secs(
+                settings,
+                stage="ranking",
+                default=0.5,
+                compatibility_fallback_key="rerank_sleep_secs",
+            )
+        if "concurrency" not in ranking:
+            ranking["concurrency"] = get_stage_runtime_concurrency(
+                settings,
+                stage="ranking",
+                default=1,
+            )
+
+        cv_analysis = _stage_block("cv_analysis")
+        cv_analysis.setdefault("sleep_secs", 0.0)
+        cv_analysis.setdefault("concurrency", 1)
+
+        cv_generation = _stage_block("cv_generation")
+        cv_generation.setdefault("sleep_secs", 0.0)
+        cv_generation.setdefault("concurrency", 1)
+
+        settings["stage_runtime"] = stage_runtime
+
+    _materialize_stage_runtime_snapshot(effective_settings)
     sqlite_mode = resolve_backend_runtime().backend_type == "sqlite"
     if sqlite_mode:
         effective_settings.pop("service_account_key", None)
@@ -617,7 +895,8 @@ def _build_settings_used_payload(
         compatibility_projection.pop("service_account_key", None)
     payload = {
         "run_id": run_id,
-        "settings_schema_version": "settings_used_v2",
+        "settings_schema_version": SETTINGS_USED_SCHEMA_VERSION,
+        "schema_version": SETTINGS_USED_SCHEMA_VERSION,
         "created_at": finished_at.isoformat(),
         "late_stage_mode": _build_late_stage_mode_payload(
             summary={},
@@ -641,12 +920,7 @@ def _build_settings_used_payload(
             ),
         },
         "data_plane": data_plane_contract_payload(effective_config),
-        "replay_context": {
-            "replay_mode": str(replay_context.get("replay_mode") or "strict"),
-            "replay_source_run_id": str(replay_context.get("replay_source_run_id") or run_id),
-            "policy_registry_version": str(replay_context.get("policy_registry_version") or "policy_registry.v1"),
-            "policy_envelope_signature": str(replay_context.get("policy_envelope_signature") or ""),
-        },
+        "replay_context": replay_context_payload(replay_context=replay_context, run_id=run_id),
     }
     if sqlite_mode:
         data_plane = dict(payload.get("data_plane") or {})
@@ -656,7 +930,32 @@ def _build_settings_used_payload(
         payload["data_plane"] = data_plane
     if compatibility_projection:
         payload["compatibility_projection"] = compatibility_projection
-    return json.dumps(payload, ensure_ascii=False)
+    require_payload_keys(
+        payload,
+        required_keys={"run_id", "schema_version", "created_at", "effective_settings", "data_plane"},
+        context="settings_used_payload",
+    )
+    return payload
+
+def _build_settings_used_payload(
+    *,
+    run_id: str,
+    run_record: Any,
+    effective_config: dict[str, Any] | None,
+    config_path: str,
+    finished_at: datetime.datetime,
+    replay_context: dict[str, Any],
+) -> str:
+    return encode_json_object(
+        _build_settings_used_payload_dict(
+            run_id=run_id,
+            run_record=run_record,
+            effective_config=effective_config,
+            config_path=config_path,
+            finished_at=finished_at,
+            replay_context=replay_context,
+        )
+    )
 
 
 def _build_mapping_suggestions_payload(
@@ -667,205 +966,23 @@ def _build_mapping_suggestions_payload(
 ) -> str:
     payload = {
         "run_id": run_id,
-        "mapping_suggestions_schema_version": "mapping_suggestions_v1",
+        "mapping_suggestions_schema_version": MAPPING_SUGGESTIONS_SCHEMA_VERSION,
+        "schema_version": MAPPING_SUGGESTIONS_SCHEMA_VERSION,
         "created_at": created_at.isoformat(),
         "suggestions": list(summary.get("mapping_suggestions") or []),
     }
-    return json.dumps(payload, ensure_ascii=False)
-
-
-def _build_synonym_proposals_payload(
-    *,
-    run_id: str,
-    summary: dict[str, Any],
-    created_at: datetime.datetime,
-    existing_payload_json: str | None = None,
-    global_synonyms: dict[str, str] | None = None,
-) -> str:
-    existing_proposals_by_id: dict[str, dict[str, Any]] = {}
-    if existing_payload_json:
-        try:
-            existing_payload = json.loads(existing_payload_json)
-        except (TypeError, json.JSONDecodeError):
-            existing_payload = None
-        if isinstance(existing_payload, dict):
-            for existing_proposal in list(existing_payload.get("proposals") or []):
-                if not isinstance(existing_proposal, dict):
-                    continue
-                proposal_id = str(existing_proposal.get("proposal_id") or "").strip()
-                if proposal_id:
-                    existing_proposals_by_id[proposal_id] = existing_proposal
-
-    grouped: dict[tuple[str, str], dict[str, Any]] = {}
-    for suggestion in list(summary.get("mapping_suggestions") or []):
-        if not isinstance(suggestion, dict):
-            continue
-        field = str(suggestion.get("field") or "skill").strip().lower() or "skill"
-        alias = str(suggestion.get("alias") or "").strip().lower()
-        canonical = str(suggestion.get("canonical") or "").strip().lower()
-        if not alias or not canonical:
-            continue
-        bucket = grouped.setdefault(
-            (field, alias),
-            {
-                "field": field,
-                "alias": alias,
-                "candidate_canonicals": {},
-                "must_have_skills": set(),
-                "job_refs": [],
-                "occurrence_count": 0,
-                "confidence_sum": 0.0,
-            },
-        )
-        bucket["occurrence_count"] += 1
-        confidence = float(suggestion.get("confidence") or 0.0)
-        bucket["confidence_sum"] += confidence
-        bucket["candidate_canonicals"][canonical] = (
-            bucket["candidate_canonicals"].get(canonical, 0) + 1
-        )
-        must_have_skill = str(suggestion.get("must_have_skill") or "").strip().lower()
-        if must_have_skill:
-            bucket["must_have_skills"].add(must_have_skill)
-        job_url = str(suggestion.get("job_url") or "").strip()
-        if job_url and len(bucket["job_refs"]) < 5:
-            bucket["job_refs"].append(
-                {
-                    "job_url": job_url,
-                    "job_title": str(suggestion.get("job_title") or "").strip(),
-                    "confidence": confidence,
-                }
-            )
-
-    proposals: list[dict[str, Any]] = []
-    normalized_global_synonyms: dict[str, str] = {}
-    if isinstance(global_synonyms, dict):
-        normalized_global_synonyms = {
-            str(alias).strip().lower(): str(canonical).strip().lower()
-            for alias, canonical in global_synonyms.items()
-            if str(alias).strip() and str(canonical).strip()
-        }
-    suppressed_as_already_global_count = 0
-    suppressed_count_by_field: dict[str, int] = {}
-    suppressed_reason_counts_by_field: dict[str, dict[str, int]] = {}
-    suppressed_examples: list[dict[str, str]] = []
-    for (_field_alias_key, bucket) in grouped.items():
-        field = str(bucket.get("field") or "skill")
-        alias = str(bucket.get("alias") or "")
-        ranked_canonicals = sorted(
-            bucket["candidate_canonicals"].items(),
-            key=lambda item: (-int(item[1]), item[0]),
-        )
-        candidate_canonicals = [canonical for canonical, _count in ranked_canonicals]
-        primary_canonical = candidate_canonicals[0]
-        has_conflict = len(candidate_canonicals) > 1
-        proposal_family = "conflict_bundle" if has_conflict else "alias_to_canonical_mapping"
-        occurrence_count = int(bucket["occurrence_count"])
-        avg_confidence = (
-            float(bucket["confidence_sum"]) / occurrence_count if occurrence_count else 0.0
-        )
-        if field in {"domain", "role_family"} and occurrence_count < _NON_SKILL_MIN_SUPPORT_FOR_PROPOSAL:
-            suppressed_count_by_field[field] = suppressed_count_by_field.get(field, 0) + 1
-            reason_bucket = suppressed_reason_counts_by_field.setdefault(field, {})
-            reason_bucket["insufficient_non_skill_support"] = (
-                reason_bucket.get("insufficient_non_skill_support", 0) + 1
-            )
-            if len(suppressed_examples) < 10:
-                suppressed_examples.append(
-                    {
-                        "field": field,
-                        "alias": alias,
-                        "canonical": primary_canonical,
-                    }
-                )
-            continue
-        identity_seed = f"{run_id}:{field}:{alias}:{'|'.join(candidate_canonicals)}:{proposal_family}"
-        proposal_id = f"synprop-{hashlib.sha1(identity_seed.encode('utf-8')).hexdigest()[:12]}"
-        existing_proposal = existing_proposals_by_id.get(proposal_id) or {}
-        global_canonical = normalized_global_synonyms.get(alias) if field == "skill" else None
-        if global_canonical and global_canonical == primary_canonical:
-            suppressed_as_already_global_count += 1
-            suppressed_count_by_field[field] = suppressed_count_by_field.get(field, 0) + 1
-            reason_bucket = suppressed_reason_counts_by_field.setdefault(field, {})
-            reason_bucket["already_global_exact"] = reason_bucket.get("already_global_exact", 0) + 1
-            if len(suppressed_examples) < 10:
-                suppressed_examples.append({"field": field, "alias": alias, "canonical": primary_canonical})
-            continue
-        proposals.append(
-            {
-                "proposal_id": proposal_id,
-                "run_id": run_id,
-                "field": field,
-                "alias": alias,
-                "canonical": primary_canonical,
-                "candidate_aliases": [alias],
-                "candidate_canonicals": candidate_canonicals,
-                "confidence": round(avg_confidence, 6),
-                "rationale": {
-                    "kind": "alias_conflict" if has_conflict else "repeated_alias_mapping",
-                    "occurrence_count": occurrence_count,
-                    "distinct_canonical_count": len(candidate_canonicals),
-                },
-                "evidence_summary": {
-                    "occurrence_count": occurrence_count,
-                    "average_confidence": round(avg_confidence, 6),
-                    "must_have_skills": sorted(bucket["must_have_skills"]),
-                    "sample_job_refs": list(bucket["job_refs"]),
-                },
-                "conflict_summary": {
-                    "has_conflict": has_conflict,
-                    "conflicting_canonicals": candidate_canonicals[1:],
-                },
-                "proposal_status": str(existing_proposal.get("proposal_status") or "proposed_unreviewed"),
-                "proposal_scope": "run_scoped_overlay_candidate",
-                "proposal_family": proposal_family,
-                "source_artifact_refs": {
-                    "run_id": run_id,
-                    "artifact_type": "mapping_suggestions",
-                },
-                "review_history": list(existing_proposal.get("review_history") or []),
-            }
-        )
-    proposals.sort(key=lambda item: (-float(item["confidence"]), str(item["alias"])))
-    payload = {
-        "run_id": run_id,
-        "synonym_proposals_schema_version": "synonym_proposals_v1",
-        "created_at": created_at.isoformat(),
-        "proposal_generation_status": "generated" if proposals else "not_applicable",
-        "persistence_status": "persisted" if proposals else "not_applicable",
-        "proposals": proposals,
-    }
-    payload["synonym_proposals_trace"] = _build_synonym_proposals_trace_payload(
-        run_id=run_id,
-        created_at=created_at,
-        proposal_generation_status=str(payload["proposal_generation_status"] or ""),
-        persistence_status=str(payload["persistence_status"] or ""),
-        proposals=proposals,
-        suppression_summary={
-            "suppressed_as_already_global_count": suppressed_as_already_global_count,
-            "generated_for_review_count": len(proposals),
-            "suppressed_count_by_field": suppressed_count_by_field,
-            "suppressed_reason_counts_by_field": suppressed_reason_counts_by_field,
-            "suppressed_examples": suppressed_examples,
-            "suppression_source": (
-                "run_effective_skill_synonyms"
-                if normalized_global_synonyms
-                else "none"
-            ),
-        },
+    require_payload_keys(
+        payload,
+        required_keys={"run_id", "schema_version", "created_at", "suggestions"},
+        context="mapping_suggestions_payload",
     )
-    return json.dumps(payload, ensure_ascii=False)
+    return encode_json_object(payload)
+
+
 
 def _effective_skill_synonyms_from_run_record(run_record: Any) -> dict[str, str]:
-    if run_record is None:
-        return {}
-    raw_payload = getattr(run_record, "effective_settings_json", None)
-    if not raw_payload:
-        return {}
-    try:
-        settings_payload = json.loads(raw_payload)
-    except (TypeError, json.JSONDecodeError):
-        return {}
-    if not isinstance(settings_payload, dict):
+    settings_payload = _effective_settings_payload_from_run_record(run_record)
+    if not settings_payload:
         return {}
     raw_synonyms = settings_payload.get("skill_synonyms")
     if not isinstance(raw_synonyms, dict):
@@ -876,98 +993,26 @@ def _effective_skill_synonyms_from_run_record(run_record: Any) -> dict[str, str]
         if str(alias).strip() and str(canonical).strip()
     }
 
-def _synonym_propose_enabled_from_run_record(run_record: Any) -> bool:
+
+def _effective_settings_payload_from_run_record(run_record: Any) -> dict[str, Any] | None:
     if run_record is None:
-        return True
+        return None
     raw_payload = getattr(run_record, "effective_settings_json", None)
     if not raw_payload:
-        return True
-    try:
-        settings_payload = json.loads(raw_payload)
-    except (TypeError, json.JSONDecodeError):
-        return True
-    if not isinstance(settings_payload, dict):
-        return True
-    block = dict(settings_payload.get("synonym_management") or {})
-    return bool(block.get("propose_enabled", True))
+        return None
+    return decode_json_object_or_none(str(raw_payload))
+
+def _synonym_propose_enabled_from_run_record(run_record: Any) -> bool:
+    return bool(_synonym_management_mode_from_run_record(run_record).get("propose_enabled", True))
 
 
 def _auto_accept_ai_action_enabled_from_run_record(run_record: Any) -> bool:
-    if run_record is None:
-        return True
-    raw_payload = getattr(run_record, "effective_settings_json", None)
-    if not raw_payload:
-        return True
-    try:
-        settings_payload = json.loads(raw_payload)
-    except (TypeError, json.JSONDecodeError):
-        return True
-    if not isinstance(settings_payload, dict):
-        return True
-    block = dict(settings_payload.get("synonym_management") or {})
-    return bool(block.get("auto_accept_ai_action_enabled", True))
+    return bool(_synonym_management_mode_from_run_record(run_record).get("auto_accept_ai_action_enabled", True))
 
 def _synonym_management_mode_from_run_record(run_record: Any) -> dict[str, bool]:
-    if run_record is None:
-        return {
-            "propose_enabled": True,
-            "apply_to_run_enabled": True,
-            "promote_global_enabled": True,
-            "auto_triage_recommendation_enabled": True,
-            "triage_recommendation_reuse_enabled": True,
-            "auto_apply_recommendation_enabled": False,
-            "auto_promote_global_enabled": False,
-        }
-    raw_payload = getattr(run_record, "effective_settings_json", None)
-    if not raw_payload:
-        return {
-            "propose_enabled": True,
-            "apply_to_run_enabled": True,
-            "promote_global_enabled": True,
-            "auto_triage_recommendation_enabled": True,
-            "triage_recommendation_reuse_enabled": True,
-            "auto_apply_recommendation_enabled": False,
-            "auto_promote_global_enabled": False,
-        }
-    try:
-        settings_payload = json.loads(raw_payload)
-    except (TypeError, json.JSONDecodeError):
-        settings_payload = {}
-    if not isinstance(settings_payload, dict):
-        settings_payload = {}
-    block = dict(settings_payload.get("synonym_management") or {})
-    return {
-        "propose_enabled": bool(block.get("propose_enabled", True)),
-        "apply_to_run_enabled": bool(block.get("apply_to_run_enabled", True)),
-        "promote_global_enabled": bool(block.get("promote_global_enabled", True)),
-        "auto_triage_recommendation_enabled": bool(block.get("auto_triage_recommendation_enabled", True)),
-        "triage_recommendation_reuse_enabled": bool(block.get("triage_recommendation_reuse_enabled", True)),
-        "auto_apply_recommendation_enabled": bool(block.get("auto_apply_recommendation_enabled", False)),
-        "auto_promote_global_enabled": bool(block.get("auto_promote_global_enabled", False)),
-    }
-
-def _stable_sha256_json(payload: dict[str, Any]) -> str:
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-def _transition_synonym_proposal_status(current_status: str, action: str) -> str | None:
-    transitions = {
-        "approve_for_run_overlay": {
-            "proposed_unreviewed": "approved_for_run_overlay",
-            "in_review": "approved_for_run_overlay",
-            "deferred": "approved_for_run_overlay",
-        },
-        "reject": {
-            "proposed_unreviewed": "rejected",
-            "in_review": "rejected",
-            "deferred": "rejected",
-        },
-        "defer": {
-            "proposed_unreviewed": "deferred",
-            "in_review": "deferred",
-        },
-    }
-    return transitions.get(action, {}).get(str(current_status or "").strip())
+    settings_payload = _effective_settings_payload_from_run_record(run_record)
+    # Keep worker policy flags fully sourced from shared synonym policy resolver.
+    return resolve_synonym_management_mode(settings_payload)
 
 def _triage_synonym_proposal_recommendation_builtin(proposal: dict[str, Any], *, now_iso: str) -> dict[str, Any]:
     alias = str(proposal.get("alias") or "").strip().lower()
@@ -1030,159 +1075,58 @@ def _load_global_skill_synonyms_map() -> dict[str, str]:
 def _build_synonym_overlay_yaml(overlay: dict[str, str]) -> str:
     if not overlay:
         return ""
-    lines = ["skill_synonyms:"]
-    for alias, canonical in sorted(overlay.items()):
-        lines.append(f"  {alias}: {canonical}")
-    return "\n".join(lines) + "\n"
+    payload = {
+        "skill_synonyms": {
+            str(alias): str(canonical)
+            for alias, canonical in sorted(overlay.items())
+        }
+    }
+    return yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
 
 def _persist_global_skill_synonyms_map(mappings: dict[str, str]) -> None:
     path = _global_skill_synonyms_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_build_synonym_overlay_yaml(mappings), encoding="utf-8")
+    content = _build_synonym_overlay_yaml(mappings)
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(path.parent),
+            prefix=f"{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp_file:
+            tmp_file.write(content)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+            tmp_path = Path(tmp_file.name)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
 
 
 def _map_review_required_reason_code(record: dict[str, Any]) -> str:
     explicit_code = str(record.get("review_required_reason_code") or "").strip()
-    if explicit_code and explicit_code != "unknown":
+    from fitcv.pipeline_contracts import ReviewRequiredReasonCode, is_review_required_reason_code
+
+    if is_review_required_reason_code(explicit_code):
         return explicit_code
     error = dict(record.get("error") or {})
     stage = str(error.get("stage") or "").strip().lower()
     message = str(error.get("message") or record.get("operator_note") or "").strip().lower()
     if "unsupported requirements require review" in message:
-        return "unsupported_requirement_gap"
+        return ReviewRequiredReasonCode.UNSUPPORTED_REQUIREMENT_GAP.value
     if stage == "markdown_quality_review" or "markdown quality" in message:
-        return "quality_gate_failed"
+        return ReviewRequiredReasonCode.QUALITY_GATE_FAILED.value
     if stage == "validation" or "validation failed" in message or "guardrail" in message:
-        return "validation_guardrail_failed"
+        return ReviewRequiredReasonCode.VALIDATION_GUARDRAIL_FAILED.value
     if "insufficient evidence" in message or "evidence coverage" in message:
-        return "evidence_coverage_insufficient"
+        return ReviewRequiredReasonCode.EVIDENCE_COVERAGE_INSUFFICIENT.value
     if stage in {"provider", "llm"} or "provider" in message or "response unusable" in message:
-        return "provider_response_unusable"
-    return "manual_review_other"
-
-
-def _build_synonym_proposals_trace_payload(
-    *,
-    run_id: str,
-    created_at: datetime.datetime,
-    proposal_generation_status: str,
-    persistence_status: str,
-    proposals: list[dict[str, Any]],
-    suppression_summary: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    if proposal_generation_status == "not_applicable":
-        return {
-            "run_id": run_id,
-            "trace_schema_version": "agentic_step_trace_run_v1",
-            "trace_family": "agentic_step_trace",
-            "step_id": "synonym_proposals",
-            "created_at": created_at.isoformat(),
-            "trace_status": "not_applicable",
-            "trace_summary": {
-                "records_total": 0,
-                "present_records": 0,
-                "proposal_count": 0,
-                "suppressed_as_already_global_count": int(
-                    (suppression_summary or {}).get("suppressed_as_already_global_count") or 0
-                ),
-                "generated_for_review_count": int(
-                    (suppression_summary or {}).get("generated_for_review_count") or 0
-                ),
-                "suppression_source": str((suppression_summary or {}).get("suppression_source") or "none"),
-                "suppressed_count_by_field": dict((suppression_summary or {}).get("suppressed_count_by_field") or {}),
-                "suppressed_reason_counts_by_field": dict((suppression_summary or {}).get("suppressed_reason_counts_by_field") or {}),
-            },
-            "records": [],
-            "degradation": {},
-            "artifact_refs": {},
-            "suppression_examples": list((suppression_summary or {}).get("suppressed_examples") or []),
-        }
-
-    trace_records: list[dict[str, Any]] = []
-    for proposal in proposals:
-        if not isinstance(proposal, dict):
-            continue
-        proposal_id = str(proposal.get("proposal_id") or "").strip()
-        alias = str(proposal.get("alias") or "").strip()
-        trace_records.append(
-            {
-                "trace_schema_version": "agentic_step_trace_record_v1",
-                "trace_family": "agentic_step_trace",
-                "step_id": "synonym_proposals",
-                "trace_status": "completed",
-                "record_id": proposal_id or alias,
-                "scope_type": "alias",
-                "scope_key": alias,
-                "status": str(proposal.get("proposal_status") or "proposed_unreviewed"),
-                "runtime_provenance": {
-                    "runtime_path": "fitcv_synonym_proposal_builder_builtin",
-                    "provider": "fitcv_builtin",
-                    "mode_source": "mapping_suggestions_to_synonym_proposals",
-                },
-                "attempts": [
-                    {
-                        "attempt_index": 1,
-                        "attempt_type": "proposal_generation",
-                        "attempt_status": "completed",
-                        "provider_status": "completed",
-                    }
-                ],
-                "input_summary": {
-                    "alias": alias,
-                    "candidate_canonicals_count": len(list(proposal.get("candidate_canonicals") or [])),
-                },
-                "output_summary": {
-                    "proposal_family": str(proposal.get("proposal_family") or ""),
-                    "proposal_scope": str(proposal.get("proposal_scope") or ""),
-                    "confidence": float(proposal.get("confidence") or 0.0),
-                },
-                "validation_summary": {"status": "not_run"},
-                "repair_summary": {"repair_attempted": False, "repair_attempts": 0},
-                "error_summary": None,
-            }
-        )
-
-    trace_status = "completed"
-    degradation: dict[str, Any] = {}
-    if persistence_status == "bundle_only_degraded":
-        trace_status = "degraded"
-        degradation = {"reason": "synonym_proposals_bundle_only_degraded"}
-    elif persistence_status == "failed":
-        trace_status = "degraded"
-        degradation = {"reason": "synonym_proposals_persistence_failed"}
-    elif not trace_records:
-        trace_status = "partial"
-        degradation = {"reason": "proposal_generation_without_trace_records"}
-
-    return {
-        "run_id": run_id,
-        "trace_schema_version": "agentic_step_trace_run_v1",
-        "trace_family": "agentic_step_trace",
-        "step_id": "synonym_proposals",
-        "created_at": created_at.isoformat(),
-        "trace_status": trace_status,
-        "trace_summary": {
-            "records_total": len(proposals),
-            "present_records": len(trace_records),
-            "proposal_count": len(proposals),
-            "suppressed_as_already_global_count": int(
-                (suppression_summary or {}).get("suppressed_as_already_global_count") or 0
-            ),
-            "generated_for_review_count": int(
-                (suppression_summary or {}).get("generated_for_review_count") or len(proposals)
-            ),
-            "suppression_source": str((suppression_summary or {}).get("suppression_source") or "none"),
-            "suppressed_count_by_field": dict((suppression_summary or {}).get("suppressed_count_by_field") or {}),
-            "suppressed_reason_counts_by_field": dict((suppression_summary or {}).get("suppressed_reason_counts_by_field") or {}),
-        },
-        "records": trace_records,
-        "degradation": degradation,
-        "artifact_refs": {
-            "proposal_artifact": "synonym-proposals.json",
-            "stage_artifact": "enrich.json",
-        },
-        "suppression_examples": list((suppression_summary or {}).get("suppressed_examples") or []),
-    }
+        return ReviewRequiredReasonCode.PROVIDER_RESPONSE_UNUSABLE.value
+    return ReviewRequiredReasonCode.MANUAL_REVIEW_OTHER.value
 
 
 def _summary_has_reached_stage(summary: dict[str, Any], stage_id: str) -> bool:
@@ -1221,11 +1165,8 @@ def _append_synonym_suppression_summary_event(
     project: str,
     dataset: str,
 ) -> None:
-    try:
-        payload = json.loads(synonym_payload_json)
-    except (TypeError, json.JSONDecodeError):
-        return
-    if not isinstance(payload, dict):
+    payload = decode_json_object_or_none(synonym_payload_json)
+    if not payload:
         return
     trace_payload = payload.get("synonym_proposals_trace")
     if not isinstance(trace_payload, dict):
@@ -1242,7 +1183,8 @@ def _append_synonym_suppression_summary_event(
         "suppression_source": str(trace_summary.get("suppression_source") or "none"),
         "suppression_examples": list(trace_payload.get("suppression_examples") or []),
     }
-    suppression_fingerprint = hashlib.sha1(
+    suppression_fingerprint_sha256 = stable_sha256_fingerprint(suppression_payload)
+    suppression_fingerprint_sha1 = hashlib.sha1(
         json.dumps(suppression_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()
     try:
@@ -1252,11 +1194,11 @@ def _append_synonym_suppression_summary_event(
     for prior in reversed(prior_events):
         if str(getattr(prior, "stage", "") or "") != "synonym_proposal_suppression_summary":
             continue
-        try:
-            prior_payload = json.loads(str(getattr(prior, "payload_json", "") or "{}"))
-        except (TypeError, json.JSONDecodeError):
-            prior_payload = {}
-        if str(prior_payload.get("suppression_fingerprint") or "") == suppression_fingerprint:
+        prior_payload = decode_json_object_or_none(str(getattr(prior, "payload_json", "") or "")) or {}
+        prior_fingerprint = str(prior_payload.get("suppression_fingerprint") or "").strip()
+        if not prior_fingerprint:
+            break
+        if prior_fingerprint in {suppression_fingerprint_sha256, suppression_fingerprint_sha1}:
             return
         break
     append_event(
@@ -1271,7 +1213,12 @@ def _append_synonym_suppression_summary_event(
             ),
             created_at=datetime.datetime.now(datetime.timezone.utc),
             payload_json=json.dumps(
-                {**suppression_payload, "suppression_fingerprint": suppression_fingerprint},
+                {
+                    **suppression_payload,
+                    "suppression_fingerprint": suppression_fingerprint_sha256,
+                    "suppression_fingerprint_legacy_sha1": suppression_fingerprint_sha1,
+                    "suppression_payload_canonical_json": stable_json_dumps(suppression_payload),
+                },
                 ensure_ascii=False,
             ),
         ),
@@ -1300,6 +1247,8 @@ def _run_synonym_automation_for_payload(
 
     triaged_count = 0
     reused_count = 0
+    reused_strict_count = 0
+    reused_core_count = 0
     fresh_count = 0
     skipped_count = 0
     failed_count = 0
@@ -1317,27 +1266,40 @@ def _run_synonym_automation_for_payload(
                 skipped_count += 1
                 continue
             runtime_meta = dict(proposal.get("recommendation_runtime") or {})
-            triage_fp = _stable_sha256_json(
-                {
-                    "proposal_id": str(proposal.get("proposal_id") or "").strip(),
-                    "alias": str(proposal.get("alias") or "").strip().lower(),
-                    "canonical": str(proposal.get("canonical") or "").strip().lower(),
-                    "confidence": round(float(proposal.get("confidence") or 0.0), 6),
-                    "candidate_canonicals": sorted(
-                        {
-                            str(item).strip().lower()
-                            for item in list(proposal.get("candidate_canonicals") or [])
-                            if str(item).strip()
-                        }
-                    ),
+            reuse_eval = evaluate_synonym_triage_reuse(
+                proposal=proposal,
+                runtime={
                     "provider": "fitcv_builtin",
                     "model": "synonym_triage_v1",
                     "wire_api": "builtin",
-                }
+                    "sleep_secs": 0.0,
+                    "concurrency": 1,
+                },
+                runtime_meta=runtime_meta,
             )
             reuse_enabled = bool(mode.get("triage_recommendation_reuse_enabled"))
-            if reuse_enabled and str(runtime_meta.get("triage_fingerprint") or "").strip() == triage_fp:
+            triage_fingerprint = str(reuse_eval.get("strict_fingerprint") or "")
+            runtime_meta["reuse_decision"] = build_reuse_decision(
+                decision=(
+                    "reused_exact_match"
+                    if reuse_enabled and str(reuse_eval.get("decision") or "") in {"strict_reuse", "core_reuse"}
+                    else "fresh_compute"
+                ),
+                reason_code=(
+                    "exact_fingerprint_match"
+                    if reuse_enabled and str(reuse_eval.get("decision") or "") in {"strict_reuse", "core_reuse"}
+                    else str(reuse_eval.get("reason") or "no_reusable_snapshot_match")
+                ),
+                fingerprint=triage_fingerprint,
+                source_artifact_type="synonym_triage",
+            )
+            proposal["recommendation_runtime"] = runtime_meta
+            if reuse_enabled and str(reuse_eval.get("decision") or "") in {"strict_reuse", "core_reuse"}:
                 reused_count += 1
+                if str(reuse_eval.get("decision") or "") == "strict_reuse":
+                    reused_strict_count += 1
+                else:
+                    reused_core_count += 1
                 triaged_count += 1
                 continue
             try:
@@ -1347,7 +1309,14 @@ def _run_synonym_automation_for_payload(
                 fallback_count += 1
                 continue
             recommendation_runtime = dict(recommendation.get("recommendation_runtime") or {})
-            recommendation_runtime["triage_fingerprint"] = triage_fp
+            recommendation_runtime["triage_fingerprint"] = str(reuse_eval.get("strict_fingerprint") or "")
+            recommendation_runtime["triage_fingerprint_strict"] = str(reuse_eval.get("strict_fingerprint") or "")
+            recommendation_runtime["triage_fingerprint_core"] = str(reuse_eval.get("core_fingerprint") or "")
+            gate = dict(reuse_eval.get("gate") or {})
+            recommendation_runtime["triage_gate_status"] = str(gate.get("status") or "")
+            recommendation_runtime["triage_gate_has_conflict"] = bool(gate.get("has_conflict"))
+            recommendation_runtime["triage_gate_canonical"] = str(gate.get("canonical") or "")
+            recommendation_runtime["triage_gate_candidate_canonicals"] = list(gate.get("candidate_canonicals") or [])
             updated = dict(proposal)
             updated.update(
                 {
@@ -1366,40 +1335,67 @@ def _run_synonym_automation_for_payload(
             fresh_count += 1
             triaged_count += 1
 
-        append_event(
-            RunEvent(
-                run_id=run_id,
-                event_id=str(uuid.uuid4()),
-                stage="synonym_proposal_triage_completed",
-                level="info",
-                message=(
-                    "Synonym triage refresh completed: "
-                    f"triaged={triaged_count}, reused={reused_count}, "
-                    f"fallback={fallback_count}, skipped={skipped_count}, failed={failed_count}"
+        event_payload = {
+            "triaged_count": triaged_count,
+            "reused_count": reused_count,
+            "reused_strict_count": reused_strict_count,
+            "reused_core_count": reused_core_count,
+            "fresh_count": fresh_count,
+            "fallback_count": fallback_count,
+            "skipped_count": skipped_count,
+            "failed_count": failed_count,
+            "reuse_reason": reuse_reason,
+            "auto_triage_recommendation_enabled": bool(mode.get("auto_triage_recommendation_enabled")),
+            "triage_recommendation_reuse_enabled": bool(mode.get("triage_recommendation_reuse_enabled")),
+            "provider": "fitcv_builtin",
+            "model": "synonym_triage_v1",
+            "wire_api": "builtin",
+        }
+        event_fingerprint = hashlib.sha256(
+            json.dumps(event_payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        last_fingerprint = str(trace_summary.get("triage_recommendation_event_fingerprint") or "").strip()
+        already_emitted = False
+        if event_fingerprint == last_fingerprint:
+            already_emitted = True
+        else:
+            try:
+                prior_events = get_events(run_id, bq, project=project, dataset=dataset)
+            except Exception:
+                prior_events = []
+            for prior_event in reversed(prior_events):
+                if str(prior_event.stage or "").strip() != "synonym_proposal_triage_completed":
+                    continue
+                try:
+                    prior_payload = json.loads(str(prior_event.payload_json or "{}"))
+                except Exception:
+                    prior_payload = {}
+                prior_fp = hashlib.sha256(
+                    json.dumps(dict(prior_payload), sort_keys=True, ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
+                if prior_fp == event_fingerprint:
+                    already_emitted = True
+                break
+        if not already_emitted:
+            append_event(
+                RunEvent(
+                    run_id=run_id,
+                    event_id=str(uuid.uuid4()),
+                    stage="synonym_proposal_triage_completed",
+                    level="info",
+                    message=(
+                        "Synonym triage refresh completed: "
+                        f"triaged={triaged_count}, reused={reused_count}, "
+                        f"fallback={fallback_count}, skipped={skipped_count}, failed={failed_count}"
+                    ),
+                    created_at=datetime.datetime.now(datetime.timezone.utc),
+                    payload_json=json.dumps(event_payload, ensure_ascii=False),
                 ),
-                created_at=datetime.datetime.now(datetime.timezone.utc),
-                payload_json=json.dumps(
-                    {
-                        "triaged_count": triaged_count,
-                        "reused_count": reused_count,
-                        "fresh_count": fresh_count,
-                        "fallback_count": fallback_count,
-                        "skipped_count": skipped_count,
-                        "failed_count": failed_count,
-                        "reuse_reason": reuse_reason,
-                        "auto_triage_recommendation_enabled": bool(mode.get("auto_triage_recommendation_enabled")),
-                        "triage_recommendation_reuse_enabled": bool(mode.get("triage_recommendation_reuse_enabled")),
-                        "provider": "fitcv_builtin",
-                        "model": "synonym_triage_v1",
-                        "wire_api": "builtin",
-                    },
-                    ensure_ascii=False,
-                ),
-            ),
-            bq,
-            project=project,
-            dataset=dataset,
-        )
+                bq,
+                project=project,
+                dataset=dataset,
+            )
+        trace_summary["triage_recommendation_event_fingerprint"] = event_fingerprint
 
     auto_apply_counts = {"applied": 0, "skipped": 0, "failed": 0, "reason_counts": {}}
     if bool(mode.get("auto_apply_recommendation_enabled")) and bool(mode.get("apply_to_run_enabled")):
@@ -1416,7 +1412,7 @@ def _run_synonym_automation_for_payload(
                 auto_apply_counts["skipped"] += 1
                 auto_apply_counts["reason_counts"]["missing_recommendation"] = int(auto_apply_counts["reason_counts"].get("missing_recommendation", 0)) + 1
                 continue
-            next_status = _transition_synonym_proposal_status(status, action)
+            next_status = transition_synonym_proposal_status(status, action)
             if not next_status:
                 auto_apply_counts["failed"] += 1
                 auto_apply_counts["reason_counts"]["invalid_transition"] = int(auto_apply_counts["reason_counts"].get("invalid_transition", 0)) + 1
@@ -1594,10 +1590,12 @@ def _run_synonym_automation_for_payload(
                             )
     trace_summary["triage_recommendation_generated_total"] = int(triaged_count)
     trace_summary["triage_recommendation_reused_total"] = int(reused_count)
+    trace_summary["triage_recommendation_reused_strict_total"] = int(reused_strict_count)
+    trace_summary["triage_recommendation_reused_core_total"] = int(reused_core_count)
     trace_summary["triage_recommendation_fresh_total"] = int(fresh_count)
     trace_summary["triage_recommendation_suppressed_total"] = 0
     trace_summary["triage_recommendation_reuse_reason"] = reuse_reason
-    trace_summary["triage_recommendation_fingerprint"] = _stable_sha256_json(
+    trace_summary["triage_recommendation_fingerprint"] = stable_sha256_fingerprint(
         {"provider": "fitcv_builtin", "model": "synonym_triage_v1", "wire_api": "builtin"}
     )
     trace_summary["auto_apply_recommendation_applied"] = int(auto_apply_counts.get("applied") or 0)
@@ -1655,47 +1653,156 @@ def _persist_shared_progress_snapshot(
         dataset=dataset,
     )
     if _summary_has_reached_stage(summary, "enrich"):
-        update_run_mapping_suggestions(
-            run_id,
-            _build_mapping_suggestions_payload(
-                run_id=run_id,
-                summary=summary,
-                created_at=snapshot_at,
-            ),
-            bq,
+        _persist_mapping_suggestions_snapshot(
+            run_id=run_id,
+            summary=summary,
+            created_at=snapshot_at,
+            bq=bq,
             project=project,
             dataset=dataset,
         )
         if _synonym_propose_enabled_from_run_record(run_record):
-            synonym_payload_json = _build_synonym_proposals_payload(
+            _persist_synonym_proposals_snapshot(
                 run_id=run_id,
+                run_record=run_record,
                 summary=summary,
                 created_at=snapshot_at,
-                existing_payload_json=getattr(run_record, "synonym_proposals_json", None),
-                global_synonyms=_effective_skill_synonyms_from_run_record(run_record),
-            )
-            synonym_status = update_run_synonym_proposals(
-                run_id,
-                synonym_payload_json,
-                bq,
-                project=project,
-                dataset=dataset,
-            )
-            _append_synonym_suppression_summary_event(
-                run_id=run_id,
-                synonym_payload_json=synonym_payload_json,
+                run_status=run_status,
                 bq=bq,
                 project=project,
                 dataset=dataset,
             )
-            _append_degraded_snapshot_persistence_warning(
-                run_id=run_id,
-                snapshot_name="synonym_proposals",
-                persistence_status=synonym_status,
-                bq=bq,
-                project=project,
-                dataset=dataset,
-            )
+
+
+def _persist_mapping_suggestions_snapshot(
+    *,
+    run_id: str,
+    summary: dict[str, Any],
+    created_at: datetime.datetime,
+    bq: Any,
+    project: str,
+    dataset: str,
+) -> None:
+    update_run_mapping_suggestions(
+        run_id,
+        _build_mapping_suggestions_payload(
+            run_id=run_id,
+            summary=summary,
+            created_at=created_at,
+        ),
+        bq,
+        project=project,
+        dataset=dataset,
+    )
+
+
+def _persist_synonym_proposals_snapshot(
+    *,
+    run_id: str,
+    run_record: Any,
+    summary: dict[str, Any],
+    created_at: datetime.datetime,
+    run_status: RunStatus,
+    bq: Any,
+    project: str,
+    dataset: str,
+) -> str:
+    """Persist run-scoped synonym proposals snapshot with shared behavior."""
+    existing_payload_json = _resolve_synonym_proposals_seed_payload_json(
+        run_id=run_id,
+        run_record=run_record,
+        bq=bq,
+        project=project,
+        dataset=dataset,
+    )
+    synonym_payload_json = build_synonym_proposals_payload(
+        run_id=run_id,
+        summary=summary,
+        created_at=created_at,
+        existing_payload_json=existing_payload_json,
+        global_synonyms=_effective_skill_synonyms_from_run_record(run_record),
+    )
+    synonym_payload = decode_json_object_or_raise(synonym_payload_json)
+    _run_synonym_automation_for_payload(
+        run_id=run_id,
+        run_record=run_record,
+        payload=synonym_payload,
+        run_status=run_status,
+        bq=bq,
+        project=project,
+        dataset=dataset,
+    )
+    synonym_payload_json = encode_json_object(synonym_payload)
+
+    synonym_status = update_run_synonym_proposals(
+        run_id,
+        synonym_payload_json,
+        bq,
+        project=project,
+        dataset=dataset,
+    )
+    _append_synonym_suppression_summary_event(
+        run_id=run_id,
+        synonym_payload_json=synonym_payload_json,
+        bq=bq,
+        project=project,
+        dataset=dataset,
+    )
+    _append_degraded_snapshot_persistence_warning(
+        run_id=run_id,
+        snapshot_name="synonym_proposals",
+        persistence_status=synonym_status,
+        bq=bq,
+        project=project,
+        dataset=dataset,
+    )
+    return str(synonym_status or "")
+
+def _resolve_synonym_proposals_seed_payload_json(
+    *,
+    run_id: str,
+    run_record: Any,
+    bq: Any,
+    project: str,
+    dataset: str,
+) -> str | None:
+    current_payload = str(getattr(run_record, "synonym_proposals_json", "") or "").strip()
+    if current_payload:
+        return current_payload
+
+    current_jobs_path = str(getattr(run_record, "jobs_path", "") or "").strip()
+    current_run_mode = str(getattr(run_record, "run_mode", "") or "").strip()
+    try:
+        runs = list_runs(bq, project=project, dataset=dataset, include_archived=False)
+    except Exception:
+        return None
+
+    latest_payload: str | None = None
+    latest_ts: datetime.datetime | None = None
+    for candidate in runs:
+        candidate_run_id = str(getattr(candidate, "run_id", "") or "").strip()
+        if not candidate_run_id or candidate_run_id == run_id:
+            continue
+        payload = str(getattr(candidate, "synonym_proposals_json", "") or "").strip()
+        if not payload:
+            continue
+        if current_jobs_path and str(getattr(candidate, "jobs_path", "") or "").strip() != current_jobs_path:
+            continue
+        if current_run_mode and str(getattr(candidate, "run_mode", "") or "").strip() != current_run_mode:
+            continue
+
+        status_raw = getattr(candidate, "status", "")
+        status = str(getattr(status_raw, "value", status_raw) or "").strip().lower()
+        if status not in {"succeeded", "awaiting_continue"}:
+            continue
+
+        candidate_ts = getattr(candidate, "finished_at", None) or getattr(candidate, "created_at", None)
+        if not isinstance(candidate_ts, datetime.datetime):
+            continue
+        if latest_ts is None or candidate_ts > latest_ts:
+            latest_ts = candidate_ts
+            latest_payload = payload
+    return latest_payload
 
 
 def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
@@ -1845,8 +1952,14 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 current = get_run(run_id, bq, project=project, dataset=dataset)
                 return current is not None and current.cancel_requested_at is not None
 
+            reuse_policy_stages = ("ranking", "cv_analysis", "cv_generation", "synonym_triage")
+            allow_checkpointed_sources = any(
+                resolve_reuse_stage_policy(effective_config or {}, stage).source_scope == "succeeded_or_checkpointed"
+                for stage in reuse_policy_stages
+            )
             late_stage_reuse_snapshots = _collect_late_stage_reuse_snapshots(
                 current_run_id=run_id,
+                allow_checkpointed_sources=allow_checkpointed_sources,
                 bq=bq,
                 project=project,
                 dataset=dataset,
@@ -1960,14 +2073,11 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                     )
                 if _summary_has_reached_stage(summary, "enrich"):
                     try:
-                        update_run_mapping_suggestions(
-                            run_id,
-                            _build_mapping_suggestions_payload(
-                                run_id=run_id,
-                                summary=summary,
-                                created_at=checkpoint_time,
-                            ),
-                            bq,
+                        _persist_mapping_suggestions_snapshot(
+                            run_id=run_id,
+                            summary=summary,
+                            created_at=checkpoint_time,
+                            bq=bq,
                             project=project,
                             dataset=dataset,
                         )
@@ -1992,43 +2102,12 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                             )
                     if _synonym_propose_enabled_from_run_record(run_record):
                         try:
-                            synonym_payload_json = _build_synonym_proposals_payload(
+                            _persist_synonym_proposals_snapshot(
                                 run_id=run_id,
+                                run_record=run_record,
                                 summary=summary,
                                 created_at=checkpoint_time,
-                                existing_payload_json=getattr(run_record, "synonym_proposals_json", None),
-                                global_synonyms=_effective_skill_synonyms_from_run_record(run_record),
-                            )
-                            synonym_payload = json.loads(synonym_payload_json)
-                            if isinstance(synonym_payload, dict):
-                                _run_synonym_automation_for_payload(
-                                    run_id=run_id,
-                                    run_record=run_record,
-                                    payload=synonym_payload,
-                                    run_status=RunStatus.AWAITING_CONTINUE,
-                                    bq=bq,
-                                    project=project,
-                                    dataset=dataset,
-                                )
-                                synonym_payload_json = json.dumps(synonym_payload, ensure_ascii=False)
-                            synonym_status = update_run_synonym_proposals(
-                                run_id,
-                                synonym_payload_json,
-                                bq,
-                                project=project,
-                                dataset=dataset,
-                            )
-                            _append_synonym_suppression_summary_event(
-                                run_id=run_id,
-                                synonym_payload_json=synonym_payload_json,
-                                bq=bq,
-                                project=project,
-                                dataset=dataset,
-                            )
-                            _append_degraded_snapshot_persistence_warning(
-                                run_id=run_id,
-                                snapshot_name="synonym_proposals",
-                                persistence_status=synonym_status,
+                                run_status=RunStatus.AWAITING_CONTINUE,
                                 bq=bq,
                                 project=project,
                                 dataset=dataset,
@@ -2086,6 +2165,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 auto_accept_enabled = _auto_accept_ai_action_enabled_from_run_record(run_record)
                 auto_accepted_count = 0
                 pending_review_required = 0
+                pending_review_required_missing_job_url = 0
                 review_reason_counts: dict[str, int] = {}
                 for record in cv_debug_records:
                     if str(record.get("status") or "").strip() != "review_required":
@@ -2095,17 +2175,119 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                     if run_mode == "run_all" and auto_accept_enabled and reason_code in LOW_RISK_AUTO_ACCEPT_REASON_CODES:
                         auto_accepted_count += 1
                         continue
+                    if not is_review_resolution_pending(record.get("resolution_status")):
+                        continue
                     pending_review_required += 1
+                    if not str(record.get("job_url") or "").strip():
+                        pending_review_required_missing_job_url += 1
                 summary["review_required_total"] = int(sum(review_reason_counts.values()))
                 summary["review_required_auto_accepted"] = int(auto_accepted_count)
                 summary["review_required_remaining"] = int(pending_review_required)
+                summary["review_required_remaining_missing_job_url"] = int(pending_review_required_missing_job_url)
                 summary["review_required_reason_counts"] = dict(review_reason_counts)
-                finished_at = datetime.datetime.now(datetime.timezone.utc) if pending_review_required == 0 else None
-                terminal_status = RunStatus.SUCCEEDED if pending_review_required == 0 else RunStatus.AWAITING_CONTINUE
+                current_determinism_index: dict[tuple[str, str], tuple[str, str]] = {}
+                for record in cv_debug_records:
+                    status_value = str(record.get("status") or "").strip()
+                    if status_value not in {"accepted", "review_required", "validation_failed", "generation_failed", "persistence_failed"}:
+                        continue
+                    input_fp = str(record.get("cv_generation_input_fingerprint") or "").strip()
+                    evidence_fp = str(record.get("validation_evidence_fingerprint") or "").strip()
+                    job_url = str(record.get("job_url") or "").strip()
+                    if not input_fp or not evidence_fp:
+                        continue
+                    current_determinism_index[(input_fp, evidence_fp)] = (status_value, job_url)
+
+                if current_determinism_index:
+                    try:
+                        prior_runs = list_runs(
+                            bq,
+                            project=project,
+                            dataset=dataset,
+                            include_archived=True,
+                        )
+                    except Exception:
+                        prior_runs = []
+                    mismatches: list[dict[str, str]] = []
+                    for prior in prior_runs:
+                        if str(getattr(prior, "run_id", "") or "").strip() == run_id:
+                            continue
+                        prior_debug_json = str(getattr(prior, "cv_generation_debug_json", "") or "").strip()
+                        if not prior_debug_json:
+                            continue
+                        try:
+                            prior_payload = json.loads(prior_debug_json)
+                        except Exception:
+                            continue
+                        prior_records = list(prior_payload.get("debug_records") or prior_payload.get("cv_generation_debug_records") or [])
+                        for prior_record in prior_records:
+                            if not isinstance(prior_record, dict):
+                                continue
+                            prior_status = str(prior_record.get("status") or "").strip()
+                            prior_input_fp = str(prior_record.get("cv_generation_input_fingerprint") or "").strip()
+                            prior_evidence_fp = str(prior_record.get("validation_evidence_fingerprint") or "").strip()
+                            if not prior_input_fp or not prior_evidence_fp:
+                                continue
+                            key = (prior_input_fp, prior_evidence_fp)
+                            current = current_determinism_index.get(key)
+                            if current is None:
+                                continue
+                            current_status, current_job_url = current
+                            if current_status == prior_status:
+                                continue
+                            mismatches.append(
+                                {
+                                    "prior_run_id": str(getattr(prior, "run_id", "") or ""),
+                                    "job_url": current_job_url,
+                                    "input_fingerprint": prior_input_fp,
+                                    "validation_evidence_fingerprint": prior_evidence_fp,
+                                    "current_status": current_status,
+                                    "prior_status": prior_status,
+                                }
+                            )
+                            if len(mismatches) >= 10:
+                                break
+                        if len(mismatches) >= 10:
+                            break
+                    if mismatches:
+                        append_event(
+                            RunEvent(
+                                run_id=run_id,
+                                event_id=str(uuid.uuid4()),
+                                stage="determinism_violation",
+                                level="warning",
+                                message=(
+                                    "Determinism violation: same input+validation evidence fingerprint yielded "
+                                    f"different terminal status in {len(mismatches)} case(s)."
+                                ),
+                                created_at=datetime.datetime.now(datetime.timezone.utc),
+                                payload_json=json.dumps(
+                                    {
+                                        "mismatch_count": len(mismatches),
+                                        "mismatches": mismatches,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                            ),
+                            bq,
+                            project=project,
+                            dataset=dataset,
+                        )
+                review_pending = pending_review_required > 0
+                terminal_status = (
+                    RunStatus.AWAITING_CONTINUE
+                    if (review_pending and run_mode == "manual_staged")
+                    else RunStatus.SUCCEEDED
+                )
+                finished_at = (
+                    None
+                    if terminal_status == RunStatus.AWAITING_CONTINUE
+                    else datetime.datetime.now(datetime.timezone.utc)
+                )
                 set_span_attributes(
                     {
                         "review_required_total": int(sum(review_reason_counts.values())),
                         "review_required_remaining": int(pending_review_required),
+                        "review_required_remaining_missing_job_url": int(pending_review_required_missing_job_url),
                         "run_terminal_status": str(terminal_status),
                     }
                 )
@@ -2155,6 +2337,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                                     "review_required_total": int(sum(review_reason_counts.values())),
                                     "auto_accepted": int(auto_accepted_count),
                                     "remaining": int(pending_review_required),
+                                    "remaining_missing_job_url": int(pending_review_required_missing_job_url),
                                     "reason_counts": dict(review_reason_counts),
                                 },
                                 ensure_ascii=False,
@@ -2186,6 +2369,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                         completed_stages=completed_stages,
                     )
                 export_results = list(summary.get("export_results") or [])
+                artifact_snapshot_at = finished_at or datetime.datetime.now(datetime.timezone.utc)
                 try:
                         update_run_results_export(
                             run_id,
@@ -2195,7 +2379,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                                 effective_config=effective_config,
                                 summary=summary,
                                 export_results=export_results,
-                                finished_at=finished_at,
+                                finished_at=artifact_snapshot_at,
                                 replay_context=replay_context,
                             ),
                             bq,
@@ -2225,8 +2409,8 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                         _build_stage_transition_artifacts_payload(
                             run_id=run_id,
                             summary=summary,
-                            finished_at=finished_at,
-                            run_status=RunStatus.SUCCEEDED,
+                            finished_at=artifact_snapshot_at,
+                            run_status=terminal_status,
                         ),
                         bq,
                         project=project,
@@ -2242,7 +2426,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                             run_record=run_record,
                             effective_config=effective_config,
                             config_path=config_path,
-                            finished_at=finished_at,
+                            finished_at=artifact_snapshot_at,
                             replay_context=replay_context,
                         ),
                         bq,
@@ -2251,17 +2435,114 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                     )
                 except Exception as exc:
                     logger.warning("[run_id=%s] Failed to persist settings-used snapshot: %s", run_id, exc)
+
+                accepted_debug_count = sum(
+                    1
+                    for record in cv_debug_records
+                    if str(record.get("status") or "").strip() == "accepted"
+                )
+                attempted_debug_count = sum(
+                    1
+                    for record in cv_debug_records
+                    if str(record.get("status") or "").strip()
+                    in {"accepted", "review_required", "validation_failed", "generation_failed", "persistence_failed"}
+                )
+                attempted_summary_count = int(summary.get("cv_generation_attempted") or 0)
+                if attempted_summary_count > 0 and not cv_debug_records:
+                    append_event(
+                        RunEvent(
+                            run_id=run_id,
+                            event_id=str(uuid.uuid4()),
+                            stage="artifact_persist_incomplete",
+                            level="warning",
+                            message="CV debug artifact empty despite CV generation terminal events.",
+                            created_at=datetime.datetime.now(datetime.timezone.utc),
+                        ),
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+                if int(summary.get("cvs_generated") or 0) < accepted_debug_count:
+                    append_event(
+                        RunEvent(
+                            run_id=run_id,
+                            event_id=str(uuid.uuid4()),
+                            stage="artifact_invariant_warning",
+                            level="warning",
+                            message=(
+                                f"Accepted CV invariant mismatch: accepted_debug={accepted_debug_count}, "
+                                f"cvs_generated={int(summary.get('cvs_generated') or 0)}"
+                            ),
+                            created_at=datetime.datetime.now(datetime.timezone.utc),
+                        ),
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+
+                persisted_run = get_run(run_id, bq, project=project, dataset=dataset)
+                missing_effective = not str(getattr(persisted_run, "effective_settings_json", "") or "").strip()
+                missing_debug = not str(getattr(persisted_run, "cv_generation_debug_json", "") or "").strip()
+                missing_stage_artifacts = not str(getattr(persisted_run, "stage_transition_artifacts_json", "") or "").strip()
+                if missing_effective or missing_debug or missing_stage_artifacts:
+                    append_event(
+                        RunEvent(
+                            run_id=run_id,
+                            event_id=str(uuid.uuid4()),
+                            stage="artifact_persist_incomplete",
+                            level="warning",
+                            message=(
+                                "Detected missing persisted artifacts; retrying once "
+                                f"(effective={missing_effective}, cv_debug={missing_debug}, stage_artifacts={missing_stage_artifacts})."
+                            ),
+                            created_at=datetime.datetime.now(datetime.timezone.utc),
+                        ),
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+                    if missing_effective:
+                        update_run_effective_settings(
+                            run_id,
+                            json.dumps(effective_config, ensure_ascii=False),
+                            bq,
+                            project=project,
+                            dataset=dataset,
+                        )
+                    if missing_debug:
+                        update_run_cv_generation_debug(
+                            run_id,
+                            _build_cv_generation_debug_payload(
+                                run_id=run_id,
+                                run_record=run_record,
+                                summary=summary,
+                                finished_at=artifact_snapshot_at,
+                            ),
+                            bq,
+                            project=project,
+                            dataset=dataset,
+                        )
+                    if missing_stage_artifacts:
+                        update_run_stage_transition_artifacts(
+                            run_id,
+                            _build_stage_transition_artifacts_payload(
+                                run_id=run_id,
+                                summary=summary,
+                                finished_at=artifact_snapshot_at,
+                                run_status=terminal_status,
+                            ),
+                            bq,
+                            project=project,
+                            dataset=dataset,
+                        )
                 if _summary_has_reached_stage(summary, "enrich"):
                     snapshot_created_at = finished_at or datetime.datetime.now(datetime.timezone.utc)
                     try:
-                        update_run_mapping_suggestions(
-                            run_id,
-                            _build_mapping_suggestions_payload(
-                                run_id=run_id,
-                                summary=summary,
-                                created_at=snapshot_created_at,
-                            ),
-                            bq,
+                        _persist_mapping_suggestions_snapshot(
+                            run_id=run_id,
+                            summary=summary,
+                            created_at=snapshot_created_at,
+                            bq=bq,
                             project=project,
                             dataset=dataset,
                         )
@@ -2282,43 +2563,12 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                             )
                     if _synonym_propose_enabled_from_run_record(run_record):
                         try:
-                            synonym_payload_json = _build_synonym_proposals_payload(
+                            _persist_synonym_proposals_snapshot(
                                 run_id=run_id,
+                                run_record=run_record,
                                 summary=summary,
                                 created_at=snapshot_created_at,
-                                existing_payload_json=getattr(run_record, "synonym_proposals_json", None),
-                                global_synonyms=_effective_skill_synonyms_from_run_record(run_record),
-                            )
-                            synonym_payload = json.loads(synonym_payload_json)
-                            if isinstance(synonym_payload, dict):
-                                _run_synonym_automation_for_payload(
-                                    run_id=run_id,
-                                    run_record=run_record,
-                                    payload=synonym_payload,
-                                    run_status=terminal_status,
-                                    bq=bq,
-                                    project=project,
-                                    dataset=dataset,
-                                )
-                                synonym_payload_json = json.dumps(synonym_payload, ensure_ascii=False)
-                            synonym_status = update_run_synonym_proposals(
-                                run_id,
-                                synonym_payload_json,
-                                bq,
-                                project=project,
-                                dataset=dataset,
-                            )
-                            _append_synonym_suppression_summary_event(
-                                run_id=run_id,
-                                synonym_payload_json=synonym_payload_json,
-                                bq=bq,
-                                project=project,
-                                dataset=dataset,
-                            )
-                            _append_degraded_snapshot_persistence_warning(
-                                run_id=run_id,
-                                snapshot_name="synonym_proposals",
-                                persistence_status=synonym_status,
+                                run_status=terminal_status,
                                 bq=bq,
                                 project=project,
                                 dataset=dataset,
@@ -2338,6 +2588,15 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                                     run_id,
                                     inner,
                                 )
+                try:
+                    persist_terminal_run_artifact_mirror(
+                        run_id=run_id,
+                        bq=bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+                except Exception as mirror_exc:
+                    logger.warning("[run_id=%s] Failed to persist terminal artifact mirror: %s", run_id, mirror_exc)
 
         except PipelineCancelled as exc:
             # ── Step 5 (alt): Pipeline was cancelled at a checkpoint ──────────────
@@ -2374,6 +2633,15 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 )
             except Exception as inner:
                 logger.warning("[run_id=%s] Failed to write cancellation event: %s", run_id, inner)
+            try:
+                persist_terminal_run_artifact_mirror(
+                    run_id=run_id,
+                    bq=bq,
+                    project=project,
+                    dataset=dataset,
+                )
+            except Exception as mirror_exc:
+                logger.warning("[run_id=%s] Failed to persist terminal artifact mirror: %s", run_id, mirror_exc)
 
         except Exception as exc:
             # ── Step 7: Unexpected pipeline failure ───────────────────────────────
@@ -2423,6 +2691,15 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 )
             except Exception as inner:
                 logger.warning("[run_id=%s] Failed to write failure event: %s", run_id, inner)
+            try:
+                persist_terminal_run_artifact_mirror(
+                    run_id=run_id,
+                    bq=bq,
+                    project=project,
+                    dataset=dataset,
+                )
+            except Exception as mirror_exc:
+                logger.warning("[run_id=%s] Failed to persist terminal artifact mirror: %s", run_id, mirror_exc)
         finally:
             if previous_backend_env is None:
                 os.environ.pop("FITCV_CP_DATA_BACKEND", None)
@@ -2432,4 +2709,16 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 os.environ.pop("FITCV_CP_SQLITE_PATH", None)
             else:
                 os.environ["FITCV_CP_SQLITE_PATH"] = previous_sqlite_path_env
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -46,6 +46,82 @@
     display: grid;
     gap: 0.75rem;
   }
+  .settings-readiness {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 0.9rem;
+    display: grid;
+    gap: 0.6rem;
+  }
+  .settings-readiness-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .settings-readiness-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .settings-readiness-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.5rem;
+  }
+  .settings-readiness-cell {
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--surface-0);
+    padding: 0.55rem 0.65rem;
+  }
+  .settings-readiness-k {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+  .settings-readiness-v {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  .settings-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .settings-decision-board {
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--surface-1);
+    padding: 0.9rem;
+    display: grid;
+    gap: 0.65rem;
+  }
+  .settings-decision-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .settings-search {
+    width: 100%;
+    max-width: 380px;
+  }
+  .domain-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.65rem;
+  }
+  .domain-summary-card {
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--surface-1);
+    padding: 0.65rem 0.75rem;
+    display: grid;
+    gap: 0.3rem;
+  }
+  .domain-summary-title { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+  .domain-summary-meta { font-size: 0.75rem; color: var(--text-muted); }
   .settings-global-summary {
     border: 1px solid var(--border-soft);
     border-radius: 12px;
@@ -54,23 +130,41 @@
     font-size: 0.82rem;
     color: var(--text-muted);
   }
-  .settings-quick-nav {
-    border: 1px solid var(--border-soft);
-    border-radius: 12px;
-    background: var(--surface-1);
-    padding: 0.65rem 0.9rem;
+  .axis-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem 0.6rem;
+    align-items: center;
+    gap: 0.45rem;
   }
-  .settings-quick-nav a {
-    font-size: 0.8rem;
-    color: var(--text-primary);
-    text-decoration: none;
+  .axis-label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-right: 0.2rem;
+  }
+  .axis-chip,
+  .badge-chip {
     border: 1px solid var(--border-soft);
     border-radius: 999px;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-size: 0.75rem;
     padding: 0.2rem 0.55rem;
+    line-height: 1.2;
   }
+  .axis-chip[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border-soft));
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-0));
+  }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+  }
+  .badge-chip.badge-risk-high { border-color: var(--badge-error-fg); color: var(--badge-error-fg); }
+  .badge-chip.badge-risk-medium { border-color: var(--badge-warning-fg); color: var(--badge-warning-fg); }
+  .badge-chip.badge-risk-low { border-color: var(--badge-success-fg); color: var(--badge-success-fg); }
+  .is-filter-hidden { display: none !important; }
   .task-section {
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -167,6 +261,14 @@
     font-size: 0.8rem;
     color: var(--text-muted);
   }
+  .settings-field-help {
+    margin-top: 0.4rem;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+  }
+  .settings-field-help details { border: 1px solid var(--border-soft); border-radius: 8px; padding: 0.25rem 0.45rem; }
+  .settings-field-help summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); }
+  .settings-field-help-body { display: grid; gap: 0.15rem; margin-top: 0.35rem; }
   .settings-field-meta .current-value {
     color: var(--text-primary);
     font-weight: 600;
@@ -194,6 +296,13 @@
     gap: 0.45rem;
     font-size: 0.84rem;
     color: var(--text-primary);
+  }
+  .settings-group-title {
+    margin: 0.25rem 0 0.65rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: none;
   }
   .sub-card-footer {
     display: flex;
@@ -293,7 +402,19 @@
   {% set entry = item.entry %}
   <div class="settings-field-control">
     {% if item.is_metadata_only %}
-      <div class="settings-field-note is-fixed">{{ settings_metadata_note }}</div>
+      <div class="settings-field-note is-fixed">{{ item.metadata_note or settings_metadata_note }}</div>
+    {% elif item.compatibility_alias_for %}
+      <input
+        type="text"
+        value="{{ item.effective_display }}"
+        readonly
+        disabled
+        aria-readonly="true"
+        title="Compatibility alias (read-only)"
+      >
+      <div class="settings-field-note is-fixed">
+        Legacy compatibility alias for <code>{{ item.compatibility_alias_for }}</code>. Edit canonical setting only.
+      </div>
     {% elif entry.type == 'bool' %}
       <input type="hidden" name="{{ entry.key }}" value="{{ 'true' if item.form_value in [true, 'true', '1', 'yes', 'on'] else 'false' }}" data-default-value="{{ 'true' if entry.default else 'false' }}">
       <input
@@ -346,23 +467,66 @@
         data-current-value="{{ item.effective_value }}">
     {% endif %}
     {% if entry.key == "enrichment_concurrency" %}
-      <div class="settings-field-note">Higher concurrency does not bypass the enrich-stage global rate lock, so gains may be modest.</div>
+      <div class="settings-field-note">Higher concurrency enables more overlapping enrich requests, while shared request-start pacing still controls aggregate request rate.</div>
     {% endif %}
   </div>
 {%- endmacro %}
 
 {% macro render_settings_row(item, settings_metadata_note) -%}
-  {% set entry = item.entry %}
-  <div class="settings-field-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}">
+{% set entry = item.entry %}
+{% set ia = item.ia_contract %}
+  <div id="entry-{{ entry.key | replace('.', '-') }}" class="settings-field-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}" data-domain="{{ ia.domain }}" data-workflow-stages="{{ ia.workflow_stages | join('|') }}" data-decision-status="{{ item.decision_status }}" data-decision-domain="{{ item.decision_domain }}" data-decision-stage="{{ item.decision_stage }}" data-control-surface="{{ item.decision_control_surface }}" data-decision-area="{{ item.decision_area }}" data-complexity="{{ item.decision_complexity }}" data-default-equal="{{ 'false' if item.is_modified else 'true' }}" data-unused="{{ 'true' if 'unused' in item.decision_reason_codes else 'false' }}">
     <div>
       <div class="settings-field-label">{{ entry.label }}</div>
       <div class="settings-field-description">{{ entry.description }}</div>
+      <div class="badge-row">
+        <span class="badge-chip">Stage: {{ item.decision_stage | replace('_', ' ') | title }}</span>
+            <span class="badge-chip">Control Type: {{ item.decision_control_surface | replace('_', ' ') | title }}</span>
+            <span class="badge-chip">Decision Type: {{ item.decision_area | replace('_', ' ') | title }}</span>
+            <span class="badge-chip">Runtime-used: {{ "Yes" if ia.runtime_used else "No" }}</span>
+            <span class="badge-chip">Metadata-only: {{ "Yes" if ia.metadata_only else "No" }}</span>
+        {% if item.compatibility_alias_for %}
+          <span class="badge-chip">Alias for: {{ item.compatibility_alias_for }}</span>
+          <span class="badge-chip">Migration: read-only alias</span>
+        {% endif %}
+        {% if item.compatibility_aliases %}
+          <span class="badge-chip">Legacy aliases: {{ item.compatibility_aliases | join(', ') }}</span>
+        {% endif %}
+        <span class="badge-chip badge-risk-{{ ia.risk }}">Risk: {{ ia.risk | title }}</span>
+      </div>
     </div>
     <div class="settings-field-meta">
       <span>Current: <span class="current-value">{{ item.effective_display }}</span></span>
       <span>Source: {{ item.current_source_label }}</span>
-      <span>Owner: {{ item.owner_label }}</span>
       <span>Active: {{ item.active_label }}</span>
+      <span>Owned by: {{ item.owner_label }}</span>
+      <span>Used in this run: {{ item.active_label }}</span>
+      <div class="settings-field-help">
+        <details>
+          <summary>Why this matters</summary>
+          <div class="settings-field-help-body">
+            <span><strong>Setting:</strong> {{ entry.label }}</span>
+            <span><strong>Impact:</strong> {{ entry.description }}</span>
+            <span><strong>Applies when:</strong> {{ ia.applies_when }}</span>
+            <span><strong>Dependencies:</strong> Related stage rules and runtime guards.</span>
+            <span><strong>Default source:</strong> {{ ia.default_source if ia.default_source is defined else "" }}</span>
+            <span><strong>Observed in:</strong> {{ ia.observed_in if ia.observed_in is defined else "" }}</span>
+            <span><strong>Configured vs runtime:</strong> This is your configured value. Runtime guards may still change effective behavior. Check <strong>Used in this run</strong> and run-scoped <code>settings-used.json</code>.</span>
+            <span><strong>Default key path:</strong> {{ entry.config_path | join('.') }}</span>
+            <span><strong>Used by:</strong> Runtime pipeline stages and settings consumers.</span>
+          </div>
+        </details>
+        {% if item.compatibility_alias_for %}
+        <details>
+          <summary>Legacy Mapping</summary>
+          <div class="settings-field-help-body">
+            <span><strong>Canonical setting:</strong> <code>{{ item.compatibility_alias_for }}</code></span>
+            <span><strong>Status:</strong> Read-only alias</span>
+            <span><strong>Save behavior:</strong> Only canonical setting is saved.</span>
+          </div>
+        </details>
+        {% endif %}
+      </div>
     </div>
     {{ render_field_control(item, settings_metadata_note) }}
   </div>
@@ -371,44 +535,59 @@
 <div class="page-header">
   <div>
     <h1>Pipeline Settings</h1>
-    <p class="meta">Changes apply to future runs only. The default view highlights the settings operators tune most often; advanced tuning stays available when you need deeper control.</p>
+    <p class="meta">Changes here affect future runs only. Runtime guards can still adjust effective behavior during execution.</p>
   </div>
 </div>
 
 <div class="settings-shell">
   {% if error %}
     <div class="error-box">
-      <strong>Validation error</strong>
+      <strong>Can’t save yet</strong>
       <span>{{ error }}</span>
     </div>
   {% endif %}
-  <section class="settings-truth-panel">
-    <div class="settings-truth-title">How To Read This Page</div>
-    <ul class="settings-truth-list">
-      {% for note in settings_truth_notes %}
-        <li>{{ note }}</li>
+  <section class="settings-readiness">
+    <div class="settings-readiness-head">
+      <div class="settings-readiness-title">Settings Status</div>
+      <div class="settings-decision-item-meta">
+        {% if settings_readiness_summary.needs_review_count > 0 %}
+          {{ settings_readiness_summary.needs_review_count }} setting(s) need attention before next run.
+        {% else %}
+          No required actions right now.
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  <section class="settings-decision-board">
+    <div class="settings-readiness-title">Decision View</div>
+    <div class="axis-row">
+      <span class="axis-label">View Level</span>
+      <button type="button" class="axis-chip" data-complexity-filter="basic" aria-pressed="true">Basic</button>
+      <button type="button" class="axis-chip" data-complexity-filter="advanced" aria-pressed="false">Advanced</button>
+      <button type="button" class="axis-chip" data-complexity-filter="all" aria-pressed="false">All</button>
+    </div>
+    <div class="axis-row">
+      <span class="axis-label">Pipeline Stage</span>
+      <button type="button" class="axis-chip" data-stage-filter="all" aria-pressed="true">All</button>
+      {% for scope in settings_stage_scopes %}
+        <button type="button" class="axis-chip" data-stage-filter="{{ scope.id }}" aria-pressed="false">{{ scope.title }}</button>
       {% endfor %}
-    </ul>
-  </section>
-  <section class="settings-mode-strip">
-    <div class="settings-mode-item"><span class="k">Agentic Mode:</span><span class="v">{{ settings_mode_summary.agentic_mode }}</span></div>
-    <div class="settings-mode-item"><span class="k">Live Provider:</span><span class="v">{{ settings_mode_summary.runtime_provider }}</span></div>
-    <div class="settings-mode-item"><span class="k">Live Model:</span><span class="v">{{ settings_mode_summary.runtime_model }}</span></div>
-    <div class="settings-mode-item"><span class="k">CV Model (Settings):</span><span class="v">{{ settings_mode_summary.settings_cv_model }}</span></div>
-  </section>
-  <section class="settings-truth-panel">
-    <div class="settings-truth-title">Run Truth Check</div>
-    <ul class="settings-truth-list">
-      <li>To confirm what actually ran, open Run Detail and check Agentic Runtime Alignment.</li>
-    </ul>
+    </div>
+    <div class="axis-row">
+      <span class="axis-label">Control Type</span>
+      <button type="button" class="axis-chip" data-control-surface-filter="all" aria-pressed="true">All</button>
+      {% for surface in settings_control_surface_filters %}
+        <button type="button" class="axis-chip" data-control-surface-filter="{{ surface.id }}" aria-pressed="false">{{ surface.title }}</button>
+      {% endfor %}
+    </div>
+    <div class="settings-decision-item-meta">
+      Use filters to narrow settings. Detailed view shows technical fields.
+    </div>
   </section>
   <section class="settings-toolbar">
+    <input class="settings-search" type="search" id="settings-search" placeholder="Search by name, effect, or key..." aria-label="Search settings">
     <div class="settings-global-summary" data-global-dirty-summary="settings-page">All sections saved</div>
-    <nav class="settings-quick-nav" data-settings-quick-nav="true" aria-label="Settings quick navigation">
-      {% for section in settings_page_task_sections %}
-        <a href="#task-{{ section.id }}">{{ section.title }}</a>
-      {% endfor %}
-    </nav>
+    <div class="settings-decision-item-meta is-filter-hidden" id="empty-filter-state">No matches. Clear filters or search.</div>
   </section>
   {% for section in settings_page_task_sections %}
     <section class="task-section" data-task-section="{{ section.id }}" id="task-{{ section.id }}">
@@ -420,77 +599,118 @@
       </div>
       <div class="task-section-grid">
         {% for card in section.cards %}
-          {% if card.is_advanced %}
-            <details class="settings-advanced-details"{% if card.error_message %} open{% endif %}>
+          {% if card.is_advanced or card.is_collapsible %}
+            <details class="settings-advanced-details"{% if card.error_message or not card.collapsed_by_default %} open{% endif %}>
               <summary>
                 <div class="settings-advanced-summary-title">{{ card.title }}</div>
                 <div class="settings-advanced-summary-helper">{{ card.helper }}</div>
               </summary>
-              <div class="settings-panel">
-                <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}">
+              <div class="settings-panel" data-card-risk="{{ card.risk }}" data-card-domains="{{ card.domains | join('|') }}" data-card-stages="{{ card.workflow_stages | join('|') }}">
+                {% if card.read_only %}
+                  <div class="settings-panel-body" style="padding-top:1rem">
+                    {% if card.stage_groups %}
+                      {% for stage_group in card.stage_groups %}
+                        <div class="settings-group-title">{{ stage_group.title }}</div>
+                        <div class="settings-field-list">
+                          {% for item in stage_group.entries %}
+                            {{ render_settings_row(item, settings_metadata_note) }}
+                          {% endfor %}
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div class="settings-field-list">
+                        {% for item in card.entries %}
+                          {{ render_settings_row(item, settings_metadata_note) }}
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                {% else %}
+                <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}" data-guarded-save="{{ 'true' if card.guarded_save else 'false' }}">
                   {% if card.error_message %}
                     <div class="error-box" style="margin-top:1rem">
-                      <strong>Validation error</strong>
+                      <strong>Can’t save yet</strong>
                       <span>{{ card.error_message }}</span>
                     </div>
                   {% endif %}
                   <div class="settings-panel-body" style="padding-top:1rem">
-                    <div class="settings-field-list">
-                      {% for item in card.entries %}
-                        {{ render_settings_row(item, settings_metadata_note) }}
+                    {% if card.stage_groups %}
+                      {% for stage_group in card.stage_groups %}
+                        <div class="settings-group-title">{{ stage_group.title }}</div>
+                        <div class="settings-field-list">
+                          {% for item in stage_group.entries %}
+                            {{ render_settings_row(item, settings_metadata_note) }}
+                          {% endfor %}
+                        </div>
                       {% endfor %}
-                    </div>
+                    {% else %}
+                      <div class="settings-field-list">
+                        {% for item in card.entries %}
+                          {{ render_settings_row(item, settings_metadata_note) }}
+                        {% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                   <div class="sub-card-footer">
                     <div class="settings-card-status" data-dirty-summary="{{ card.form_id }}">
-                      {% if card.dirty_count == 0 %}No changes{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
+                      {% if card.dirty_count == 0 %}No unsaved edits{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
                     </div>
                     <button type="button" class="btn-secondary" data-reset-form="{{ card.form_id }}">Use Defaults</button>
                     <button type="submit" class="btn-section">{{ card.save_label }}</button>
                   </div>
                 </form>
+                {% endif %}
               </div>
             </details>
           {% else %}
-            <div class="settings-panel">
+            <div class="settings-panel" data-card-risk="{{ card.risk }}" data-card-domains="{{ card.domains | join('|') }}" data-card-stages="{{ card.workflow_stages | join('|') }}">
               <div class="settings-panel-header">
                 <div>
                   <div class="settings-panel-title">{{ card.title }}</div>
                   <div class="settings-panel-helper">{{ card.helper }}</div>
                 </div>
                 <div class="settings-card-status" data-dirty-summary="{{ card.form_id }}">
-                  {% if card.dirty_count == 0 %}No changes{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
+                  {% if card.dirty_count == 0 %}No unsaved edits{% elif card.dirty_count == 1 %}1 unsaved edit{% else %}{{ card.dirty_count }} unsaved edits{% endif %}
                 </div>
               </div>
               {% if card.error_message %}
                 <div class="error-box">
-                  <strong>Validation error</strong>
+                  <strong>Can’t save yet</strong>
                   <span>{{ card.error_message }}</span>
                 </div>
               {% endif %}
-              <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}">
+              <form id="{{ card.form_id }}" method="post" action="{{ card.action }}" data-dirty-card="{{ card.form_id }}" data-guarded-save="{{ 'true' if card.guarded_save else 'false' }}">
                 <div class="settings-panel-body">
                   {% if card.layout == "composition_matrix" %}
                     <div class="composition-matrix">
                       <div class="composition-matrix-header">
                         <div>Section</div>
-                        <div>Current</div>
-                        <div>Edit</div>
+                        <div>Current value</div>
+                        <div>Change</div>
                       </div>
                       {% for item in card.entries %}
                         {% set entry = item.entry %}
-                        <div class="composition-matrix-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}">
+                        <div class="composition-matrix-row{% if item.is_dirty %} is-dirty{% endif %}" data-entry-key="{{ entry.key }}" data-dirty="{{ 'true' if item.is_dirty else 'false' }}" data-domain="{{ item.ia_contract.domain }}" data-workflow-stages="{{ item.ia_contract.workflow_stages | join('|') }}" data-decision-status="{{ item.decision_status }}" data-decision-domain="{{ item.decision_domain }}" data-decision-stage="{{ item.decision_stage }}" data-control-surface="{{ item.decision_control_surface }}" data-decision-area="{{ item.decision_area }}" data-complexity="{{ item.decision_complexity }}" data-default-equal="{{ 'false' if item.is_modified else 'true' }}" data-unused="{{ 'true' if 'unused' in item.decision_reason_codes else 'false' }}">
                           <div>
                             <div class="composition-row-title">{{ entry.label | replace('Include ', '') }}</div>
                             <div class="composition-row-helper">{{ entry.description }}</div>
                           </div>
-                          <div class="composition-current">{{ "Included" if item.effective_value else "Hidden" }}</div>
+                          <div class="composition-current">{{ "Included" if item.effective_value else "Excluded" }}</div>
                           <div class="composition-toggle">
                             {{ render_field_control(item, settings_metadata_note) }}
                           </div>
                         </div>
                       {% endfor %}
                     </div>
+                  {% elif card.stage_groups %}
+                    {% for stage_group in card.stage_groups %}
+                      <div class="settings-group-title">{{ stage_group.title }}</div>
+                      <div class="settings-field-list">
+                        {% for item in stage_group.entries %}
+                          {{ render_settings_row(item, settings_metadata_note) }}
+                        {% endfor %}
+                      </div>
+                    {% endfor %}
                   {% else %}
                     <div class="settings-field-list">
                       {% for item in card.entries %}
@@ -510,6 +730,20 @@
       </div>
     </section>
   {% endfor %}
+  <section class="task-section" data-task-section="danger-zone" id="task-danger-zone">
+    <div class="task-section-header">
+      <div>
+        <div class="task-section-title">High-Impact Settings</div>
+        <div class="task-section-helper">Changes here can strongly affect ranking, filtering, and output quality. Update carefully.</div>
+      </div>
+    </div>
+    <div class="task-section-grid">
+      <div class="settings-global-summary">
+        {{ settings_danger_zone_keys | length }} high-impact setting(s):
+        <code>{{ settings_danger_zone_keys | join(', ') }}</code>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script type="application/json" id="ranking-weight-keys-data">{{ ranking_weight_keys | tojson }}</script>
@@ -605,7 +839,7 @@
     const dirtyCount = Array.from(rows).filter((row) => row.dataset.dirty === 'true').length;
     const summary = document.querySelector('[data-dirty-summary="' + form.id + '"]');
     if (summary) {
-      if (dirtyCount === 0) summary.textContent = 'No changes';
+      if (dirtyCount === 0) summary.textContent = 'No unsaved edits';
       else if (dirtyCount === 1) summary.textContent = '1 unsaved edit';
       else summary.textContent = dirtyCount + ' unsaved edits';
     }
@@ -622,17 +856,239 @@
       const hasDirtyRow = form.querySelector('[data-entry-key][data-dirty="true"]') !== null;
       if (hasDirtyRow) dirtyForms += 1;
     });
-    if (dirtyForms === 0) summary.textContent = 'All sections saved';
-    else if (dirtyForms === 1) summary.textContent = '1 section has unsaved edits';
-    else summary.textContent = dirtyForms + ' sections have unsaved edits';
+    if (dirtyForms === 0) summary.textContent = 'All changes saved';
+    else if (dirtyForms === 1) summary.textContent = '1 section has unsaved changes';
+    else summary.textContent = dirtyForms + ' sections have unsaved changes';
+  }
+
+  function entryMatchesFilters(row) {
+    const activeComplexity = document.body.dataset.activeComplexity || 'basic';
+    const activeStage = document.body.dataset.activeStage || 'all';
+    const activeControlSurface = document.body.dataset.activeControlSurface || 'all';
+    const rowComplexity = row.dataset.complexity || 'basic';
+    const rowStage = row.dataset.decisionStage || '';
+    const rowControlSurface = row.dataset.controlSurface || '';
+    const complexityOk = activeComplexity === 'all' || rowComplexity === activeComplexity;
+    const stageOk = activeStage === 'all' || rowStage === activeStage;
+    const controlSurfaceOk = activeControlSurface === 'all' || rowControlSurface === activeControlSurface;
+    return complexityOk && stageOk && controlSurfaceOk;
+  }
+
+  function applyAxisFilters() {
+    document.querySelectorAll('[data-entry-key]').forEach(function(row) {
+      const visible = entryMatchesFilters(row);
+      row.classList.toggle('is-filter-hidden', !visible);
+    });
+    document.querySelectorAll('.settings-panel').forEach(function(panel) {
+      const hasVisible = panel.querySelector('[data-entry-key]:not(.is-filter-hidden)') !== null;
+      panel.classList.toggle('is-filter-hidden', !hasVisible);
+    });
+    document.querySelectorAll('.settings-advanced-details').forEach(function(details) {
+      const panel = details.querySelector('.settings-panel');
+      const hidden = panel ? panel.classList.contains('is-filter-hidden') : false;
+      details.classList.toggle('is-filter-hidden', hidden);
+    });
+    document.querySelectorAll('[data-task-section]').forEach(function(section) {
+      const hasVisiblePanel = section.querySelector('.settings-panel:not(.is-filter-hidden)') !== null;
+      section.classList.toggle('is-filter-hidden', !hasVisiblePanel);
+    });
+    const emptyState = document.getElementById('empty-filter-state');
+    if (emptyState) {
+      const hasVisibleRow = document.querySelector('[data-entry-key]:not(.is-filter-hidden)') !== null;
+      emptyState.classList.toggle('is-filter-hidden', hasVisibleRow);
+    }
+  }
+
+  function readNumber(form, name) {
+    const el = form.querySelector('[name="' + name + '"]');
+    if (!el) return null;
+    const value = parseFloat(el.value);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function runPreflightGuardrails(form) {
+    const issues = [];
+    const rankingKeys = [
+      'ranking_weights.ai_score',
+      'ranking_weights.must_have_match',
+      'ranking_weights.vector_similarity',
+      'ranking_weights.title_relevance',
+      'ranking_weights.seniority_fit',
+      'ranking_weights.preference_fit',
+    ];
+    const rankingInputs = rankingKeys.map((k) => form.querySelector('[name="' + k + '"]')).filter(Boolean);
+    if (rankingInputs.length === rankingKeys.length) {
+      const total = rankingInputs.reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+      if (Math.abs(total - 1.0) > 0.01) issues.push('ranking_weights total must equal 1.0 (±0.01).');
+    }
+    const prefKeys = [
+      'preference_fit_weights.domain',
+      'preference_fit_weights.role_family',
+      'preference_fit_weights.location_type',
+    ];
+    const prefInputs = prefKeys.map((k) => form.querySelector('[name="' + k + '"]')).filter(Boolean);
+    if (prefInputs.length === prefKeys.length) {
+      const total = prefInputs.reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0);
+      if (Math.abs(total - 1.0) > 0.01) issues.push('preference_fit_weights total must equal 1.0 (±0.01).');
+    }
+    const strongFit = readNumber(form, 'fit_label_thresholds.strong');
+    const stretchFit = readNumber(form, 'fit_label_thresholds.stretch');
+    if (strongFit !== null && stretchFit !== null && strongFit <= stretchFit) {
+      issues.push('fit_label_thresholds.strong must be greater than fit_label_thresholds.stretch.');
+    }
+    const strongGap = readNumber(form, 'gap_thresholds.strong_min_matched_ratio');
+    const stretchGap = readNumber(form, 'gap_thresholds.stretch_min_matched_ratio');
+    if (strongGap !== null && stretchGap !== null && strongGap <= stretchGap) {
+      issues.push('gap_thresholds.strong_min_matched_ratio must be greater than gap_thresholds.stretch_min_matched_ratio.');
+    }
+    return issues;
+  }
+
+  function coerceBoolField(form, name) {
+    const field = form.querySelector('[name="' + name + '"]');
+    if (!field) return false;
+    return String(field.value).toLowerCase() === 'true';
+  }
+
+  function setBoolField(form, name, enabled) {
+    const hidden = form.querySelector('input[type="hidden"][name="' + name + '"]');
+    const checkbox = form.querySelector('input[type="checkbox"][name="' + name + '"]');
+    if (hidden) hidden.value = enabled ? 'true' : 'false';
+    if (checkbox) checkbox.checked = !!enabled;
+  }
+
+  function ensureHiddenFlag(form, name, value) {
+    let field = form.querySelector('input[type="hidden"][name="' + name + '"]');
+    if (!field) {
+      field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = name;
+      form.appendChild(field);
+    }
+    field.value = value;
+  }
+
+  function resolveAutomationPrerequisites(form) {
+    if (!form.action.endsWith('/admin/settings/section/agentic-automation')) return true;
+    const autoApplyEnabled = coerceBoolField(form, 'synonym_management.auto_apply_recommendation_enabled');
+    const autoPromoteEnabled = coerceBoolField(form, 'synonym_management.auto_promote_global_enabled');
+    const applyGateChecked = coerceBoolField(document, 'synonym_management.apply_to_run_enabled');
+    const promoteGateChecked = coerceBoolField(document, 'synonym_management.promote_global_enabled');
+
+    if (autoApplyEnabled && !applyGateChecked) {
+      const enablePrereq = window.confirm(
+        'Auto Apply needs Apply-to-Run gate ON.\n\nOK: Enable gate and continue.\nCancel: Keep Auto Apply OFF.'
+      );
+      if (enablePrereq) {
+        ensureHiddenFlag(form, '__enable_prereq_apply_to_run', 'true');
+      } else {
+        setBoolField(form, 'synonym_management.auto_apply_recommendation_enabled', false);
+      }
+    }
+
+    if (autoPromoteEnabled && !promoteGateChecked) {
+      const enablePrereq = window.confirm(
+        'Auto Promote needs Promote-Global gate ON.\n\nOK: Enable gate and continue.\nCancel: Keep Auto Promote OFF.'
+      );
+      if (enablePrereq) {
+        ensureHiddenFlag(form, '__enable_prereq_promote_global', 'true');
+      } else {
+        setBoolField(form, 'synonym_management.auto_promote_global_enabled', false);
+      }
+    }
+    return true;
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    document.body.dataset.activeComplexity = 'basic';
+    document.body.dataset.activeStage = 'all';
+    document.body.dataset.activeControlSurface = 'all';
+    const complexityChips = document.querySelectorAll('[data-complexity-filter]');
+    const stageChips = document.querySelectorAll('[data-stage-filter]');
+    const controlSurfaceChips = document.querySelectorAll('[data-control-surface-filter]');
+
+    complexityChips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        const value = chip.getAttribute('data-complexity-filter') || 'basic';
+        document.body.dataset.activeComplexity = value;
+        complexityChips.forEach(function(other) {
+          const pressed = (other.getAttribute('data-complexity-filter') || 'basic') === value;
+          other.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        });
+        applyAxisFilters();
+      });
+    });
+    stageChips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        const value = chip.getAttribute('data-stage-filter') || 'all';
+        document.body.dataset.activeStage = value;
+        stageChips.forEach(function(other) {
+          const pressed = (other.getAttribute('data-stage-filter') || 'all') === value;
+          other.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        });
+        applyAxisFilters();
+      });
+    });
+    controlSurfaceChips.forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        const value = chip.getAttribute('data-control-surface-filter') || 'all';
+        document.body.dataset.activeControlSurface = value;
+        controlSurfaceChips.forEach(function(other) {
+          const pressed = (other.getAttribute('data-control-surface-filter') || 'all') === value;
+          other.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        });
+        applyAxisFilters();
+      });
+    });
+    applyAxisFilters();
+
+    const searchInput = document.getElementById('settings-search');
+    function applySearchFilter(term) {
+      const q = (term || '').trim().toLowerCase();
+      document.querySelectorAll('[data-entry-key]').forEach(function(row) {
+        const text = row.textContent.toLowerCase();
+        const match = q.length === 0 || text.includes(q);
+        if (!match) row.classList.add('is-filter-hidden');
+      });
+      document.querySelectorAll('.settings-panel').forEach(function(panel) {
+        const hasVisible = panel.querySelector('[data-entry-key]:not(.is-filter-hidden)') !== null;
+        panel.classList.toggle('is-filter-hidden', !hasVisible);
+      });
+      document.querySelectorAll('[data-task-section]').forEach(function(section) {
+        const hasVisiblePanel = section.querySelector('.settings-panel:not(.is-filter-hidden)') !== null;
+        if (section.getAttribute('data-task-section') !== 'danger-zone') {
+          section.classList.toggle('is-filter-hidden', !hasVisiblePanel);
+        }
+      });
+    }
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        applyAxisFilters();
+        applySearchFilter(searchInput.value);
+      });
+    }
+
     document.querySelectorAll('form[data-dirty-card]').forEach(function(form) {
       updateCardDirtyState(form);
       form.querySelectorAll('input, select, textarea').forEach(function(field) {
         field.addEventListener('input', function() { updateCardDirtyState(form); });
         field.addEventListener('change', function() { updateCardDirtyState(form); });
+      });
+      form.addEventListener('submit', function(event) {
+        if (!resolveAutomationPrerequisites(form)) {
+          event.preventDefault();
+          return;
+        }
+        const issues = runPreflightGuardrails(form);
+        if (issues.length > 0) {
+          event.preventDefault();
+          window.alert('Please fix before saving:\n- ' + issues.join('\n- '));
+          return;
+        }
+        if (form.dataset.guardedSave === 'true') {
+          const ok = window.confirm('This section has high-impact settings. Save changes now?');
+          if (!ok) event.preventDefault();
+        }
       });
     });
 

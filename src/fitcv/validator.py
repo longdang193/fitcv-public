@@ -20,8 +20,17 @@ from collections.abc import Iterable
 from typing import Any, TypedDict
 
 from fitcv.candidate import flatten_skills, infer_role_family
+from fitcv.candidate_name_policy import is_candidate_name_placeholder
 from fitcv.config import CV_SECTION_KEY_TO_NAME, get_required_structured_section_keys
-from fitcv.rule_filter import _canonicalise_skill
+from fitcv.placeholder_policy import (
+    is_placeholder_token as _shared_is_placeholder_token,
+    normalize_placeholder_token as _shared_normalize_placeholder_token,
+)
+from fitcv.section_policy import (
+    certification_policy_decisions,
+    is_meaningful_certification_row,
+)
+from fitcv.rule_filter import canonicalize_skill
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
@@ -103,25 +112,11 @@ _UNRESOLVED_PLACEHOLDER_PATTERNS = (
     re.compile(r"\[your phone\]", re.IGNORECASE),
     re.compile(r"\[linkedin url\]", re.IGNORECASE),
 )
-_CANDIDATE_NAME_PLACEHOLDER_VALUES = {
-    "candidate name",
-    "your name",
-}
 _MARKDOWN_PLACEHOLDER_PATTERNS = (
     re.compile(r"\btbd\b", re.IGNORECASE),
     re.compile(r"lorem ipsum", re.IGNORECASE),
     re.compile(r"\bto be (filled|provided|updated)\b", re.IGNORECASE),
 )
-_EDUCATION_PLACEHOLDER_TOKENS = {
-    "",
-    "none",
-    "null",
-    "n/a",
-    "na",
-    "not specified",
-    "not provided",
-    "unknown",
-}
 
 
 def _role_family_aliases(config: dict[str, Any]) -> dict[str, set[str]]:
@@ -279,10 +274,7 @@ def _normalize_placeholder_name_token(value: str) -> str:
 
 
 def _is_candidate_name_placeholder(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    normalized = _normalize_placeholder_name_token(value)
-    return normalized in _CANDIDATE_NAME_PLACEHOLDER_VALUES
+    return is_candidate_name_placeholder(value)
 
 
 def _check_candidate_name_placeholders(
@@ -346,11 +338,15 @@ def _structured_section_has_content(section_key: str, section_value: Any) -> boo
             if isinstance(items, list) and any(isinstance(item, str) and item.strip() for item in items):
                 return True
         return False
+    if section_key == "certifications":
+        if not isinstance(section_value, list):
+            return False
+        certification_rows = [row for row in section_value if isinstance(row, dict)]
+        return any(is_meaningful_certification_row(row) for row in certification_rows)
     if section_key in {
         "experience",
         "projects",
         "education",
-        "certifications",
         "publications",
         "languages",
     }:
@@ -380,6 +376,14 @@ def _find_missing_required_structured_sections(
             has_profile_education = bool(list((profile or {}).get("education") or []))
             if not has_profile_education:
                 # Do not hard-fail Education when the candidate profile has no education records.
+                continue
+        if section_key == "certifications":
+            cert_policy = certification_policy_decisions(
+                config=config,
+                profile=profile,
+                evidence_selected_certifications=[],
+            )
+            if not cert_policy.get("required"):
                 continue
         section_value = sections.get(section_key)
         if not _structured_section_has_content(section_key, section_value):
@@ -557,6 +561,22 @@ def _normalize_analysis_grounding(
     evidence_used = list((analysis_grounding or {}).get("evidence_used") or [])
     evidence_items = evidence_payload or evidence_used
 
+    selected_evidence_ids: list[str] = [
+        str(evidence_id).strip()
+        for evidence_id in list(((analysis_grounding or {}).get("evidence_selection_summary") or {}).get("selected_evidence_ids") or [])
+        if str(evidence_id).strip()
+    ]
+    selected_evidence_id_set = set(selected_evidence_ids)
+    if selected_evidence_id_set:
+        filtered_evidence_items: list[dict[str, Any]] = []
+        for item in evidence_items:
+            if not isinstance(item, dict):
+                continue
+            evidence_id = str(item.get("evidence_id") or "").strip()
+            if evidence_id and evidence_id in selected_evidence_id_set:
+                filtered_evidence_items.append(item)
+        evidence_items = filtered_evidence_items
+
     employers: set[str] = set()
     projects: set[str] = set()
     skills_lower: set[str] = set()
@@ -565,18 +585,10 @@ def _normalize_analysis_grounding(
     domain_tags: set[str] = set()
     role_families: set[str] = set()
     support_phrases: list[str] = []
-    selected_evidence_ids: list[str] = [
-        str(evidence_id).strip()
-        for evidence_id in list(((analysis_grounding or {}).get("evidence_selection_summary") or {}).get("selected_evidence_ids") or [])
-        if str(evidence_id).strip()
-    ]
 
     for item in evidence_items:
         if not isinstance(item, dict):
             continue
-        evidence_id = str(item.get("evidence_id") or "").strip()
-        if evidence_id and evidence_id not in selected_evidence_ids:
-            selected_evidence_ids.append(evidence_id)
 
         company = str(item.get("company") or "").strip()
         if company:
@@ -592,7 +604,7 @@ def _normalize_analysis_grounding(
             if not skill_text:
                 continue
             skills_lower.add(skill_text.lower())
-            skills_canonical.add(_canonicalise_skill(skill_text, config))
+            skills_canonical.add(canonicalize_skill(skill_text, config))
 
         for raw_theme in list(item.get("responsibility_themes") or []):
             theme_text = str(raw_theme or "").strip()
@@ -697,7 +709,7 @@ def _check_selected_skill_grounding(
         return violations
     for skill in _extract_skill_section_tokens(cv_text):
         skill_lower = skill.lower()
-        skill_canonical = _canonicalise_skill(skill, config)
+        skill_canonical = canonicalize_skill(skill, config)
         if skill_lower in selected_skills_lower or skill_canonical in selected_skills_canonical:
             continue
         if skill_lower in candidate_skills_lower or skill_canonical in candidate_skills_canonical:
@@ -782,14 +794,11 @@ def _check_unresolved_placeholders(cv_text: str) -> list[str]:
 
 
 def _normalize_placeholder_token(value: Any) -> str:
-    normalized = str(value or "").strip().lower()
-    normalized = normalized.replace("–", "-").replace("—", "-")
-    normalized = re.sub(r"\s+", " ", normalized)
-    return normalized
+    return _shared_normalize_placeholder_token(value)
 
 
 def _is_placeholder_token(value: Any) -> bool:
-    return _normalize_placeholder_token(value) in _EDUCATION_PLACEHOLDER_TOKENS
+    return _shared_is_placeholder_token(value)
 
 
 def _check_synthetic_education_entries(structured_cv: dict[str, Any] | None) -> list[str]:
@@ -838,6 +847,24 @@ def _check_synthetic_non_education_entries(structured_cv: dict[str, Any] | None)
         if not isinstance(values, list):
             return []
         return [item for item in values if isinstance(item, dict)]
+
+    for index, row in enumerate(_rows("experience")):
+        bullets = [bullet for bullet in (row.get("bullets") or []) if isinstance(bullet, str)]
+        if any(not _is_placeholder_token(bullet) for bullet in bullets):
+            continue
+        if all(
+            _is_placeholder_token(value)
+            for value in (
+                row.get("role"),
+                row.get("company"),
+                row.get("start"),
+                row.get("end"),
+                row.get("location"),
+            )
+        ):
+            violations.append(
+                f"Synthetic Experience row detected at index {index}: placeholder role/company/date/location set."
+            )
 
     for index, row in enumerate(_rows("projects")):
         bullets = [bullet for bullet in (row.get("bullets") or []) if isinstance(bullet, str)]
@@ -943,15 +970,29 @@ def check_skill_provenance(
 
     candidate_lower = {s.strip().lower() for s in candidate_skills}
     candidate_canonical = {
-        _canonicalise_skill(skill, config)
+        canonicalize_skill(skill, config)
         for skill in candidate_skills
         if skill.strip()
     }
     violations: list[str] = []
+    placeholder_tokens = {
+        "not provided in selected evidence",
+        "none provided in selected evidence",
+        "not provided",
+        "n/a",
+        "na",
+        "none",
+        "unknown",
+        "not specified",
+        "unspecified",
+    }
 
     for skill in cv_skills:
         skill_lower = skill.lower()
-        skill_canonical = _canonicalise_skill(skill, config)
+        skill_compact = skill_lower.strip("()[]{} \t")
+        if skill_lower in placeholder_tokens or skill_compact in placeholder_tokens:
+            continue
+        skill_canonical = canonicalize_skill(skill, config)
         if skill_lower not in candidate_lower and skill_canonical not in candidate_canonical:
             violations.append(
                 f"Skill '{skill}' in CV Skills section is not in candidate knowledge base"
@@ -986,6 +1027,18 @@ def run_all_validations(
     block validity.
     """
     required_sections: list[str] = list(config["required_cv_sections"])
+    cert_policy = certification_policy_decisions(
+        config=config,
+        profile=profile,
+        evidence_selected_certifications=[],
+    )
+    effective_required_sections = list(required_sections)
+    if not cert_policy.get("required"):
+        effective_required_sections = [
+            section
+            for section in effective_required_sections
+            if section.strip().lower() != "certifications"
+        ]
     # Read max_pages: prefer nested cv.validation.max_pages, fall back to flat cv_max_pages
     cv_cfg = config.get("cv") or {}
     max_pages: int = int(
@@ -994,7 +1047,7 @@ def run_all_validations(
     )
 
     # Structural section check
-    section_result = validate_output(cv_text, required_sections)
+    section_result = validate_output(cv_text, effective_required_sections)
     missing_sections = list(section_result["missing_sections"])
     missing_sections.extend(_find_missing_required_structured_sections(structured_cv, config, profile))
     missing_sections = list(dict.fromkeys(missing_sections))
@@ -1038,7 +1091,7 @@ def run_all_validations(
     if support_surface["has_selected_support"]:
         candidate_skills_lower = _normalize_lower_set(candidate_skills)
         candidate_skills_canonical = {
-            _canonicalise_skill(skill, config)
+            canonicalize_skill(skill, config)
             for skill in candidate_skills
             if str(skill).strip()
         }
@@ -1082,6 +1135,13 @@ def run_all_validations(
             + semantic_grounding_violations
         ))
 
+    missing_skills_relaxed = False
+    if "Skills" in missing_sections and not support_surface["skills_lower"] and support_surface["has_selected_support"]:
+        # When selected evidence has no skill-level support, a hard Skills-section
+        # requirement can become unsatisfiable. Keep signal as warning, do not fail.
+        missing_sections = [section for section in missing_sections if section != "Skills"]
+        missing_skills_relaxed = True
+
     selected_evidence_skill_relaxation_enabled = bool(
         ((config.get("cv") or {}).get("validation") or {}).get(
             "allow_profile_skill_outside_selected_evidence",
@@ -1107,6 +1167,10 @@ def run_all_validations(
 
     # Non-blocking warnings
     warnings: list[str] = []
+    if missing_skills_relaxed:
+        warnings.append(
+            "Relaxed missing Skills section: selected evidence contains no grounded skill entries."
+        )
     if selected_evidence_skill_relaxation_enabled:
         for violation in relaxed_skill_violations:
             warnings.append(f"Relaxed selected-evidence skill grounding violation: {violation}")
@@ -1142,3 +1206,4 @@ def run_all_validations(
         "markdown_quality_blocking_issues": markdown_quality_blocking_issues,
         "markdown_quality_review_flags": markdown_quality_review_flags,
     }
+
