@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Run {{ run.run_id[:8] }} — FitCV Admin{% endblock %}
 {% block content %}
+{% import "_icons.html" as icons %}
 
 <div class="page-header">
   <h1>Run <code>{{ run.run_id }}</code></h1>
@@ -293,7 +294,7 @@
               <form method="post" action="/admin/runs/{{ run.run_id }}/bookmarks/delete" style="display:inline">
                 <input type="hidden" name="bookmark_key" value="{{ cv.bookmark_key }}">
                 <input type="hidden" name="redirect_to" value="/admin/runs/{{ run.run_id }}">
-                <button type="submit" class="btn-secondary" title="Remove bookmark">★</button>
+                <button type="submit" class="btn-secondary" title="Remove bookmark" aria-label="Remove bookmark" style="{{ icons.icon_button_style() }}">{{ icons.icon_star_filled() }}</button>
               </form>
               {% else %}
               <form method="post" action="/admin/runs/{{ run.run_id }}/bookmarks/save" style="display:inline">
@@ -306,7 +307,7 @@
                 <input type="hidden" name="fit_classification" value="{{ cv.fit_classification }}">
                 <input type="hidden" name="source" value="pipeline_results">
                 <input type="hidden" name="redirect_to" value="/admin/runs/{{ run.run_id }}">
-                <button type="submit" class="btn-secondary" title="Save bookmark">☆</button>
+                <button type="submit" class="btn-secondary" title="Save bookmark" aria-label="Save bookmark" style="{{ icons.icon_button_style() }}">{{ icons.icon_star_outline() }}</button>
               </form>
               {% endif %}
               <a href="/admin/cvs/{{ cv.version_id }}/download" class="btn-secondary">⬇ Download Markdown</a>
