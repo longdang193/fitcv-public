@@ -63,7 +63,7 @@
           </form>
         {% endif %}
 
-        {% if item.version_id %}<a href="/admin/cvs/{{ item.version_id }}/download" class="btn-secondary" title="Download Markdown" aria-label="Download Markdown" style="{{ icons.icon_button_style() }}">{{ icons.icon_download() }}</a>{% endif %}
+        {% if item.version_id %}<a href="/admin/cvs/{{ item.version_id }}/download" class="btn-secondary" title="Download CV" aria-label="Download CV" style="{{ icons.icon_button_style() }}">{{ icons.icon_download() }}</a>{% endif %}
         {% if item.source_run_id %}<a href="/admin/runs/{{ item.source_run_id }}" class="btn-secondary">Open Run</a>{% endif %}
         <form method="post" action="/admin/bookmarks/delete" style="display:inline">
           <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">

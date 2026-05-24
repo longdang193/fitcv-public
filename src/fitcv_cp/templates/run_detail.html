@@ -280,7 +280,7 @@
     </p>
     {% if cv_versions %}
       <div style="margin-top:1rem;border-top:1px solid var(--accent);padding-top:1rem">
-        <h4 class="section-title" style="font-size:0.95rem;margin:0 0 0.75rem">Generated Outputs:</h4>
+        <h4 class="section-title" style="font-size:0.95rem;margin:0 0 0.75rem;display:flex;align-items:center;gap:0.4rem">{{ icons.icon_download() }} Generated Outputs:</h4>
         <div style="display:flex;flex-direction:column;gap:0.75rem">
         {% for cv in cv_versions %}
           {% if cv.version_id %}
@@ -310,7 +310,7 @@
                 <button type="submit" class="btn-secondary" title="Save bookmark" aria-label="Save bookmark" style="{{ icons.icon_button_style() }}">{{ icons.icon_star_outline() }}</button>
               </form>
               {% endif %}
-              <a href="/admin/cvs/{{ cv.version_id }}/download" class="btn-secondary">⬇ Download Markdown</a>
+              <a href="/admin/cvs/{{ cv.version_id }}/download" class="btn-secondary" title="Download CV" aria-label="Download CV" style="{{ icons.icon_button_style() }}">{{ icons.icon_download() }}</a>
             </div>
           </div>
           {% endif %}
