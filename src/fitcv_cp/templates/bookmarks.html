@@ -13,6 +13,30 @@
 
 {% set redirect_to = "/admin/bookmarks?view=" ~ view %}
 
+{% macro icon_archive() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M21 8v13H3V8" />
+  <path d="M1 3h22v5H1z" />
+  <path d="M10 12h4" />
+</svg>
+{%- endmacro %}
+
+{% macro icon_download() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+  <path d="M7 10l5 5 5-5" />
+  <path d="M12 15V3" />
+</svg>
+{%- endmacro %}
+
+{% macro icon_bookmark_remove() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+</svg>
+{%- endmacro %}
+
+{% macro icon_button_style() -%}display:inline-flex;align-items:center;justify-content:center;line-height:1;padding:0.35rem 0.5rem{%- endmacro %}
+
 {% macro render_bookmark_rows(items) %}
   <div style="display:flex;flex-direction:column;gap:0.75rem">
     {% for item in items %}
@@ -38,7 +62,7 @@
             <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
             <input type="hidden" name="status" value="archived">
             <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
-            <button type="submit" class="btn-secondary" title="Archive bookmark">Archive</button>
+            <button type="submit" class="btn-secondary" title="Archive bookmark" aria-label="Archive bookmark" style="{{ icon_button_style() }}">{{ icon_archive() }}</button>
           </form>
         {% elif item.status == 'submitted' %}
           <form method="post" action="/admin/bookmarks/status" style="display:inline">
@@ -51,7 +75,7 @@
             <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
             <input type="hidden" name="status" value="archived">
             <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
-            <button type="submit" class="btn-secondary" title="Archive bookmark">Archive</button>
+            <button type="submit" class="btn-secondary" title="Archive bookmark" aria-label="Archive bookmark" style="{{ icon_button_style() }}">{{ icon_archive() }}</button>
           </form>
         {% elif item.status == 'archived' %}
           <form method="post" action="/admin/bookmarks/status" style="display:inline">
@@ -62,12 +86,12 @@
           </form>
         {% endif %}
 
-        {% if item.version_id %}<a href="/admin/cvs/{{ item.version_id }}/download" class="btn-secondary">⬇ Download Markdown</a>{% endif %}
+        {% if item.version_id %}<a href="/admin/cvs/{{ item.version_id }}/download" class="btn-secondary" title="Download Markdown" aria-label="Download Markdown" style="{{ icon_button_style() }}">{{ icon_download() }}</a>{% endif %}
         {% if item.source_run_id %}<a href="/admin/runs/{{ item.source_run_id }}" class="btn-secondary">Open Run</a>{% endif %}
         <form method="post" action="/admin/bookmarks/delete" style="display:inline">
           <input type="hidden" name="bookmark_key" value="{{ item.bookmark_key }}">
           <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
-          <button type="submit" class="btn-secondary" title="Remove bookmark">★ Remove</button>
+          <button type="submit" class="btn-secondary" title="Remove bookmark" aria-label="Remove bookmark" style="{{ icon_button_style() }}">{{ icon_bookmark_remove() }}</button>
         </form>
       </div>
     </div>
