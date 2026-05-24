@@ -155,7 +155,7 @@ Primary architecture references:
 - [docs/fitcv-control-plane-setup.md](docs/fitcv-control-plane-setup.md)
 - [docs/pipeline.md](docs/pipeline.md)
 
-## Tech Stack (Skills Shown)
+## Tech Stack
 
 - Python 3.11, FastAPI, Jinja2 templates
 - Redis + RQ worker orchestration
