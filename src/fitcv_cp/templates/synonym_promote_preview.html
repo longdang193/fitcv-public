@@ -22,63 +22,93 @@
     conflict={{ preview.counts.conflict }},
     skip={{ preview.counts.skip }}.
   </div>
+  {% set field_groups = [("skill", "Skills"), ("domain", "Domain"), ("role_family", "Role Family"), ("unknown", "Unknown")] %}
   <div class="meta" style="margin-bottom:0.8rem">
-    This promotion is a merge/overlay into the global synonym map, not a full replacement.
+    {% for field_key, field_label in field_groups %}
+      {% set counts = preview.counts_by_field.get(field_key, {}) %}
+      {% if counts %}
+        {{ field_label }}: ready={{ (preview.ready_rows_by_field.get(field_key, [])|length) }}, already_global={{ (preview.already_global_rows_by_field.get(field_key, [])|length) }}, blocked={{ (preview.blocked_rows_by_field.get(field_key, [])|length) }}{% if not loop.last %}; {% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="meta" style="margin-bottom:0.8rem">
+    This promotion is a merge/overlay into the global policy maps, not a full replacement.
   </div>
   <h4 style="margin:0.25rem 0 0.45rem">Ready to Promote</h4>
-  <table style="margin-bottom:0.85rem">
-    <thead><tr><th>Select</th><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
-    <tbody>
-      {% for row in preview.ready_rows %}
-      <tr>
-        <td><input type="checkbox" name="promote_proposal_id" value="{{ row.proposal_id }}" form="promote-commit-form" checked></td>
-        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
-        <td>{{ row.status }}</td>
-        <td>{{ row.diff_type }}</td>
-        <td>{{ row.reason }}</td>
-      </tr>
-      {% endfor %}
-      {% if not preview.ready_rows %}
-      <tr><td colspan="5" class="meta">No rows ready to promote.</td></tr>
-      {% endif %}
-    </tbody>
-  </table>
+  {% for field_key, field_label in field_groups %}
+    {% set rows = preview.ready_rows_by_field.get(field_key, []) %}
+    {% if rows %}
+      <div class="meta" style="margin:0.35rem 0 0.35rem 0">{{ field_label }}</div>
+      <table style="margin-bottom:0.85rem">
+        <thead><tr><th>Select</th><th>Field</th><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td><input type="checkbox" name="promote_proposal_id" value="{{ row.proposal_id }}" form="promote-commit-form" checked></td>
+            <td>{{ row.field or "—" }}</td>
+            <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.diff_type }}</td>
+            <td>{{ row.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endfor %}
+  {% if not preview.ready_rows %}
+    <div class="meta" style="margin-bottom:0.85rem">No rows ready to promote.</div>
+  {% endif %}
 
   <h4 style="margin:0.25rem 0 0.45rem">Already Global (No Change)</h4>
-  <table style="margin-bottom:0.85rem">
-    <thead><tr><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
-    <tbody>
-      {% for row in preview.already_global_rows %}
-      <tr>
-        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
-        <td>{{ row.status }}</td>
-        <td>{{ row.diff_type }}</td>
-        <td>{{ row.reason }}</td>
-      </tr>
-      {% endfor %}
-      {% if not preview.already_global_rows %}
-      <tr><td colspan="4" class="meta">No already-global rows in this review set.</td></tr>
-      {% endif %}
-    </tbody>
-  </table>
+  {% for field_key, field_label in field_groups %}
+    {% set rows = preview.already_global_rows_by_field.get(field_key, []) %}
+    {% if rows %}
+      <div class="meta" style="margin:0.35rem 0 0.35rem 0">{{ field_label }}</div>
+      <table style="margin-bottom:0.85rem">
+        <thead><tr><th>Field</th><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.field or "—" }}</td>
+            <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.diff_type }}</td>
+            <td>{{ row.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endfor %}
+  {% if not preview.already_global_rows %}
+    <div class="meta" style="margin-bottom:0.85rem">No already-global rows in this review set.</div>
+  {% endif %}
 
   <h4 style="margin:0.25rem 0 0.45rem">Blocked / Conflict</h4>
-  <table>
-    <thead><tr><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
-    <tbody>
-      {% for row in preview.blocked_rows %}
-      <tr>
-        <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
-        <td>{{ row.status }}</td>
-        <td>{{ row.diff_type }}</td>
-        <td>{{ row.reason }}</td>
-      </tr>
-      {% endfor %}
-      {% if not preview.blocked_rows %}
-      <tr><td colspan="4" class="meta">No blocked rows in this review set.</td></tr>
-      {% endif %}
-    </tbody>
-  </table>
+  {% for field_key, field_label in field_groups %}
+    {% set rows = preview.blocked_rows_by_field.get(field_key, []) %}
+    {% if rows %}
+      <div class="meta" style="margin:0.35rem 0 0.35rem 0">{{ field_label }}</div>
+      <table style="margin-bottom:0.85rem">
+        <thead><tr><th>Field</th><th>Proposal</th><th>Status</th><th>Diff</th><th>Reason</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.field or "—" }}</td>
+            <td><code>{{ row.alias or "—" }}</code> → <code>{{ row.canonical or "—" }}</code></td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.diff_type }}</td>
+            <td>{{ row.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endfor %}
+  {% if not preview.blocked_rows %}
+    <div class="meta">No blocked rows in this review set.</div>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -90,15 +120,15 @@
   </div>
   {% if preview.counts.conflict > 0 %}
   <div class="error-box">
-    <strong>Promotion blocked</strong>
-    Resolve conflicts in the selected set, then preview again.
+    <strong>Conflicts present</strong>
+    Conflicting fields will be skipped on commit. Review the Blocked / Conflict section for details.
   </div>
   {% endif %}
   <form id="promote-commit-form" method="post" action="/admin/runs/{{ run.run_id }}/synonym-proposals/promote-commit" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">
     <input type="hidden" name="selected_ids_csv" value="{{ selected_ids_csv }}">
     <input type="text" name="acted_by" value="admin" placeholder="actor" style="max-width:12rem">
     <input type="hidden" name="note" value="ui:promote-to-global">
-    <button class="btn-primary" type="submit" {% if preview.counts.conflict > 0 %}disabled{% endif %}>Confirm Promote to Global</button>
+    <button class="btn-primary" type="submit">Confirm Promote to Global</button>
   </form>
 </div>
 <script>

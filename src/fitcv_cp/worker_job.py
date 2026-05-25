@@ -1066,6 +1066,47 @@ def _triage_synonym_proposal_recommendation_builtin(proposal: dict[str, Any], *,
 def _global_skill_synonyms_path() -> Path:
     return Path("config") / "taxonomy" / "skill_synonyms.yaml"
 
+_YAML_TOP_LEVEL_KEY_RE = re.compile(r"^[A-Za-z0-9_]+\s*:")
+
+def _render_yaml_top_level_mapping(*, key: str, mappings: dict[str, str]) -> list[str]:
+    if not mappings:
+        return [f"{key}: {{}}\n"]
+    lines = [f"{key}:\n"]
+    for alias, canonical in sorted(mappings.items()):
+        lines.append(f"  {alias}: {canonical}\n")
+    return lines
+
+def _replace_yaml_top_level_mapping_block(
+    *,
+    raw_yaml: str,
+    key: str,
+    mappings: dict[str, str],
+) -> str:
+    lines = raw_yaml.splitlines(keepends=True)
+    start_idx: int | None = None
+    for idx, line in enumerate(lines):
+        if line.startswith(f"{key}:"):
+            start_idx = idx
+            break
+    replacement = _render_yaml_top_level_mapping(key=key, mappings=mappings)
+    if start_idx is None:
+        if raw_yaml and not raw_yaml.endswith("\n"):
+            return raw_yaml + "\n" + "".join(replacement)
+        return raw_yaml + "".join(replacement)
+    end_idx = start_idx + 1
+    while end_idx < len(lines):
+        candidate = lines[end_idx]
+        if candidate.startswith("#") or not candidate.strip():
+            end_idx += 1
+            continue
+        if candidate[:1].isspace():
+            end_idx += 1
+            continue
+        if _YAML_TOP_LEVEL_KEY_RE.match(candidate):
+            break
+        end_idx += 1
+    return "".join([*lines[:start_idx], *replacement, *lines[end_idx:]])
+
 def _load_global_skill_synonyms_map() -> dict[str, str]:
     path = _global_skill_synonyms_path()
     if not path.exists():
@@ -1105,6 +1146,62 @@ def _persist_global_skill_synonyms_map(mappings: dict[str, str]) -> None:
     finally:
         if tmp_path is not None and tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
+
+def _global_domain_synonyms_path() -> Path:
+    return Path("config") / "taxonomy" / "domain_synonyms.yaml"
+
+def _load_global_domain_alias_map() -> dict[str, str]:
+    path = _global_domain_synonyms_path()
+    if not path.exists():
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    raw_map = payload.get("domain_alias_map")
+    if not isinstance(raw_map, dict):
+        return {}
+    return {
+        str(alias).strip().lower(): str(canonical).strip().lower()
+        for alias, canonical in raw_map.items()
+        if str(alias).strip() and str(canonical).strip()
+    }
+
+def _persist_global_domain_alias_map(mappings: dict[str, str]) -> None:
+    path = _global_domain_synonyms_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw_yaml = path.read_text(encoding="utf-8") if path.exists() else ""
+    updated = _replace_yaml_top_level_mapping_block(raw_yaml=raw_yaml, key="domain_alias_map", mappings=mappings)
+    path.write_text(updated, encoding="utf-8")
+
+def _global_role_family_synonyms_path() -> Path:
+    return Path("config") / "taxonomy" / "role_family_synonyms.yaml"
+
+def _load_global_role_family_alias_map() -> dict[str, str]:
+    path = _global_role_family_synonyms_path()
+    if not path.exists():
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    raw_map = payload.get("role_family_alias_map")
+    if not isinstance(raw_map, dict):
+        return {}
+    return {
+        str(alias).strip().lower(): str(canonical).strip().lower()
+        for alias, canonical in raw_map.items()
+        if str(alias).strip() and str(canonical).strip()
+    }
+
+def _persist_global_role_family_alias_map(mappings: dict[str, str]) -> None:
+    path = _global_role_family_synonyms_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw_yaml = path.read_text(encoding="utf-8") if path.exists() else ""
+    updated = _replace_yaml_top_level_mapping_block(
+        raw_yaml=raw_yaml,
+        key="role_family_alias_map",
+        mappings=mappings,
+    )
+    path.write_text(updated, encoding="utf-8")
 
 
 def _map_review_required_reason_code(record: dict[str, Any]) -> str:
@@ -1477,16 +1574,23 @@ def _run_synonym_automation_for_payload(
         if run_status != RunStatus.SUCCEEDED:
             promote_skip_reason = "validation_not_eligible"
         else:
-            approved = [
+            approved_skill = [
                 item for item in proposals
                 if str(item.get("proposal_status") or "").strip() == "approved_for_run_overlay"
+                and str(item.get("field") or "skill").strip().lower() == "skill"
             ]
-            if not approved:
-                promote_skip_reason = "no_approved_proposals"
+            approved_non_skill_count = sum(
+                1
+                for item in proposals
+                if str(item.get("proposal_status") or "").strip() == "approved_for_run_overlay"
+                and str(item.get("field") or "skill").strip().lower() != "skill"
+            )
+            if not approved_skill:
+                promote_skip_reason = "no_approved_skill_proposals" if approved_non_skill_count else "no_approved_proposals"
             else:
                 global_map = _load_global_skill_synonyms_map()
                 alias_to_canonicals: dict[str, set[str]] = {}
-                for item in approved:
+                for item in approved_skill:
                     alias = str(item.get("alias") or "").strip().lower()
                     canonical = str(item.get("canonical") or "").strip().lower()
                     if alias and canonical:
@@ -1499,6 +1603,9 @@ def _run_synonym_automation_for_payload(
                     updated_ids: list[str] = []
                     for idx, item in enumerate(proposals):
                         if str(item.get("proposal_status") or "").strip() != "approved_for_run_overlay":
+                            continue
+                        if str(item.get("field") or "skill").strip().lower() != "skill":
+                            promote_counts["skipped"] += 1
                             continue
                         alias = str(item.get("alias") or "").strip().lower()
                         canonical = str(item.get("canonical") or "").strip().lower()

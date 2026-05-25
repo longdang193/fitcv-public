@@ -148,7 +148,7 @@ Notes:
 - Compose mounts `./config/env.yaml` -> `/app/config/env.yaml` as base runtime config entrypoint
 - `config/runtime/pipeline.yaml` remains canonical owner for pipeline/ranking/retrieval knobs loaded by `load_config(...)`
 - Optional local override files can also be mounted when explicitly used via `config_path`
-- The service-account key is mounted inside the container as `/app/sa_key.json`
+- Compose bind-mounts `./runtime` into `/app/runtime` for the control-plane SQLite DB (`runtime/fitcv_cp.sqlite3`). Delete that file to reset the DB.
 - Do not pass Windows paths like `C:\...json` into Docker-triggered runs
 
 ## Verify the Setup

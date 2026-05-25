@@ -10,12 +10,11 @@ services:
     env_file:
       - .env
     environment:
-      - GCP_PROJECT=${GCP_PROJECT:-fitcv-491123}
+      - GCP_PROJECT=${GCP_PROJECT:-local}
       - BIGQUERY_DATASET=${BIGQUERY_DATASET:-fitcv}
       - FITCV_CP_DATA_BACKEND=sqlite
       - FITCV_CP_SQLITE_PATH=/app/runtime/fitcv_cp.sqlite3
       - REDIS_URL=redis://redis:6379/0
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa_key.json
       - FITCV_LANGGRAPH_ENV_FILE=/app/.env
       - FITCV_LANGGRAPH_REPO_ROOT=/opt/fitcv-langgraph
       - FITCV_CP_SETTINGS_SQLITE_PATH=/app/runtime/fitcv_cp.sqlite3
@@ -23,11 +22,9 @@ services:
       - ./.env:/app/.env:ro
       - ./config/env.yaml:/app/config/env.yaml:ro
       - ./config/runtime/control_plane.yaml:/app/config/runtime/control_plane.yaml:ro
-      - ${GCP_SA_KEY_PATH:-./fitcv-491123-51c030d71e07.json}:/app/sa_key.json:ro
       - ${FITCV_LANGGRAPH_REPO_PATH:-../fitcv-langgraph}:/opt/fitcv-langgraph:ro
       - ./data:/app/data
-      - fitcv_runtime_db:/app/runtime
-      - fitcv_uploads:/app/data/uploads
+      - ./runtime:/app/runtime
     depends_on: [redis]
 
   worker:
@@ -37,12 +34,11 @@ services:
     env_file:
       - .env
     environment:
-      - GCP_PROJECT=${GCP_PROJECT:-fitcv-491123}
+      - GCP_PROJECT=${GCP_PROJECT:-local}
       - BIGQUERY_DATASET=${BIGQUERY_DATASET:-fitcv}
       - FITCV_CP_DATA_BACKEND=sqlite
       - FITCV_CP_SQLITE_PATH=/app/runtime/fitcv_cp.sqlite3
       - REDIS_URL=redis://redis:6379/0
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa_key.json
       - FITCV_LANGGRAPH_ENV_FILE=/app/.env
       - FITCV_LANGGRAPH_REPO_ROOT=/opt/fitcv-langgraph
       - FITCV_CP_SETTINGS_SQLITE_PATH=/app/runtime/fitcv_cp.sqlite3
@@ -50,13 +46,7 @@ services:
       - ./.env:/app/.env:ro
       - ./config/env.yaml:/app/config/env.yaml:ro
       - ./config/runtime/control_plane.yaml:/app/config/runtime/control_plane.yaml:ro
-      - ${GCP_SA_KEY_PATH:-./fitcv-491123-51c030d71e07.json}:/app/sa_key.json:ro
       - ${FITCV_LANGGRAPH_REPO_PATH:-../fitcv-langgraph}:/opt/fitcv-langgraph:ro
       - ./data:/app/data
-      - fitcv_runtime_db:/app/runtime
-      - fitcv_uploads:/app/data/uploads
+      - ./runtime:/app/runtime
     depends_on: [redis]
-
-volumes:
-  fitcv_uploads:
-  fitcv_runtime_db:

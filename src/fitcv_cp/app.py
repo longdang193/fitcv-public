@@ -32,6 +32,7 @@ from urllib.parse import unquote, urlencode, urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
+import yaml
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -3272,6 +3273,20 @@ def _build_run_export_links(run: PipelineRun) -> list[dict[str, str]]:
             "helper_text": "Canonical global skill synonym map used as baseline across runs.",
         }
     )
+    links.append(
+        {
+            "label": "Download Global Domain Aliases YAML",
+            "href": "/admin/synonyms/global-domain.yaml",
+            "helper_text": "Canonical global domain alias map used as baseline across runs.",
+        }
+    )
+    links.append(
+        {
+            "label": "Download Global Role Family Aliases YAML",
+            "href": "/admin/synonyms/global-role-family.yaml",
+            "helper_text": "Canonical global role family alias map used as baseline across runs.",
+        }
+    )
     if artifact_files:
         links.append(
             {
@@ -3862,6 +3877,47 @@ def _resolve_synonym_triage_runtime(run: PipelineRun) -> dict[str, Any]:
 def _global_skill_synonyms_path() -> Path:
     return Path("config") / "taxonomy" / "skill_synonyms.yaml"
 
+_YAML_TOP_LEVEL_KEY_RE = re.compile(r"^[A-Za-z0-9_]+\s*:")
+
+def _render_yaml_top_level_mapping(*, key: str, mappings: dict[str, str]) -> list[str]:
+    if not mappings:
+        return [f"{key}: {{}}\n"]
+    lines = [f"{key}:\n"]
+    for alias, canonical in sorted(mappings.items()):
+        lines.append(f"  {alias}: {canonical}\n")
+    return lines
+
+def _replace_yaml_top_level_mapping_block(
+    *,
+    raw_yaml: str,
+    key: str,
+    mappings: dict[str, str],
+) -> str:
+    lines = raw_yaml.splitlines(keepends=True)
+    start_idx: int | None = None
+    for idx, line in enumerate(lines):
+        if line.startswith(f"{key}:"):
+            start_idx = idx
+            break
+    replacement = _render_yaml_top_level_mapping(key=key, mappings=mappings)
+    if start_idx is None:
+        if raw_yaml and not raw_yaml.endswith("\n"):
+            return raw_yaml + "\n" + "".join(replacement)
+        return raw_yaml + "".join(replacement)
+    end_idx = start_idx + 1
+    while end_idx < len(lines):
+        candidate = lines[end_idx]
+        if candidate.startswith("#") or not candidate.strip():
+            end_idx += 1
+            continue
+        if candidate[:1].isspace():
+            end_idx += 1
+            continue
+        if _YAML_TOP_LEVEL_KEY_RE.match(candidate):
+            break
+        end_idx += 1
+    return "".join([*lines[:start_idx], *replacement, *lines[end_idx:]])
+
 
 def _load_global_skill_synonyms_map() -> dict[str, str]:
     path = _global_skill_synonyms_path()
@@ -3875,6 +3931,62 @@ def _persist_global_skill_synonyms_map(mappings: dict[str, str]) -> None:
     path = _global_skill_synonyms_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_build_synonym_overlay_yaml(mappings), encoding="utf-8")
+
+def _global_domain_synonyms_path() -> Path:
+    return Path("config") / "taxonomy" / "domain_synonyms.yaml"
+
+def _load_global_domain_alias_map() -> dict[str, str]:
+    path = _global_domain_synonyms_path()
+    if not path.exists():
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    raw_map = payload.get("domain_alias_map")
+    if not isinstance(raw_map, dict):
+        return {}
+    return {
+        str(alias).strip().lower(): str(canonical).strip().lower()
+        for alias, canonical in raw_map.items()
+        if str(alias).strip() and str(canonical).strip()
+    }
+
+def _persist_global_domain_alias_map(mappings: dict[str, str]) -> None:
+    path = _global_domain_synonyms_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw_yaml = path.read_text(encoding="utf-8") if path.exists() else ""
+    updated = _replace_yaml_top_level_mapping_block(raw_yaml=raw_yaml, key="domain_alias_map", mappings=mappings)
+    path.write_text(updated, encoding="utf-8")
+
+def _global_role_family_synonyms_path() -> Path:
+    return Path("config") / "taxonomy" / "role_family_synonyms.yaml"
+
+def _load_global_role_family_alias_map() -> dict[str, str]:
+    path = _global_role_family_synonyms_path()
+    if not path.exists():
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    raw_map = payload.get("role_family_alias_map")
+    if not isinstance(raw_map, dict):
+        return {}
+    return {
+        str(alias).strip().lower(): str(canonical).strip().lower()
+        for alias, canonical in raw_map.items()
+        if str(alias).strip() and str(canonical).strip()
+    }
+
+def _persist_global_role_family_alias_map(mappings: dict[str, str]) -> None:
+    path = _global_role_family_synonyms_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw_yaml = path.read_text(encoding="utf-8") if path.exists() else ""
+    updated = _replace_yaml_top_level_mapping_block(
+        raw_yaml=raw_yaml,
+        key="role_family_alias_map",
+        mappings=mappings,
+    )
+    path.write_text(updated, encoding="utf-8")
 
 
 def _canonical_variants_for_compare(value: str) -> set[str]:
@@ -3909,7 +4021,11 @@ def _build_promote_global_preview(
     payload: dict[str, Any],
     selected_proposal_ids: list[str],
 ) -> dict[str, Any]:
-    global_map = _load_global_skill_synonyms_map()
+    global_maps = {
+        "skill": _load_global_skill_synonyms_map(),
+        "domain": _load_global_domain_alias_map(),
+        "role_family": _load_global_role_family_alias_map(),
+    }
     proposal_by_id: dict[str, dict[str, Any]] = {}
     for proposal in list(payload.get("proposals") or []):
         if not isinstance(proposal, dict):
@@ -3924,6 +4040,7 @@ def _build_promote_global_preview(
             selected.append(
                 {
                     "proposal_id": proposal_id,
+                    "field": "",
                     "alias": "",
                     "canonical": "",
                     "status": "missing",
@@ -3933,27 +4050,30 @@ def _build_promote_global_preview(
             )
             continue
         status = str(proposal.get("proposal_status") or "").strip() or "proposed_unreviewed"
+        field = str(proposal.get("field") or "skill").strip().lower() or "skill"
         alias = str(proposal.get("alias") or "").strip().lower()
         canonical = str(proposal.get("canonical") or "").strip().lower()
         selected.append(
             {
                 "proposal_id": proposal_id,
+                "field": field,
                 "alias": alias,
                 "canonical": canonical,
                 "status": status,
             }
         )
-    duplicate_aliases: set[str] = set()
-    alias_counts: dict[str, set[str]] = {}
+    duplicate_alias_keys: set[tuple[str, str]] = set()
+    alias_counts: dict[tuple[str, str], set[str]] = {}
     for row in selected:
+        field = str(row.get("field") or "").strip()
         alias = str(row.get("alias") or "").strip()
         canonical = str(row.get("canonical") or "").strip()
-        if not alias or not canonical:
+        if not field or not alias or not canonical:
             continue
-        alias_counts.setdefault(alias, set()).add(canonical)
-    for alias, canonicals in alias_counts.items():
+        alias_counts.setdefault((field, alias), set()).add(canonical)
+    for key, canonicals in alias_counts.items():
         if len(canonicals) > 1:
-            duplicate_aliases.add(alias)
+            duplicate_alias_keys.add(key)
 
     counts = {
         "add": 0,
@@ -3964,42 +4084,70 @@ def _build_promote_global_preview(
         "unchanged_aliases": 0,
         "overridden_aliases": 0,
     }
+    def _fresh_counts() -> dict[str, int]:
+        return {
+            "add": 0,
+            "update": 0,
+            "conflict": 0,
+            "skip": 0,
+            "new_aliases": 0,
+            "unchanged_aliases": 0,
+            "overridden_aliases": 0,
+        }
+    counts_by_field: dict[str, dict[str, int]] = {}
     for row in selected:
         status = str(row.get("status") or "").strip()
+        field = str(row.get("field") or "").strip() or "skill"
         alias = str(row.get("alias") or "").strip()
         canonical = str(row.get("canonical") or "").strip()
+        bucket = counts_by_field.setdefault(field, _fresh_counts())
         if status != "approved_for_run_overlay":
             row["diff_type"] = "skip"
             row["reason"] = "not_approved_for_run_overlay"
             counts["skip"] += 1
+            bucket["skip"] += 1
             continue
         if not alias or not canonical:
             row["diff_type"] = "skip"
             row["reason"] = "empty_alias_or_canonical"
             counts["skip"] += 1
+            bucket["skip"] += 1
             continue
-        if alias in duplicate_aliases:
+        if field not in global_maps:
+            row["diff_type"] = "skip"
+            row["reason"] = "unknown_field"
+            counts["skip"] += 1
+            bucket["skip"] += 1
+            continue
+        if (field, alias) in duplicate_alias_keys:
             row["diff_type"] = "conflict"
             row["reason"] = "duplicate_alias_with_multiple_canonicals"
             counts["conflict"] += 1
+            bucket["conflict"] += 1
             continue
-        current = str(global_map.get(alias) or "").strip().lower()
+        current = str(global_maps[field].get(alias) or "").strip().lower()
         if not current:
             row["diff_type"] = "add"
             row["reason"] = "new_alias"
             counts["add"] += 1
             counts["new_aliases"] += 1
+            bucket["add"] += 1
+            bucket["new_aliases"] += 1
         elif _canonicals_equivalent_for_promotion(current, canonical):
             row["diff_type"] = "skip"
             row["reason"] = "already_present"
             counts["skip"] += 1
             counts["unchanged_aliases"] += 1
+            bucket["skip"] += 1
+            bucket["unchanged_aliases"] += 1
         else:
             row["diff_type"] = "update"
             row["reason"] = "canonical_change"
             row["current_global_canonical"] = current
             counts["update"] += 1
             counts["overridden_aliases"] += 1
+            bucket["update"] += 1
+            bucket["overridden_aliases"] += 1
 
     ready_rows = [row for row in selected if str(row.get("diff_type") or "").strip() in {"add", "update"}]
     already_global_rows = [
@@ -4011,15 +4159,25 @@ def _build_promote_global_preview(
         row for row in selected
         if row not in ready_rows and row not in already_global_rows
     ]
+    def _group_by_field(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        grouped: dict[str, list[dict[str, Any]]] = {"skill": [], "domain": [], "role_family": [], "unknown": []}
+        for item in rows:
+            field = str(item.get("field") or "").strip().lower()
+            grouped.setdefault(field if field in grouped else "unknown", []).append(item)
+        return grouped
 
     return {
         "run_id": run.run_id,
         "selected_count": len(selected),
         "counts": counts,
+        "counts_by_field": counts_by_field,
         "rows": selected,
         "ready_rows": ready_rows,
+        "ready_rows_by_field": _group_by_field(ready_rows),
         "already_global_rows": already_global_rows,
+        "already_global_rows_by_field": _group_by_field(already_global_rows),
         "blocked_rows": blocked_rows,
+        "blocked_rows_by_field": _group_by_field(blocked_rows),
     }
 
 
@@ -4107,16 +4265,46 @@ def _commit_synonym_global_promotion(
     project: str,
     dataset: str,
 ) -> dict[str, Any]:
-    global_map = _load_global_skill_synonyms_map()
+    field_specs = {
+        "skill": {
+            "load": _load_global_skill_synonyms_map,
+            "persist": _persist_global_skill_synonyms_map,
+            "label": "skill_synonyms",
+        },
+        "domain": {
+            "load": _load_global_domain_alias_map,
+            "persist": _persist_global_domain_alias_map,
+            "label": "domain_alias_map",
+        },
+        "role_family": {
+            "load": _load_global_role_family_alias_map,
+            "persist": _persist_global_role_family_alias_map,
+            "label": "role_family_alias_map",
+        },
+    }
+    global_maps: dict[str, dict[str, str]] = {
+        field: dict(spec["load"]())
+        for field, spec in field_specs.items()
+    }
+    conflict_fields: set[str] = set()
+    for row in list(preview.get("rows") or []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("diff_type") or "").strip() == "conflict":
+            conflict_fields.add(str(row.get("field") or "").strip().lower() or "skill")
+
     applied = 0
     skipped = 0
+    failed = 0
     new_aliases = 0
     unchanged_aliases = 0
     overridden_aliases = 0
     updated_ids: list[str] = []
+    applied_by_field: dict[str, int] = {field: 0 for field in field_specs}
     for row in list(preview.get("rows") or []):
         if not isinstance(row, dict):
             continue
+        field = str(row.get("field") or "skill").strip().lower() or "skill"
         diff_type = str(row.get("diff_type") or "").strip()
         if diff_type not in {"add", "update"}:
             if str(row.get("reason") or "").strip() == "already_present":
@@ -4129,14 +4317,31 @@ def _commit_synonym_global_promotion(
         if not alias or not canonical or not proposal_id:
             skipped += 1
             continue
-        global_map[alias] = canonical
-        applied += 1
-        if diff_type == "add":
+        if field not in field_specs:
+            skipped += 1
+            failed += 1
+            continue
+        if field in conflict_fields:
+            skipped += 1
+            failed += 1
+            continue
+        current = str(global_maps[field].get(alias) or "").strip().lower()
+        if not current:
             new_aliases += 1
-        elif diff_type == "update":
+        elif _canonicals_equivalent_for_promotion(current, canonical):
+            unchanged_aliases += 1
+            skipped += 1
+            continue
+        else:
             overridden_aliases += 1
+        global_maps[field][alias] = canonical
+        applied += 1
+        applied_by_field[field] = int(applied_by_field.get(field) or 0) + 1
         updated_ids.append(proposal_id)
-    _persist_global_skill_synonyms_map(global_map)
+    for field, spec in field_specs.items():
+        if int(applied_by_field.get(field) or 0) <= 0:
+            continue
+        spec["persist"](global_maps[field])
     proposals = list(payload.get("proposals") or [])
     if updated_ids:
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -4180,10 +4385,13 @@ def _commit_synonym_global_promotion(
                 {
                     "applied_count": applied,
                     "skipped_count": skipped,
+                    "failed_count": failed,
                     "selected_count": len(selected_ids),
                     "new_aliases_count": new_aliases,
                     "unchanged_aliases_count": unchanged_aliases,
                     "overridden_aliases_count": overridden_aliases,
+                    "applied_count_by_field": dict(applied_by_field),
+                    "conflict_fields": sorted(conflict_fields),
                     "proposal_ids": sorted(set(updated_ids)),
                     "acted_by": acted_by,
                     "note": note,
@@ -4198,10 +4406,12 @@ def _commit_synonym_global_promotion(
     return {
         "applied": applied,
         "skipped": skipped,
-        "failed": 0,
+        "failed": failed,
         "new_aliases": new_aliases,
         "unchanged_aliases": unchanged_aliases,
         "overridden_aliases": overridden_aliases,
+        "applied_by_field": dict(applied_by_field),
+        "conflict_fields": sorted(conflict_fields),
     }
 
 def _run_post_validation_auto_promote_global(
@@ -4236,6 +4446,7 @@ def _run_post_validation_auto_promote_global(
                     for item in list(payload.get("proposals") or [])
                     if isinstance(item, dict)
                     and str(item.get("proposal_status") or "").strip() == "approved_for_run_overlay"
+                    and str(item.get("field") or "skill").strip().lower() == "skill"
                     and str(item.get("proposal_id") or "").strip()
                 ]
                 if not selected_ids:
@@ -9755,12 +9966,21 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                     }
                 )
                 return RedirectResponse(f"/admin/runs/{run_id}/synonym-review?{query}", status_code=303)
-            global_map = _load_global_skill_synonyms_map()
+            global_maps = {
+                "skill": _load_global_skill_synonyms_map(),
+                "domain": _load_global_domain_alias_map(),
+                "role_family": _load_global_role_family_alias_map(),
+            }
             for item in approved_rows:
                 proposal_id = str(item.get("proposal_id") or "").strip()
+                field = str(item.get("field") or "skill").strip().lower() or "skill"
                 alias = str(item.get("alias") or "").strip().lower()
                 canonical = str(item.get("canonical") or "").strip().lower()
                 if not proposal_id or not alias or not canonical:
+                    continue
+                global_map = global_maps.get(field)
+                if global_map is None:
+                    selected_ids.append(proposal_id)
                     continue
                 # Default preview should focus on promotable deltas.
                 if str(global_map.get(alias) or "").strip().lower() == canonical:
@@ -9862,18 +10082,6 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             payload=payload,
             selected_proposal_ids=selected_ids,
         )
-        if int(preview["counts"]["conflict"]) > 0:
-            query = urlencode(
-                {
-                    "synonym_promote_applied": 0,
-                    "synonym_promote_skipped": preview["counts"]["skip"],
-                    "synonym_promote_failed": preview["counts"]["conflict"],
-                    "synonym_promote_new_aliases": preview["counts"].get("new_aliases", 0),
-                    "synonym_promote_unchanged_aliases": preview["counts"].get("unchanged_aliases", 0),
-                    "synonym_promote_overridden_aliases": preview["counts"].get("overridden_aliases", 0),
-                }
-            )
-            return RedirectResponse(f"/admin/runs/{run_id}/synonym-review?{query}", status_code=303)
         promote_result = _commit_synonym_global_promotion(
             run=run,
             payload=payload,
@@ -10147,6 +10355,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                     for item in list(payload.get("proposals") or [])
                     if isinstance(item, dict)
                     and str(item.get("proposal_status") or "").strip() == "approved_for_run_overlay"
+                    and str(item.get("field") or "skill").strip().lower() == "skill"
                     and str(item.get("proposal_id") or "").strip()
                 ]
                 if not selected_ids:
@@ -10339,6 +10548,26 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             content=overlay_yaml,
             media_type="text/yaml",
             headers={"Content-Disposition": 'attachment; filename="fitcv-global-skill-synonyms.yaml"'},
+        )
+
+    @app.get("/admin/synonyms/global-domain.yaml")
+    def download_global_domain_synonyms_yaml() -> Response:
+        global_map = _load_global_domain_alias_map()
+        content = "".join(_render_yaml_top_level_mapping(key="domain_alias_map", mappings=global_map))
+        return Response(
+            content=content,
+            media_type="text/yaml",
+            headers={"Content-Disposition": 'attachment; filename="fitcv-global-domain-aliases.yaml"'},
+        )
+
+    @app.get("/admin/synonyms/global-role-family.yaml")
+    def download_global_role_family_synonyms_yaml() -> Response:
+        global_map = _load_global_role_family_alias_map()
+        content = "".join(_render_yaml_top_level_mapping(key="role_family_alias_map", mappings=global_map))
+        return Response(
+            content=content,
+            media_type="text/yaml",
+            headers={"Content-Disposition": 'attachment; filename="fitcv-global-role-family-aliases.yaml"'},
         )
 
     @app.get("/admin/runs/{run_id}/tabs/enriched", response_class=HTMLResponse)
@@ -10609,6 +10838,41 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 status_code=404,
                 detail="No run artifacts are currently available for this run",
             )
+        artifact_files.extend(
+            [
+                RunArtifactFile(
+                    filename="global-skill-synonyms.yaml",
+                    label="Global Skill Synonyms YAML",
+                    href="/admin/synonyms/global.yaml",
+                    content=_build_synonym_overlay_yaml(_load_global_skill_synonyms_map()),
+                    show_in_exports=False,
+                ),
+                RunArtifactFile(
+                    filename="global-domain-aliases.yaml",
+                    label="Global Domain Aliases YAML",
+                    href="/admin/synonyms/global-domain.yaml",
+                    content="".join(
+                        _render_yaml_top_level_mapping(
+                            key="domain_alias_map",
+                            mappings=_load_global_domain_alias_map(),
+                        )
+                    ),
+                    show_in_exports=False,
+                ),
+                RunArtifactFile(
+                    filename="global-role-family-aliases.yaml",
+                    label="Global Role Family Aliases YAML",
+                    href="/admin/synonyms/global-role-family.yaml",
+                    content="".join(
+                        _render_yaml_top_level_mapping(
+                            key="role_family_alias_map",
+                            mappings=_load_global_role_family_alias_map(),
+                        )
+                    ),
+                    show_in_exports=False,
+                ),
+            ]
+        )
         manifest = _build_run_artifact_bundle_manifest(run, artifact_files)
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:

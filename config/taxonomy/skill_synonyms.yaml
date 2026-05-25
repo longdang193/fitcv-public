@@ -1,411 +1,912 @@
 skill_synonyms:
-  3nf: third normal form (3nf)
-  about you: about you advertising
+  # data, analytics, bi
+  ad hoc analysis: ad hoc analysis
+  ad-hoc-analysen: ad hoc analysis
+  advanced analytics: advanced analytics
   advanced analytics tools: advanced analytics
+  analyse large-scale datasets: large-scale data analysis
+  analyses of alternatives: analysis of alternatives
+  analysen & kpis: kpi analysis
+  analysierst relevante kpis: kpi analysis
+  analytical skills: analytical skills
+  analyse measurement data: measurement data analysis
+  analyse market data: market data analysis
+  analysing conversion funnels: conversion funnel analysis
+  analysing data: data analysis
+  analyse data: data analysis
+  analyze data: data analysis
+  analyze financial statements: financial statement analysis
+  auswertungen und analysen: data analysis
+  businessrelevanter kpis und metriken: kpi analysis
+  causal analysis: causal analysis
+  cohort analysis: cohort analysis
+  conversion funnel analysis: conversion funnel analysis
+  data analysis: data analysis
+  data analysis capabilities: data analysis
+  data analytics: data analytics
+  data cleansing: data cleaning
+  data cleaning: data cleaning
+  data fusion: data fusion
+  data fusion and analysis: data fusion
+  data literacy: data literacy
+  data literacy training: data literacy
+  data preprocessing: data preprocessing
+  data preparation: data preparation
+  data quality: data quality
+  data quality monitoring: data quality monitoring
+  data validation: data validation
+  datenanalyse: data analysis
+  datenbereinigung: data cleaning
+  datenbereinigungsmaßnahmen: data cleaning
+  datenqualität: data quality
+  datenqualität sicherstellen: data quality
+  exploratory data analysis: exploratory data analysis
+  eda: exploratory data analysis
+  handling missing values: missing data handling
+  heatmaps: heatmap analytics
+  impact analysis: impact analysis
+  impact-analysen: impact analysis
+  kpi analysis: kpi analysis
+  kpi definition: kpi definition
+  kpi-definitionen: kpi definition
+  kpi development: kpi development
+  entwicklung von kpis: kpi development
+  kpi forecasting: kpi forecasting
+  market data analysis: market data analysis
+  missing data handling: missing data handling
+  numerical analysis: numerical analysis
+  quantitative analysis: quantitative analysis
+  quantitative modelling: quantitative modeling
+  statistical analysis: statistical analysis
+  statistical analysis of results: statistical analysis
+  statistics: statistics
+  statistik: statistics
+  grundlegende kenntnisse in statistik: statistics
+  solide statistik-kenntnisse: statistical analysis
+  time series analysis: time series analysis
+  zeitreihenanalyse: time series analysis
+
+  # dashboards, reporting, visualization
+  build a basic dashboard: dashboard development
+  build and maintain dashboards: dashboard development
+  build dashboards: dashboard development
+  building and maintaining dashboards: dashboard development
+  clear reporting through dashboards: dashboard reporting
+  create dashboards and reports: dashboard development
+  create visualizations: data visualization
+  dashboards: dashboard development
+  dashboarding: dashboard development
+  dashboard building: dashboard development
+  dashboard development: dashboard development
+  dashboard reporting: dashboard reporting
+  dashboard-entwicklung: dashboard development
+  data visualization: data visualization
+  datenvisualisierung: data visualization
+  design and maintain dashboards: dashboard development
+  developing critical dashboards: dashboard development
+  developing metabase dashboards: metabase dashboarding
+  entwicklung von metabase-dashboards: metabase dashboarding
+  entwickelst darauf produktive dashboards: dashboard development
+  erstellen von dashboards: dashboard development
+  executive reporting: executive reporting
+  financial reporting: financial reporting
+  management reporting: management reporting
+  mitwirkung beim monatlichen reporting: reporting
+  monthly reporting: reporting
+  performance dashboards: dashboard development
+  performance-dashboards: dashboard development
+  prepare reports: reporting
+  real-time dashboards: real-time dashboards
+  real-time planning dashboards: real-time dashboards
+  reporting: reporting
+  reporting dashboards: dashboard reporting
+  self-service analytics: self-service analytics
+  self-service bi: self-service bi
+  self-service reporting: self-service bi
+  visualisierungstools: data visualization tools
+
+  # excel, office, productivity tools
   advanced excel: microsoft excel
   advanced excel skills: microsoft excel
-  advanced excel skills required: microsoft excel
-  advanced financial analysis: financial analysis
   advanced ms excel skills: microsoft excel
-  advanced predictive modelling: predictive modelling
-  advanced proficiency in sql: sql
-  agile projektmanagement-methoden: agile project management
-  ahrefs/semrush: ahrefs
-  ai-supported productivity tools: ai productivity tools
-  airflow: apache airflow
-  akzeptanzkriterien: acceptance criteria
-  amazon: amazon advertising
-  analysen & kpis: kpi analysis
-  analysieren die geschäftsprozesse: business process analysis
-  analysierst tiefgreifend unit economics: unit economics analysis
-  analysing conversion funnels: conversion funnel analysis
-  analysis of performance: marketing analytics
-  and powerpoint: microsoft powerpoint
-  anspruch an "clean code": clean code
-  api businesses: api platforms
   arbeit mit excel: microsoft excel
-  architecting complex data models: data modeling
-  as400 von vorteil: ibm as/400
-  assisting in data preparation: data preparation
-  attribution tooling: marketing attribution
-  audio: audio technology
-  ausrichtung auf budget-vorgaben: budget management
-  auswertungen und analysen: data analysis
-  aws: amazon web services
-  azure: microsoft azure
-  backend-anwendungen: backend development
-  background in content moderation: content moderation
-  background in quality assurance: quality assurance (qa)
-  basic knowledge of javascript: javascript
-  basic knowledge of linux: linux
-  betreuung von m&a-projekten: mergers & acquisitions (m&a)
-  betriebs- / finanzmodelle: financial modeling
-  bevorzugt ms business central: microsoft dynamics 365 business central
+  arbeitest sicher mit excel: microsoft excel
+  arbeitest sicher mit powerpoint: microsoft powerpoint
+  arbeitest sicher mit word: microsoft word
+  arrays: excel array formulas
+  excel: microsoft excel
+  excel array formulas: excel array formulas
+  excel lookup functions: excel lookup functions
+  excel macros: excel macros
+  excel pivottables: excel pivottables
+  fortgeschrittene excel-kenntnisse: microsoft excel
+  google drive: google drive
+  google suite: google workspace
+  google suite tools: google workspace
+  google workspace: google workspace
+  index: excel index function
+  insbesondere excel: microsoft excel
+  insbesondere powerpoint: microsoft powerpoint
+  lookups: excel lookup functions
+  macros: excel macros
+  microsoft 365: microsoft 365
+  microsoft access: microsoft access
+  microsoft excel: microsoft excel
+  microsoft office: microsoft office
+  microsoft outlook: microsoft outlook
+  microsoft powerpoint: microsoft powerpoint
+  microsoft sharepoint: microsoft sharepoint
+  microsoft teams: microsoft teams
+  microsoft visio: microsoft visio
+  microsoft word: microsoft word
+  ms excel: microsoft excel
+  ms office: microsoft office
+  ms office suite: microsoft office
+  ms-office: microsoft office
+  ms-office-anwendungen: microsoft office
+  office-anwendungen: microsoft office
+  outlook: microsoft outlook
+  pivots: excel pivottables
+  power point: microsoft powerpoint
+  powerpoint: microsoft powerpoint
+  proficiency in google suite: google workspace
+  sicherer umgang mit excel: microsoft excel
+  sicherer umgang mit ms-office: microsoft office
+  sicherer umgang mit office-anwendungen: microsoft office
+  sicherer umgang mit powerpoint: microsoft powerpoint
+  sharepoint: microsoft sharepoint
+  spreadsheets: spreadsheets
+  tools such as excel: microsoft excel
+  umgang mit excel: microsoft excel
+  umgang mit ms office: microsoft office
+  word: microsoft word
+  z. b. ms access: microsoft access
+
+  # sql, databases, data engineering
+  3nf: third normal form
+  airflow: apache airflow
+  apache airflow: apache airflow
+  apache kafka: apache kafka
+  apache spark: apache spark
+  apache superset: apache superset
   big query: google bigquery
   bigquery: google bigquery
-  bigquery ml: machine learning
-  build and maintain dashboards: dashboarding
-  build and update reports: reporting
-  build dashboards: dashboard building
-  building and maintaining dashboards: dashboarding
-  building entity attribution: entity attribution
-  business central: dynamics 365 business central
-  businessrelevanter kpis und metriken: kpi analysis
+  bigquery ml: google bigquery ml
+  cloud data warehouse: cloud data warehousing
+  ctes: sql common table expressions
+  data catalog: data catalog
+  data catalogs: data catalog
+  data engineering: data engineering
+  data governance: data governance
+  data governance concepts: data governance
+  data integration: data integration
+  data integration technologies: data integration
+  data lineage: data lineage
+  data modeling: data modeling
+  data modelling: data modeling
+  data modelling principles: data modeling
+  data normalization: data normalization
+  data partitioning: data partitioning
+  data pipelines: data pipelines
+  data platform: data platform
+  data platforms: data platform
+  data transformation: data transformation
+  data vault: data vault
+  data vault und 3nf: data vault
+  data warehouse: data warehousing
+  data warehousing: data warehousing
+  datenintegration: data integration
+  datenmodelle: data modeling
+  datenmodellierung: data modeling
+  datenquellen intelligent zusammenführen: data integration
+  dbt: dbt
+  dbt core: dbt
+  designing scalable transformations: data transformation
+  elt: elt
+  etl: etl
+  etl tools: etl tools
+  etl/elt: etl/elt
+  etl/elt architecture: etl/elt architecture
+  etl-prozesse: etl
+  fundierte kenntnisse in sql: sql
+  google bigquery: google bigquery
+  google bigquery ml: google bigquery ml
+  im umgang mit etl-werkzeugen: etl tools
+  lineage: data lineage
+  modern data warehouse: data warehousing
+  ms sql server: microsoft sql server
+  mysql: mysql
+  mysql server: mysql
+  nosql: nosql databases
+  nosql databases: nosql databases
+  nosql-datenbanksystemen: nosql databases
+  oracle: oracle database
+  partitioning strategies: data partitioning
+  pg: postgresql
+  pipeline development: data pipelines
+  postgres: postgresql
+  postgresql: postgresql
+  produktive erfahrung mit dbt: dbt
+  redshift: amazon redshift
+  relational databases: relational databases
+  relationale datenbanken: relational databases
+  relationalen datenbanksystemen: relational databases
+  reverse etl: reverse etl
+  spark: apache spark
+  sql: sql
+  sql joins: sql joins
+  sql query optimization: sql query optimization
+  sql server clustering: sql server clustering
+  sql server replication: sql server replication
+  sql window functions: sql window functions
+  sql-/sap-kenntnisse sind von vorteil: sql
+  t-sql: t-sql
+  third normal form: third normal form
+  tools for data integration: data integration
+  window functions: sql window functions
+
+  # bi and analytics tools
+  board: board bi
+  bi-tool board: board bi
+  business intelligence tools: business intelligence tools
+  cognos tm1: ibm cognos tm1
+  ga4: google analytics 4
+  google analytics: google analytics
+  google analytics 4: google analytics 4
+  google analytics (ga4): google analytics 4
+  google analytics mit ga4: google analytics 4
+  grafana: grafana
+  graphana: grafana
+  hands-on experience in looker: looker
+  looker: looker
+  looker studio: looker studio
+  lookerstudio: looker studio
+  metabase: metabase
+  metabase power user: metabase
+  microsoft fabric: microsoft fabric
+  ms fabric: microsoft fabric
+  power bi: microsoft power bi
+  power bi skills: microsoft power bi
+  powerbi: microsoft power bi
+  sap analytics cloud: sap analytics cloud
+  sap analytics cloud (sac): sap analytics cloud
+  sigma computing: sigma computing
+  splunk: splunk
+  splunk es: splunk enterprise security
+  u.a. google analytics: google analytics
+  webanalyse mit google analytics: google analytics
+
+  # programming, software engineering, devops
+  agile frameworks: agile frameworks
+  agile methods: agile methodologies
+  agile methodologies: agile methodologies
+  agile project management: agile project management
+  agile software development: agile software development
+  agiles projektmanagement: agile project management
+  algorithm analysis: algorithm analysis
+  algorithm development: algorithm development
+  automated regression testing: automated regression testing
+  automated testing: automated testing
+  automatisiertem testing: automated testing
+  backend development: backend development
+  backend-anwendungen: backend development
+  basic coding knowledge: programming fundamentals
+  c#: c#
+  ci/cd: ci/cd
+  ci/cd pipelines: ci/cd pipelines
+  ci/cd-prozesse: ci/cd pipelines
+  clean code: clean code
+  code mit git: git
+  code review: code review
+  code reviews in git/github: code review
+  confluence: confluence
+  container technologies: containers
+  containertechnologien: containers
+  containers: containers
+  debugging: debugging
+  debugging discrepancies: debugging
+  developer tools: developer tools
+  devops: devops
+  distributed system design: distributed systems design
+  distributed systems design: distributed systems design
+  docker: docker
+  erfahrung mit docker: docker
+  frontend-frameworks wie react: react
+  git: git
+  git / github: git / github
+  git branching strategies: git branching strategies
+  github: github
+  java: java
+  javascript: javascript
+  jenkins: jenkins
+  jira: jira
+  kafka: apache kafka
+  kubernetes: kubernetes
+  k8s: kubernetes
+  linux: linux
+  microservice architectures: microservices architecture
+  microservices architecture: microservices architecture
+  node js: node.js
+  node.js: node.js
+  pair programming: pair programming
+  pair-programming-sessions: pair programming
+  programming: programming
+  programming fundamentals: programming fundamentals
+  py: python
+  python: python
+  python programming: python
+  react: react
+  react js: react
+  regelmäßige code-reviews: code review
+  review code logic: code review
+  ros 2: ros 2
+  scripting: scripting
+  software architecture: software architecture
+  software testing: software testing
+  softwarearchitektur: software architecture
+  strukturierte branching-strategien: git branching strategies
+  system administration: system administration
+  terraform: terraform
+  test case design: test case design
+  test strategy: test strategy
+  test-driven development: test-driven development
+  test-driven development (tdd): test-driven development
+  testing: software testing
+  user acceptance testing: user acceptance testing
+  user acceptance testing (uat): user acceptance testing
+  vba: vba
+  web development: web development
+
+  # cloud, platforms, systems
+  amazon redshift: amazon redshift
+  amazon web services: amazon web services
+  aws: amazon web services
+  azure: microsoft azure
+  cloud architecture: cloud architecture
+  cloud deployment: cloud deployment
+  cloud-erfahrung mit aws: amazon web services
+  gcp: google cloud platform
+  google cloud: google cloud platform
+  google cloud platform: google cloud platform
+  microsoft azure: microsoft azure
+  microsoft azure cloud services: microsoft azure
+  observability: observability
+  observability stacks: observability
+  rate limiting: rate limiting
+  retry mechanisms: retry mechanisms
+  token refresh: token refresh
+  token refresh logic: token refresh
+
+  # ai, genai, ml, nlp
+  agent-systeme: ai agents
+  agentic ai: agentic ai
+  agentic workflows: agentic workflows
+  agents are a bonus: llm agents
+  ai agents: ai agents
+  ai coding assistants: ai coding assistants
+  ai platforms: ai platforms
+  ai productivity tools: ai productivity tools
+  ai tools: ai tools
+  ai workflows: ai workflows
+  ai-powered workflows: ai workflows
+  ai-supported productivity tools: ai productivity tools
+  artificial intelligence: artificial intelligence
+  basic machine learning understanding: machine learning
+  classification algorithms: machine learning classification
+  clustering: machine learning clustering
+  configuring ai coding assistants: ai coding assistants
+  context engineering: context engineering
+  custom orchestration: ai agent orchestration
+  design agentic workflows: agentic workflows
+  embeddings: text embeddings
+  familiarity with ranking models: ranking models
+  familiarity with semantic search: semantic search
+  feature engineering: feature engineering
+  fine-tuning: model fine-tuning
+  function calling: llm tool calling
+  gemini: google gemini
+  generative ai: generative ai
+  generative ai security: generative ai security
+  google gemini: google gemini
+  google vertex ai: google vertex ai
+  ki: artificial intelligence
+  ki-tools: ai tools
+  large language models: large language models
+  llm: large language models
+  llm agents: llm agents
+  llm tool calling: llm tool calling
+  llms: large language models
+  machine learning: machine learning
+  machine learning classification: machine learning classification
+  machine learning clustering: machine learning clustering
+  ml: machine learning
+  mlops: mlops
+  mlops practices: mlops
+  model deployment: model deployment
+  model deployment workflows: model deployment
+  model evaluation: model evaluation
+  model evaluation metrics: model evaluation metrics
+  model fine-tuning: model fine-tuning
+  model inference pipelines: model inference pipelines
+  model monitoring: model monitoring
+  model training: model training
+  multimodal models: multimodal models
+  natural language processing: natural language processing
+  neural network: neural networks
+  neural networks: neural networks
+  nlp: natural language processing
+  prompt engineering: prompt engineering
+  rag: retrieval-augmented generation
+  rag pipeline: retrieval-augmented generation
+  rag-systemen: retrieval-augmented generation
+  ranking models: ranking models
+  retrieval-augmented generation: retrieval-augmented generation
+  retrieval-augmented generation (rag): retrieval-augmented generation
+  scikit-learn: scikit-learn
+  semantic search: semantic search
+  structured output formatting: structured output generation
+  structured outputs: structured output generation
+  supervised learning: supervised learning
+  text embeddings: text embeddings
+  tool calling: llm tool calling
+  tool use: llm tool use
+  vector databases: vector databases
+  vector search: vector search
+  vertex ai: google vertex ai
+  you build agents: ai agents
+
+  # finance, accounting, valuation, risk
+  accounting: accounting
+  advanced financial analysis: financial analysis
+  analyses of alternatives: analysis of alternatives
+  bait: bait
+  basic knowledge of accounting: accounting
+  bloomberg: bloomberg terminal
+  bookkeeping: bookkeeping
+  budget management: budget management
+  budget variance analysis: budget variance analysis
+  budgeting: budgeting
+  business valuation: business valuation
+  capital iq: capital iq
   capitaliq: capital iq
-  carve-outs: carve-out
-  champion accurate product costing: product costing
-  ci/cd pipelines: ci/cd
-  clear reporting through dashboards: dashboard reporting
-  clustering: sql server clustering
-  comfort with scenario analysis: scenario analysis
-  commissioning: plant commissioning
-  conduct industry analysis reports: industry analysis
-  conduct market research: market research
-  conduct research: research
-  continuously improve ... roi: roi optimization
-  continuously improve conversion: conversion rate optimization
-  contribute to cro initiatives: cro
-  control towers: supply chain control tower
-  coordinate business due diligence: due diligence
-  core banking integrations: core banking integration
-  corporate pitch decks: pitch deck design
-  corporate valuation methods: corporate valuation
-  create dashboards and reports: dashboarding
+  cash flow analysis: cash flow analysis
+  cash-flow analysen: cash flow analysis
+  collateral reporting: collateral reporting
+  company valuation: company valuation
+  computational finance: computational finance
+  contribution margin analysis: contribution margin analysis
+  corporate valuation: corporate valuation
+  covenant analysis: covenant analysis
+  covenant headroom testing: covenant analysis
+  credit portfolio modeling: credit portfolio modeling
+  credit risk monitoring: credit risk monitoring
+  derivatebewertung: derivatives valuation
+  derivatives pricing: derivatives pricing
+  derivatives pricing theory: derivatives pricing
+  derivatives valuation: derivatives valuation
+  due diligence: due diligence
+  due-diligence-aktivitäten: due diligence
+  earnings forecasting: earnings forecasting
+  einmeldung der sicherheiten: collateral reporting
+  ensure accurate bookkeeping: bookkeeping
+  erstellung von forecasts: forecasting
+  erstellung von unternehmensbewertungen: business valuation
+  financial analysis: financial analysis
+  financial mathematical modeling: financial mathematical modeling
+  financial modeling: financial modeling
+  financial modelling: financial modeling
+  financial reporting: financial reporting
+  finanzanalysen: financial analysis
+  finanzmathematischer modellierung: financial mathematical modeling
+  finanzmodellierungsfähigkeiten: financial modeling
+  forecasting: forecasting
+  hgb: hgb accounting
+  ifrs: ifrs
+  incoming and outgoing invoices: invoice processing
+  integrierte finanzmodelle: financial modeling
+  invoice processing: invoice processing
+  liquidity risk modeling: liquidity risk modeling
+  margin analysis: margin analysis
+  mergers & acquisitions: mergers and acquisitions
+  m&a: mergers and acquisitions
+  m&a projects: mergers and acquisitions
+  mifid ii: mifid ii
+  mifir: mifir
+  precedent transactions: precedent transactions analysis
+  pricing analysis: pricing analysis
+  pricing models: pricing models
+  pricing strategy: pricing strategy
+  product costing: product costing
+  project finance: project finance
+  regulatory reporting: regulatory reporting
+  reportings an die bafin: regulatory reporting
+  revenue forecasting: revenue forecasting
+  risk analysis: risk analysis
+  scenario analysis: scenario analysis
+  sensitivity analysis: sensitivity analysis
+  sensitivities and stress tests: stress testing
+  startup valuation: startup valuation
+  stress testing: stress testing
+  thomson reuters: thomson reuters
+  unit economics analysis: unit economics analysis
+  unternehmensbewertungen: business valuation
+  valuation: valuation
+  valuation techniques: valuation
+  value at risk modeling: value at risk modeling
+  variance analysis: variance analysis
+  xva modeling: xva modeling
+
+  # business analysis, product, project, process
+  acceptance criteria: acceptance criteria
+  akzeptanzkriterien: acceptance criteria
+  anforderungsanalyse: requirements analysis
+  anforderungsmanagement: requirements management
+  backlog prioritization: backlog prioritization
+  benefits realization management: benefits realization management
+  bpmn 2.0: bpmn 2.0
+  business analysis: business analysis
+  business case development: business case development
+  business process analysis: business process analysis
+  change management: change management
+  cost-benefit analysis: cost-benefit analysis
   create execution roadmaps: project roadmap planning
   create process models: process modeling
   create user requirement specifications: requirements specification
-  creating self-service analytics: self-service analytics
-  creation of jira workflows: jira
-  data and financial analysis: financial analysis
-  data modeling experience: data modeling
-  data modelling principles: data modelling
-  data vault und 3nf: data vault
-  datenmodellierung: data modeling
-  datenvisualisierung: data visualization
-  dbt core: dbt
-  deal structures: deal structuring
-  debugging discrepancies: debugging
-  deep content seo expertise: seo
-  define go-to-market strategies: go-to-market strategy
-  define target operating models: target operating model (tom)
-  defining testing strategies: test strategy
-  derivatives pricing theory: derivatives pricing
-  design and execute campaigns: campaign management
-  developing critical dashboards: dashboarding
-  developing functional test cases: test case design
-  digital social media kits: social media asset design
-  digital strategies: digital marketing strategy
-  digital-kampagnen: digital campaign management
-  distinct color palettes: color palette development
+  customer journey mapping: user journey mapping
+  define target operating models: target operating model
+  digital transformation: digital transformation
+  digital transformation strategy: digital transformation strategy
   dokumentation von änderungen: documentation
-  du analysierst relevante kpis: kpi analysis
-  du ermittelst wirtschaftlich berechtigte: ubo identification
-  du erstellst fachliche anforderungen: requirements engineering
-  du erstellst instagram-posts: instagram marketing
-  du erstellst monatliche reportings: financial reporting
-  du führst kosten-nutzen-analysen durch: cost-benefit analysis
-  du kennst reverse etl: reverse etl
-  du übernimmst eigenständig bookings: influencer booking
-  durchführung von ad-hoc-analysen: ad hoc analysis
-  durchführung von uat: user acceptance testing (uat)
-  einmeldung der sicherheiten: collateral reporting
-  email: email marketing
   end-to-end business analysis: business analysis
-  end-to-end campaign execution: campaign execution
-  ensuring data quality: data quality
-  entwickelst darauf produktive dashboards: dashboard-entwicklung
-  erfahrung im bereich analytics: analytics
-  erfahrung im partner management: partner management
-  erfahrung im schnittstellen-design: interface design
-  erfahrung mit datev wünscheswert: datev
-  erfahrung mit docker: docker
-  erfahrung mit erp-systemen: erp systems
+  erfahrung in der anforderungsanalyse: requirements analysis
   erfahrungen im anforderungsmanagement: requirements management
-  erfahrungen im software-testing: software testing
-  erste berührungen im markenrecht: trademark law
-  erste erfahrung im projektmanagement: project management
-  erstellen von dashboards: dashboarding
-  erstellst du budgets: budgeting
-  erstellung von forecasts: forecasting
-  erstellung von präsentationen: präsentationserstellung
-  erstellung von unternehmensbewertungen: valuation
   erstellung von user-stories: user stories
-  especially excel: microsoft excel
-  especially in excel: microsoft excel
-  establish forecasting methodologies: forecasting
-  evaluate pricing: pricing analysis
-  evaluating requirements: requirements analysis
-  excel: microsoft excel
-  experience building partner programs: partner program management
-  experience in ai: artificial intelligence
-  experience in digital marketing: digital marketing
-  experience in erp systems: erp systems
-  experience in financial modeling: financial modeling
-  experience in java: java
-  experience performing fit-gap analysis: fit-gap analysis
-  experience with .docx files.: docx
-  experience with automation: automation
-  experience with cognos tm1: ibm cognos tm1
-  experience with data analysis: data analysis
-  experience with mifid ii: mifid ii
-  experience with mifir: mifir
-  experience with process design: process design
-  experience with quality assurance: quality assurance (qa)
-  experience with visualization tools: data visualization tools
-  familiarity with ... databases: databases
-  familiarity with ... excel: microsoft excel
-  familiarity with apple products: apple products
-  familiarity with data cleaning: data cleaning
-  familiarity with data modeling: data modeling
-  familiarity with data structures: data structures
-  familiarity with developer tools: developer tools
-  familiarity with financial modelling: financial modeling
-  familiarity with iot systems: iot
-  familiarity with salesforce: salesforce
-  familiarity with visualization tools: data visualization
-  financial modelling skills: financial modeling
-  financial models: financial modeling
-  finanzmodellierungsfähigkeiten: financial modeling
-  flatfiles: flat files
+  fit-gap analysis: fit-gap analysis
+  flowcharting: flowcharting
   flowcharts: flowcharting
-  focus on causal analysis: causal analysis
-  focus on lead generation: lead generation
-  follow red-teaming protocols: red teaming
-  forecast company kpis: kpi forecasting
-  fortgeschrittene excel-kenntnisse: microsoft excel
-  fundierte sap mm kenntnisse: sap mm
-  führst ad-hoc-analysen durch: ad hoc analysis
-  ga4: google analytics 4
-  gcp: google cloud
-  gemini: genai
-  gemäß bestehender playbooks: incident response playbooks
-  generative ai security challenges: generative ai security
-  git / github: git
-  github: git
-  go-to-market: go-to-market strategy
-  good knowledge of excel: microsoft excel
-  good knowledge of hgb: hgb
-  google analytics (ga4): google analytics
-  google cloud platform: google cloud
-  graphana: grafana
-  grundkenntnisse in ... premiere: adobe premiere
-  grundkenntnisse in ... sharepoint: microsoft sharepoint
-  grundkenntnisse in linux: linux
-  grundkenntnisse in ms excel: microsoft excel
-  grundkenntnisse in photoshop: adobe photoshop
-  grundlegende kenntnisse in statistik: statistics
-  grundverständnis von datenanalyse: data analysis
-  grundverständnis von datenarchitektur: data architecture
-  grundverständnis von datenmodellierung: data modeling
-  gtm strategy: go-to-market (gtm) strategy
-  gute kenntnisse in datenanalyse: data analysis
-  hands-on campaign management experience: campaign management
-  hands-on experience in looker: looker
-  heatmaps: heatmap analytics
-  hubspot or equivalent crm/ma: crm
-  hyperion o.ä.: oracle hyperion
-  idealerweise erfahrung mit bloomreach: bloomreach
-  ideally hubspot: hubspot
-  idealweise im programmatic advertising: programmatic advertising
-  idealweise motion design: motion design
-  ifrs familiarity is advantageous: ifrs
-  im besonderen ... t-sql: t-sql
-  im besonderen c#: c#
-  im requirements engineering: requirements engineering
-  im testmanagement: test management
-  im umgang mit visualisierungstools: data visualization tools
-  impact-analysen: impact analysis
-  implement a/b testing: a/b testing
-  improve roas and margin: roas optimization
-  inbound: inbound marketing
-  including scalable logos: logo design
-  initial experience with python: python
-  inklusive kommentierung von abweichungen: variance analysis
-  insbesondere excel: microsoft excel
-  instrument the funnel: funnel instrumentation
-  intelligent document management: document management
-  intelligent workflow automation: workflow automation
-  into cohesive gtm programs: go-to-market (gtm)
-  it-projektmanagement: it project management
-  itil-prozessen: itil
-  jira usage.: jira
-  k8s: kubernetes
-  kafka: apache kafka
-  kenntnisse in der datenbankmodellierung: data modeling
-  kenntnisse in linux-systemen: linux
-  knowledge of cost accounting: cost accounting
-  knowledge of seo/geo basics: geo
-  kohorten-analysen: cohort analysis
-  komplexes prozess-design: process design
-  konzernrechtliche fragestellungen: konzernrecht
-  kpi-definitionen: kpi definition
-  kreativitätstechniken: creativity techniques
-  landing pages: landing page optimization
-  large language models: genai
-  leading a marketing team: marketing team leadership
-  leverage ... alternative datasets: alternative data analysis
-  leverage artificial intelligence: artificial intelligence
-  llm: genai
-  llms: genai
-  looker studio: looker
-  lookerstudio: looker
-  low-code/no-code platforms: low-code development
-  maintaining automated regression tests: automated regression testing
-  maintaining kpi dashboards: dashboarding
-  managing pipelines: pipeline management
-  managing the product backlog: product backlog management
-  margin impact: margin analysis
-  meta: meta ads
-  meta library: meta ad library
-  metabase power user: metabase
-  mica-related compliance preparation: mica compliance preparation
-  ml: machine learning
-  mlops practices: mlops
-  model deployment workflows: model deployment
-  moderation von workshops: workshop facilitation
-  modern bi tools: business intelligence (bi) tools
-  monitoring data quality: data quality monitoring
-  nlp: natural language processing
-  nosql-datenbanksystemen: nosql databases
-  oder datengetriebenen workflows: datengetriebene workflows
-  oder video-editing: video-editing
-  oder von sap s/4hana: sap s/4hana
-  ooh: out-of-home advertising
-  optimization: process optimization
-  otto: otto advertising
-  outbound: outbound marketing
-  paid social: paid social advertising
-  partitioning strategies: data partitioning
-  perform in-depth industry research: industry research
-  perform quantitative analysis: quantitative analysis
-  performance-dashboards: dashboarding
-  performs basic statistical analysis: statistical analysis
-  personal care product manufacturing: beauty / personal care
-  pg: postgresql
-  postgres: postgresql
-  power automate: microsoft power automate
-  power bi: microsoft power bi
-  power point: microsoft powerpoint
-  powerbi: microsoft power bi
-  powerpoint: microsoft powerpoint
-  predict and analyze earnings: earnings forecasting
-  print materials: print design
+  information flow analysis: information flow analysis
+  jira workflows: jira workflow configuration
+  kvp: continuous improvement
+  kvp continuous improvement: continuous improvement
+  mapping user journeys: user journey mapping
+  metrics design: metrics design
+  model validation: model validation
+  operational planning: operational planning
+  process design: process design
+  process documentation: process documentation
+  process modeling: process modeling
   process modelling: process modeling
-  processing technical tickets: ticket handling
-  product launch activations: product launch activation
-  production of high-quality biochar: biochar production
-  produktive erfahrung mit dbt: dbt
-  proficiency in excel: microsoft excel
-  proficiency in python preferred: python
-  proficient in excel: microsoft excel
-  proficient in microsoft powerpoint: microsoft powerpoint
-  project management through data: project management
-  promotion-projekte: promotion-management
-  prompt engineering: genai
-  providing second-level support: second-level support
-  prozessdokumentationen: process documentation
-  prüfung von screeningtreffern: sanctions screening alert review
-  pull salesforce reports: salesforce
-  py: python
-  python is an advantage: python
-  quality assurance: quality assurance (qa)
-  quantitative modelling: quantitative modeling
-  rag: retrieval-augmented generation (rag)
-  real-time planning dashboards: real-time dashboards
-  redshift: amazon redshift
-  refining event structures: event tracking
-  relationalen ... datenbanksystemen: relational databases
-  replication: sql server replication
-  reportings an die bafin: regulatory reporting
-  revenue forecasts: revenue forecasting
-  run email marketing campaigns: email marketing
-  running demos: sales demos
-  running multi-channel campaigns: multi-channel campaign management
-  sales-controlling: sales controlling
-  sap erfahrung von vorteil: sap
+  process optimization: process optimization
+  process troubleshooting: troubleshooting
+  programme governance: programme governance
+  project coordination: project coordination
+  project management: project management
+  project roadmap planning: project roadmap planning
+  requirements analysis: requirements analysis
+  requirements engineering: requirements engineering
+  requirements management: requirements management
+  requirements specification: requirements specification
+  resource planning: resource planning
+  root cause analysis: root cause analysis
+  target operating model: target operating model
+  target operating model (tom): target operating model
+  test management: test management
+  troubleshooting: troubleshooting
+  user stories: user stories
+  wertstromanalyse: value stream mapping
+  wertstromanalysen: value stream mapping
+  workflow automation: workflow automation
+  workflow orchestration: workflow orchestration
+  workshop facilitation: workshop facilitation
+
+  # sales, marketing, ecommerce, ads
+  a/b testing: a/b testing
+  ahrefs: ahrefs
+  ahrefs/semrush: seo tools
+  amazon ads: amazon ads
+  amazon advertising: amazon ads
+  amazon marketplace: amazon marketplace
+  attribution tooling: marketing attribution
+  b2b sales pipeline management: b2b sales pipeline management
+  brand strategy: brand strategy
+  campaign execution: campaign execution
+  campaign management: campaign management
+  campaign scaling: campaign scaling
+  competitive analysis: competitive analysis
+  competitive intelligence: competitive intelligence
+  content management system: content management system
+  content moderation: content moderation
+  content seo: seo
+  conversion rate optimization: conversion rate optimization
+  cro initiatives: conversion rate optimization
+  crm: crm
+  crm hygiene: crm data hygiene
+  digital campaign management: digital campaign management
+  digital marketing: digital marketing
+  digital marketing strategy: digital marketing strategy
+  email management: email management
+  email marketing: email marketing
+  employer branding: employer branding
+  event tracking: event tracking
+  facebook ads: meta ads
+  funnel instrumentation: funnel instrumentation
+  go-to-market: go-to-market strategy
+  go-to-market strategy: go-to-market strategy
+  google dv360: google dv360
+  hubspot: hubspot
+  inbound marketing: inbound marketing
+  instagram ads: meta ads
+  instagram marketing: instagram marketing
+  instagram reels: instagram reels
+  instagram stories: instagram stories
+  landing page optimization: landing page optimization
+  lead generation: lead generation
+  linkedin: linkedin
+  market analysis: market analysis
+  market research: market research
+  marketplace platforms: marketplace platforms
+  marketing analytics: marketing analytics
+  marketing attribution: marketing attribution
+  marketing performance analysis: marketing analytics
+  meta ad library: meta ad library
+  meta ads: meta ads
+  meta business suite: meta business suite
+  multi-channel campaign management: multi-channel campaign management
+  newsletter creation: newsletter creation
+  ooh advertising: out-of-home advertising
+  outbound marketing: outbound marketing
+  paid social advertising: paid social advertising
+  programmatic advertising: programmatic advertising
+  roas optimization: roas optimization
+  roi optimization: roi optimization
+  sales controlling: sales controlling
+  sales demos: sales demos
+  salesforce: salesforce
+  search marketing: search marketing
+  semrush: semrush
+  seo: seo
+  seo tools: seo tools
+  shopify apps: shopify apps
+  social media advertising: social media advertising
+  social media creative design: social media creative design
+  social media marketing: social media marketing
+  social media reporting: social media reporting
+  tiktok: tiktok
+  trade marketing: trade marketing
+  trend scouting: trend scouting
+  zalando advertising: zalando advertising
+
+  # hr, recruiting, admin, operations
+  applicant pipeline management: applicant pipeline management
+  archiving: archiving
+  candidate interviewing: candidate interviewing
+  candidate screening: candidate screening
+  customer support: customer support
+  data annotation: data annotation
+  data entry: data entry
+  data labeling management: data labeling management
+  document management: document management
+  document management software: document management software
+  driving end-to-end recruitment: recruitment management
+  event management: event management
+  event organisation: event management
+  event planning: event planning
+  file management: file management
+  grant writing: grant writing
+  influencer booking: influencer booking
+  inventory management: inventory management
+  job description writing: job description writing
+  office administration: office administration
+  office management: office administration
+  phone screening: phone screening
+  recruitment: recruitment management
+  recruitment automation: recruitment automation
+  reimbursement processing: reimbursement processing
+  research: research
+  second-level support: second-level support
+  technical writing: technical writing
+  ticket handling: ticket handling
+  travel expense accounting: travel expense accounting
+
+  # erp, crm, enterprise systems
+  as400: ibm as/400
+  as400 von vorteil: ibm as/400
+  business central: microsoft dynamics 365 business central
+  c4c: sap cloud for customer
+  datev: datev
+  dynamics 365 business central: microsoft dynamics 365 business central
+  erp systems: erp systems
+  erp-systemen: erp systems
+  hubspot or equivalent crm: crm
+  ibm as/400: ibm as/400
+  ibm cognos tm1: ibm cognos tm1
+  microsoft dynamics 365 business central: microsoft dynamics 365 business central
+  oracle hyperion: oracle hyperion
+  power automate: microsoft power automate
+  power apps: microsoft power apps
+  sap: sap
+  sap analytics cloud (sac): sap analytics cloud
+  sap cloud for customer: sap cloud for customer
+  sap cloud for customer (c4c): sap cloud for customer
+  sap idoc: sap idoc
   sap idocs: sap idoc
-  search: search marketing
-  sehr gute excel kenntnisse: microsoft excel
-  sehr gutes kpi-verständnis: kpi analysis
-  set okrs: okrs
-  sharepoint: microsoft sharepoint
-  sicher mit ms office: microsoft office
-  sicherer umgang mit erp-systemen: erp systems
-  sicherer umgang mit excel: microsoft excel
-  sicherer umgang mit ms-office: microsoft office
-  sicherer umgang mit powerpoint: microsoft powerpoint
-  sla familiarity: service level agreements (sla)
-  soc 1st level analysis: security operations center (soc)
-  social media ads: social media advertising
-  software development and it services and it consulting: design software
-  solid project management skills: project management
-  solide statistik-kenntnisse: statistical analysis
-  sound sap mm knowledge.: sap mm
-  sowie erfahrung mit bait: bait
-  sowie jira und confluence: confluence
-  sowie sap: sap
-  spark: apache spark
-  speech: speech technology
-  splunk es: splunk enterprise security
-  sql: structured query language
-  sql-/sap-kenntnisse sind von vorteil: sap
-  stakeholder workshops: workshop facilitation
-  startup valuation methods: startup valuation
-  stellst du datenqualität sicher: data quality
-  strong command of sql: sql
-  strong data analysis skills: data analysis
-  strong financial modelling capabilities: financial modeling
-  strong ms office skills: microsoft office
-  strong sql skills: sql
-  support change management processes: change management
-  support pricing analysis: pricing analysis
-  supporting mvp deliveries: mvp delivery
-  systemanalyse: system analysis
-  systemintegration: system integration
-  teams: microsoft teams
-  testing & skalierung: campaign scaling
-  testmanagement & qualitätssicherung: quality assurance (qa)
-  thomson / reuters: thomson reuters
-  tools such as excel: microsoft excel
-  tools wie sap signavio: sap signavio
-  trendscouting: trend scouting
-  troubleshooting: process troubleshooting
-  troubleshooting system issues: troubleshooting
-  typography systems: typography system design
-  umgang mit bais: bais
-  umgang mit idh: idh
-  umgang mit medizinischen terminologien: medical terminologies
-  umgang mit ms office: microsoft office
-  umgang mit s-ibus: s-ibus
-  umgang mit vba: vba
-  umsetzung von test‑&‑learn‑ansätzen: test-and-learn experimentation
-  und bloomberg: bloomberg terminal
-  und datenvisualisierung: data visualization
-  unternehmensbewertungen: company valuation
-  unternehmensrecherchen: company research
-  unterstützt die qualitätssicherung: quality assurance (qa)
-  unterstützung bei m&a transaktionen: m&a
-  uphold data governance: data governance
-  using agile methods: agile methodologies
+  sap mm: sap mm
+  sap s/4hana: sap s/4hana
+  sap signavio: sap signavio
+  salesforce reports: salesforce reporting
+
+  # engineering, automotive, electronics, manufacturing
+  adhesive bonding: adhesive bonding
+  anlagenlayout: plant layout
+  automotive diagnostic tools: automotive diagnostic tools
+  automotive electronics: automotive electronics
+  backup scheduling: backup scheduling
+  backup strategy: backup strategy
+  balance assembly: balance assembly
+  battery analysis: battery analysis
+  beamforming: beamforming
+  cad: cad design
+  cad design: cad design
+  chassis maintenance: chassis maintenance
+  circuit design: electrical circuit design
+  cleanroom operations: cleanroom operations
+  commissioning: plant commissioning
+  control engineering: control engineering
+  control strategy: control strategy
+  creo parametric: creo parametric
+  cycle time analysis: cycle time analysis
+  derating: derating
+  drehen: turning
+  e/e architecture: e/e architecture
+  electrical circuit design: electrical circuit design
+  electrical engineering: electrical engineering
+  electrical simulation: electrical simulation
+  electrical system modeling: electrical system modeling
+  elektrotechnik: electrical engineering
+  elektronischer diagnose- und testgeräte: automotive diagnostic tools
+  engine control calibration: engine control calibration
+  engine maintenance: engine maintenance
+  failure analysis: failure analysis
+  field trials: field trials
+  field-oriented control: field-oriented control
+  field-oriented control (foc): field-oriented control
+  forklift operation: forklift operation
+  fräsen: milling
+  heat treatment: heat treatment
+  high-voltage battery analysis: battery analysis
+  hvac: hvac
+  ic design specifications: ic design specifications
+  led panel assembly: led panel assembly
+  machine commissioning: machine commissioning
+  machine operation and control: machine operation and control
+  machine setup: machine setup
+  manufacturing process analysis: manufacturing process analysis
+  materials characterization: materials characterization
+  measurement technology: metrology
+  metallverarbeitung: metal processing
+  milling: milling
+  plant commissioning: plant commissioning
+  plant layout: plant layout
+  polishing: polishing
+  press fitting: press fitting
+  production control: production control
+  quality assurance: quality assurance
+  quality management: quality management
+  quality oversight: quality management
+  riveting: riveting
+  screw fastening: screw fastening
+  signal processing: signal processing
+  simplis: simplis
+  simulation tools: simulation tools
+  solidworks: solidworks
+  technical proposal preparation: technical proposal preparation
+  technical sizing: technical sizing
+  thermodynamics: thermodynamics
+  transmission maintenance: transmission maintenance
+  turning: turning
+  vehicle inspection: vehicle inspection
+  welding: welding
+  werkstoffcharakterisierung: materials characterization
+
+  # automotive/software protocols and safety
+  can: can bus
+  can bus: can bus
+  dds: data distribution service
+  doip: diagnostics over ip
+  flexray: flexray
+  networking: networking
+  s-ibus: s-ibus
+  some/ip: some/ip
+  sotif: sotif
+
+  # design, media, creative
+  adobe illustrator: adobe illustrator
+  adobe indesign: adobe indesign
+  adobe photoshop: adobe photoshop
+  adobe premiere: adobe premiere
+  bildbearbeitung: image editing
+  color palette development: color palette development
+  corporate pitch decks: pitch deck design
+  digital asset management: digital asset management
+  graphic design: graphic design
+  icon design: icon design
+  illustrator: adobe illustrator
+  image editing: image editing
+  indesign: adobe indesign
+  in-design: adobe indesign
+  logo design: logo design
+  motion design: motion design
+  photography: photography
+  photoshop: adobe photoshop
+  pitch deck design: pitch deck design
+  print design: print design
+  taking photos: photography
+  texture design: texture design
+  typography: typography
+  typography system design: typography system design
   ux/ui: ux/ui design
-  validating data accuracy: data validation
-  vector databases: genai
-  verstehst datenflüsse: datenflüsse
-  vertex ai: genai
-  visio: microsoft visio
-  von der vertraulichkeitsvereinbarung: non-disclosure agreement (nda)
-  von rest-apis: rest apis
-  webanalyse mit google analytics: google analytics
-  weitere hr saas-systeme: hr saas
-  wie bspw. google dv360: google dv360
-  wirtschaftlichkeits- und risikoanalysen: risk analysis
-  work with spreadsheets: spreadsheets
-  z. b. ms access: microsoft access
-  z. b. pmp: pmp
-  z. b. scrum: scrum
-  z.b. c4c: sap cloud for customer (c4c)
-  z.b. sac: sap analytics cloud (sac)
-  zalando: zalando advertising
-  über die due diligence: due diligence
-  überwachst kreditrisiken aufmerksam: credit risk monitoring
-  „anforderungsmanagement“: requirements management
+  ux/ui design: ux/ui design
+  video editing: video editing
+  videobearbeitung: video editing
+  videography: videography
+
+  # legal, compliance, risk operations, security
+  bafin reporting: regulatory reporting
+  bais: bais
+  ccna security: ccna security
+  compliance preparation: compliance preparation
+  content moderation: content moderation
+  data governance framework: data governance
+  information security: information security
+  itil: itil
+  know your customer: kyc
+  kyc: know your customer
+  mica compliance preparation: mica compliance preparation
+  non-disclosure agreement: non-disclosure agreement
+  non-disclosure agreement (nda): non-disclosure agreement
+  occupational safety: occupational safety
+  red teaming: red teaming
+  sanctions screening alert review: sanctions screening alert review
+  security operations center: security operations center
+  security operations center (soc): security operations center
+  service level agreements: service level agreements
+  service level agreements (sla): service level agreements
+  sla: service level agreements
+  soc 1st level analysis: security operations center analysis
+  trademark law: trademark law
+  ubo identification: ubo identification
+
+  # supply chain, logistics, procurement
+  cold calling: cold calling
+  control tower: supply chain control tower
+  control towers: supply chain control tower
+  lean manufacturing: lean manufacturing
+  lean manufacturing principles: lean manufacturing
+  operational planning process: operational planning
+  product launch activation: product launch activation
+  production planning: production planning
+  promotion management: promotion management
+  shopfloor management: shopfloor management
+  strategic vendor management: vendor management
+  supply chain control tower: supply chain control tower
+  vendor management: vendor management
+
+  # education, healthcare, agriculture, niche hands-on skills
+  academic writing: academic writing
+  acting: acting
+  acting techniques: acting
+  behavior management: behavior management
+  biochar production: biochar production
+  classroom management: classroom management
+  classroom and behavior management: classroom management
+  dairy processing: dairy processing
+  dry sanitation: dry sanitation
+  dry toilet operation: dry sanitation
+  gefriertrocknung: freeze drying
+  medical terminology: medical terminology
+  microlearning: microlearning
+  organic rice intensification: organic rice intensification
+  permaculture: permaculture
+  surgical assistance: surgical assistance
+  veterinary anesthesia: veterinary anesthesia
+  wormery management: wormery management

@@ -349,6 +349,8 @@ not-found errors when the run is not in a valid state for the action.
 - `GET /admin/runs/{run_id}/synonym-proposals-trace.json`
 - `GET /admin/runs/{run_id}/approved-synonym-proposals.yaml`
 - `GET /admin/synonyms/global.yaml`
+- `GET /admin/synonyms/global-domain.yaml`
+- `GET /admin/synonyms/global-role-family.yaml`
 - `GET /admin/runs/{run_id}/artifacts.zip`
 
 These routes expose the main observation payloads for completed or sufficiently
@@ -442,9 +444,15 @@ Typical behavior:
   - `synonym_triage_failed`
 - promotion requires run-scoped status `approved_for_run_overlay`
 - approved overlay export is delta-only (run-approved pairs), not a full global map export
-- global export endpoint returns the full canonical synonym map
-- promote-to-global is a merge/overlay into `config/taxonomy/skill_synonyms.yaml`
-  where alias collisions are explicit overrides
+- global export endpoints return the full canonical policy maps:
+  - `GET /admin/synonyms/global.yaml` (skills)
+  - `GET /admin/synonyms/global-domain.yaml` (domain)
+  - `GET /admin/synonyms/global-role-family.yaml` (role family)
+- promote-to-global is a merge/overlay into SSOT:
+  - `config/taxonomy/skill_synonyms.yaml`
+  - `config/taxonomy/domain_synonyms.yaml`
+  - `config/taxonomy/role_family_synonyms.yaml`
+  where alias collisions are explicit overrides within each field map
 
 Triage refresh behavior:
 

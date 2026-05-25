@@ -35,6 +35,7 @@ data/fitcv_cp.sqlite3
 data/fitcv_cp_runtime.sqlite3*
 data/fitcv_cp_settings.sqlite3*
 data/fitcv_cp.sqlite3*
+runtime/
 
 # Live run evidence bundles (local only)
 artifacts/live_run_*/
