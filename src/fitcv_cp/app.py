@@ -4858,6 +4858,20 @@ def _build_enriched_tab_context(
     if not enriched_jobs:
         enriched_jobs = _fallback_enriched_rows_from_results_export(results_rows)
     filter_results = list_filter_results_for_run(run_id, bq, project=project, dataset=dataset)
+    if not filter_results and results_rows:
+        # sqlite mode does not persist rule_filter_results; derive passed/rejected
+        # flags from the results export so UI counters stay consistent.
+        for row in results_rows:
+            job_url = str(row.get("job_url") or "").strip()
+            if not job_url:
+                continue
+            pipeline_status = str(row.get("pipeline_status") or "").strip()
+            if pipeline_status == "deduplicated_before_enrichment":
+                continue
+            if pipeline_status == "rejected_after_enrichment":
+                filter_results.append({"job_url": job_url, "passed": False, "reasons": []})
+            else:
+                filter_results.append({"job_url": job_url, "passed": True, "reasons": []})
     filter_results_by_job_url: dict[str, dict[str, Any]] = {
         str(row.get("job_url") or ""): row for row in filter_results if row.get("job_url")
     }

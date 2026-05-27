@@ -24,7 +24,7 @@ services:
       - ./config/runtime/control_plane.yaml:/app/config/runtime/control_plane.yaml:ro
       - ${FITCV_LANGGRAPH_REPO_PATH:-../fitcv-langgraph}:/opt/fitcv-langgraph:ro
       - ./data:/app/data
-      - ./runtime:/app/runtime
+      - fitcv_runtime:/app/runtime
     depends_on: [redis]
 
   worker:
@@ -42,11 +42,15 @@ services:
       - FITCV_LANGGRAPH_ENV_FILE=/app/.env
       - FITCV_LANGGRAPH_REPO_ROOT=/opt/fitcv-langgraph
       - FITCV_CP_SETTINGS_SQLITE_PATH=/app/runtime/fitcv_cp.sqlite3
+      - FITCV_ENRICH_EMIT_JOB_EVENTS=true
     volumes:
       - ./.env:/app/.env:ro
       - ./config/env.yaml:/app/config/env.yaml:ro
       - ./config/runtime/control_plane.yaml:/app/config/runtime/control_plane.yaml:ro
       - ${FITCV_LANGGRAPH_REPO_PATH:-../fitcv-langgraph}:/opt/fitcv-langgraph:ro
       - ./data:/app/data
-      - ./runtime:/app/runtime
+      - fitcv_runtime:/app/runtime
     depends_on: [redis]
+
+volumes:
+  fitcv_runtime:

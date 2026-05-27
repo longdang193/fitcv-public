@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -2056,8 +2057,22 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
 
             def _cancellation_check() -> bool:
                 """Lightweight re-read to check if cancel was requested mid-flight."""
-                current = get_run(run_id, bq, project=project, dataset=dataset)
-                return current is not None and current.cancel_requested_at is not None
+                nonlocal _last_cancel_check_at, _last_cancel_check_result
+                now = time.monotonic()
+                if (now - _last_cancel_check_at) < 2.0:
+                    return _last_cancel_check_result
+                _last_cancel_check_at = now
+                try:
+                    current = get_run(run_id, bq, project=project, dataset=dataset)
+                    _last_cancel_check_result = current is not None and current.cancel_requested_at is not None
+                except Exception:  # noqa: BLE001
+                    # Cancellation is best-effort; if run state store is transiently unavailable,
+                    # keep pipeline progressing instead of failing mid-run.
+                    return _last_cancel_check_result
+                return _last_cancel_check_result
+
+            _last_cancel_check_at = 0.0
+            _last_cancel_check_result = False
 
             reuse_policy_stages = ("ranking", "cv_analysis", "cv_generation", "synonym_triage")
             allow_checkpointed_sources = any(

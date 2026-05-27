@@ -25,12 +25,13 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, TypedDict
+from typing import Any, Callable, TypedDict
 from types import SimpleNamespace
 
 from pydantic import BaseModel as _BaseModel, Field as _Field, ValidationError as _ValidationError
 from fitcv.config import get_gemini_model, resolve_model_routing_part, sqlite_mode_enabled
 from fitcv.candidate import infer_role_family
+from fitcv.pipeline_stages.common import extract_job_url
 from fitcv.prompts import get_prompt_definition, render_prompt
 
 logger = logging.getLogger(__name__)
@@ -1462,6 +1463,8 @@ def enrich_job(job: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
 def _enrich_chunk(
     chunk: list[dict[str, Any]],
     config: dict[str, Any],
+    *,
+    job_event_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Enrich one bounded chunk of normalized jobs with global rate limiting and retry.
 
@@ -1487,8 +1490,27 @@ def _enrich_chunk(
         while True:
             _acquire_enrich_rate_slot(sleep_secs)
             try:
+                job_url = extract_job_url(job)
+                started_at = time.monotonic()
+                if job_event_callback and job_url:
+                    try:
+                        job_event_callback({"phase": "job_start", "job_url": job_url})
+                    except Exception:  # noqa: BLE001
+                        pass
                 enriched = enrich_job(job, config)
                 results.append(enriched)
+                elapsed_secs = max(0.0, time.monotonic() - started_at)
+                if job_event_callback and job_url:
+                    try:
+                        job_event_callback(
+                            {
+                                "phase": "job_done",
+                                "job_url": job_url,
+                                "elapsed_secs": int(elapsed_secs),
+                            }
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
                 break
             except ResourceExhausted:
                 if attempts >= max_retries:
@@ -1512,6 +1534,8 @@ def _enrich_chunk(
 def enrich_batch(
     normalized_jobs: list[dict[str, Any]],
     config: dict[str, Any],
+    *,
+    job_event_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Enrich a batch of normalized jobs with bounded parallel execution.
 
@@ -1550,7 +1574,10 @@ def enrich_batch(
 
     # Submit all chunks; collect futures in original order
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [executor.submit(_enrich_chunk, chunk, config) for chunk in chunks]
+        futures = [
+            executor.submit(_enrich_chunk, chunk, config, job_event_callback=job_event_callback)
+            for chunk in chunks
+        ]
 
         # Collect results by original chunk index, not completion order.
         # This preserves deterministic merged output ordering.

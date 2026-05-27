@@ -419,6 +419,12 @@ def _enrich_jobs_with_reuse(
             "yes",
             "on",
         }
+        emit_job_events_enabled = str(os.environ.get("FITCV_ENRICH_EMIT_JOB_EVENTS", "") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         per_job_timeout_raw = str(os.environ.get("FITCV_ENRICH_JOB_TIMEOUT_SECS", "180") or "180").strip()
         try:
             per_job_timeout_secs = max(10, int(float(per_job_timeout_raw)))
@@ -476,6 +482,44 @@ def _enrich_jobs_with_reuse(
                         }
                     )
         else:
+            job_index_by_url: dict[str, int] = {}
+            job_index_lock = threading.Lock()
+            next_job_index = 0
+
+            def _job_event_callback(evt: dict[str, Any]) -> None:
+                nonlocal next_job_index
+                if not emit_job_events_enabled or heartbeat_callback is None:
+                    return
+                phase = str(evt.get("phase") or "").strip()
+                job_url = str(evt.get("job_url") or "").strip()
+                if not phase or not job_url:
+                    return
+                if phase == "job_start":
+                    with job_index_lock:
+                        next_job_index += 1
+                        job_index_by_url[job_url] = next_job_index
+                    heartbeat_callback(
+                        {
+                            "phase": "job_start",
+                            "index": job_index_by_url.get(job_url),
+                            "total": len(fresh_jobs),
+                            "job_url": job_url,
+                            "timeout_secs": per_job_timeout_secs,
+                        }
+                    )
+                    return
+                if phase == "job_done":
+                    heartbeat_callback(
+                        {
+                            "phase": "job_done",
+                            "index": job_index_by_url.get(job_url),
+                            "total": len(fresh_jobs),
+                            "job_url": job_url,
+                            "elapsed_secs": evt.get("elapsed_secs"),
+                        }
+                    )
+                    return
+
             if heartbeat_callback:
                 heartbeat_callback(
                     {
@@ -486,7 +530,11 @@ def _enrich_jobs_with_reuse(
                     }
                 )
             fresh_rows = _run_enrich_call_with_polling(
-                lambda: enrich_batch(fresh_jobs, config),
+                lambda: enrich_batch(
+                    fresh_jobs,
+                    config,
+                    job_event_callback=_job_event_callback if emit_job_events_enabled else None,
+                ),
                 heartbeat_interval_secs=heartbeat_interval_secs,
                 on_progress=(
                     lambda heartbeat_count, elapsed_secs: heartbeat_callback(

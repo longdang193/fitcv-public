@@ -22,7 +22,7 @@ control_plane:
     openai_compatible:
       base_url: http://host.docker.internal:20128/v1
       wire_api: chat_completions
-      timeout_seconds: 30
+      timeout_seconds: 60
     openai:
       base_url: https://api.openai.com/v1
       wire_api: chat_completions

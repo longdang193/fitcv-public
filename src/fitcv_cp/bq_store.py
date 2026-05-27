@@ -1774,7 +1774,30 @@ def list_run_structured_jobs(
     deterministic display. Uses parameterized SQL to avoid injection.
     """
     if bq is None:
-        return []
+        import json
+        import sqlite3
+
+        db_path = str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+        try:
+            with sqlite3.connect(db_path) as conn:
+                rows = conn.execute(
+                    """
+                    SELECT payload_json
+                    FROM run_structured_jobs
+                    WHERE run_id = ?
+                    """,
+                    (run_id,),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        parsed: list[dict[str, Any]] = []
+        for (payload_json,) in rows:
+            try:
+                parsed.append(json.loads(payload_json or "{}"))
+            except (TypeError, ValueError):
+                continue
+        parsed.sort(key=lambda row: (str(row.get("title") or ""), str(row.get("job_url") or "")))
+        return parsed
     table = f"{project}.{dataset}.run_structured_jobs"
     sql = f"""
         SELECT *
