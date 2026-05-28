@@ -73,6 +73,7 @@ from fitcv_cp.synonym_proposals import (
     transition_synonym_proposal_status,
 )
 from fitcv_cp.review_identity import ensure_review_item_id, is_review_resolution_pending
+from fitcv_cp.retry_policy import classify_exception_for_retry
 from fitcv_cp.run_artifact_contracts import (
     encode_json_object,
     iso_or_none,
@@ -81,6 +82,7 @@ from fitcv_cp.run_artifact_contracts import (
     json_safe,
     normalized_run_mode,
     replay_context_payload,
+    run_attempt_payload_v1,
     run_mode_label,
     require_payload_keys,
     stable_json_dumps,
@@ -1913,7 +1915,14 @@ def _resolve_synonym_proposals_seed_payload_json(
     return latest_payload
 
 
-def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
+def execute_pipeline_run(
+    run_id: str,
+    jobs_path: str,
+    config_path: str,
+    *,
+    attempt_id: str | None = None,
+    queue_job_id: str | None = None,
+) -> None:
     runtime = resolve_backend_runtime()
     previous_backend_env = os.environ.get("FITCV_CP_DATA_BACKEND")
     previous_sqlite_path_env = os.environ.get("FITCV_CP_SQLITE_PATH")
@@ -1931,6 +1940,18 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
 
     summary: dict[str, Any] = {}
     run_record: Any | None = None
+    attempt_id = str(attempt_id or uuid.uuid4())
+    attempt_queue_job_id = str(queue_job_id or "").strip() or None
+
+    if attempt_queue_job_id is None:
+        try:
+            from rq import get_current_job
+
+            job = get_current_job()
+            if job is not None and getattr(job, "id", None):
+                attempt_queue_job_id = str(job.id)
+        except Exception:
+            pass
 
     with observe_span(
         "fitcv.worker_job",
@@ -1966,6 +1987,78 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                     else None
                 ),
             )
+
+            from fitcv_cp.retry_settings import load_retry_settings
+
+            settings = load_retry_settings()
+            lease_seconds = settings.lease_seconds
+            lease_started_at = datetime.datetime.now(datetime.timezone.utc)
+            lease_expires_at = lease_started_at + datetime.timedelta(seconds=max(1, lease_seconds))
+            append_event(
+                RunEvent(
+                    run_id=run_id,
+                    event_id=str(uuid.uuid4()),
+                    stage="run_attempt",
+                    level="info",
+                    message="Run attempt started",
+                    created_at=lease_started_at,
+                    payload_json=json.dumps(
+                        run_attempt_payload_v1(
+                            attempt_id=attempt_id,
+                            status=RunStatus.RUNNING.value,
+                            rq_job_id=attempt_queue_job_id,
+                            worker_id=os.environ.get("HOSTNAME"),
+                            lease_started_at=lease_started_at,
+                            lease_expires_at=lease_expires_at,
+                        ),
+                        ensure_ascii=False,
+                    ),
+                ),
+                bq,
+                project=project,
+                dataset=dataset,
+            )
+
+            _last_lease_renew_at = 0.0
+
+            def _maybe_renew_attempt_lease() -> None:
+                nonlocal _last_lease_renew_at
+                if lease_seconds <= 0:
+                    return
+                now_monotonic = time.monotonic()
+                renew_interval = max(5.0, float(lease_seconds) / 3.0)
+                if (now_monotonic - _last_lease_renew_at) < renew_interval:
+                    return
+                _last_lease_renew_at = now_monotonic
+                renewed_at = datetime.datetime.now(datetime.timezone.utc)
+                renewed_expires_at = renewed_at + datetime.timedelta(seconds=max(1, lease_seconds))
+                try:
+                    append_event(
+                        RunEvent(
+                            run_id=run_id,
+                            event_id=str(uuid.uuid4()),
+                            stage="run_attempt",
+                            level="info",
+                            message="Run attempt lease renewed",
+                            created_at=renewed_at,
+                            payload_json=json.dumps(
+                                run_attempt_payload_v1(
+                                    attempt_id=attempt_id,
+                                    status=RunStatus.RUNNING.value,
+                                    rq_job_id=attempt_queue_job_id,
+                                    worker_id=os.environ.get("HOSTNAME"),
+                                    lease_started_at=renewed_at,
+                                    lease_expires_at=renewed_expires_at,
+                                ),
+                                ensure_ascii=False,
+                            ),
+                        ),
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+                except Exception as inner:
+                    logger.warning("[run_id=%s] Failed to renew run attempt lease: %s", run_id, inner)
 
             # ── Step 2: Read current row (reads cancel_requested_at + config snapshot)
             with observe_span(
@@ -2065,6 +2158,7 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 try:
                     current = get_run(run_id, bq, project=project, dataset=dataset)
                     _last_cancel_check_result = current is not None and current.cancel_requested_at is not None
+                    _maybe_renew_attempt_lease()
                 except Exception:  # noqa: BLE001
                     # Cancellation is best-effort; if run state store is transiently unavailable,
                     # keep pipeline progressing instead of failing mid-run.
@@ -2413,6 +2507,49 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                         "run_terminal_status": str(terminal_status),
                     }
                 )
+                attempt_terminal_persisted = False
+                try:
+                    append_event(
+                        RunEvent(
+                            run_id=run_id,
+                            event_id=str(uuid.uuid4()),
+                            stage="run_attempt",
+                            level="info",
+                            message="Run attempt finished",
+                            created_at=datetime.datetime.now(datetime.timezone.utc),
+                            payload_json=json.dumps(
+                                run_attempt_payload_v1(
+                                    attempt_id=attempt_id,
+                                    status=str(terminal_status.value),
+                                    rq_job_id=attempt_queue_job_id,
+                                    worker_id=os.environ.get("HOSTNAME"),
+                                    finished_at=finished_at,
+                                ),
+                                ensure_ascii=False,
+                            ),
+                        ),
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                    )
+                    attempt_terminal_persisted = True
+                except Exception as inner:
+                    logger.warning("[run_id=%s] Failed to append run attempt terminal event: %s", run_id, inner)
+
+                if terminal_status == RunStatus.SUCCEEDED and not attempt_terminal_persisted:
+                    update_run_status(
+                        run_id,
+                        RunStatus.FAILED,
+                        bq,
+                        project=project,
+                        dataset=dataset,
+                        finished_at=datetime.datetime.now(datetime.timezone.utc),
+                        summary=summary,
+                        error_message="attempt_terminal_event_persist_failed",
+                        error_stage="run_attempt_terminalization",
+                    )
+                    raise RuntimeError("attempt_terminal_event_persist_failed")
+
                 update_run_status(
                     run_id,
                     terminal_status,
@@ -2730,6 +2867,35 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 finished_at=cancelled_at,
                 summary=summary if isinstance(summary, dict) else None,
             )
+            try:
+                append_event(
+                    RunEvent(
+                        run_id=run_id,
+                        event_id=str(uuid.uuid4()),
+                        stage="run_attempt",
+                        level="info",
+                        message="Run attempt cancelled",
+                        created_at=cancelled_at,
+                        payload_json=json.dumps(
+                            run_attempt_payload_v1(
+                                attempt_id=attempt_id,
+                                status=RunStatus.CANCELLED.value,
+                                rq_job_id=attempt_queue_job_id,
+                                worker_id=os.environ.get("HOSTNAME"),
+                                finished_at=cancelled_at,
+                                error_classification="canceled",
+                                error_summary="cancel_requested",
+                                retry_eligible=False,
+                            ),
+                            ensure_ascii=False,
+                        ),
+                    ),
+                    bq,
+                    project=project,
+                    dataset=dataset,
+                )
+            except Exception as inner:
+                logger.warning("[run_id=%s] Failed to append run attempt cancelled event: %s", run_id, inner)
             if isinstance(summary, dict) and summary:
                 try:
                     _persist_shared_progress_snapshot(
@@ -2779,6 +2945,38 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 summary=summary if isinstance(summary, dict) else None,
                 error_message=str(exc),
             )
+            try:
+                classification = classify_exception_for_retry(exc)
+                append_event(
+                    RunEvent(
+                        run_id=run_id,
+                        event_id=str(uuid.uuid4()),
+                        stage="run_attempt",
+                        level="error",
+                        message="Run attempt failed",
+                        created_at=failed_at,
+                        payload_json=json.dumps(
+                            run_attempt_payload_v1(
+                                attempt_id=attempt_id,
+                                status=RunStatus.FAILED.value,
+                                rq_job_id=attempt_queue_job_id,
+                                worker_id=os.environ.get("HOSTNAME"),
+                                finished_at=failed_at,
+                                error_classification=classification.classification,
+                                error_summary=classification.summary,
+                                error_details=classification.details,
+                                error_details_max_chars=settings.error_details_max_chars,
+                                retry_eligible=(classification.classification in {"transient", "unknown"}),
+                            ),
+                            ensure_ascii=False,
+                        ),
+                    ),
+                    bq,
+                    project=project,
+                    dataset=dataset,
+                )
+            except Exception as inner:
+                logger.warning("[run_id=%s] Failed to append run attempt failed event: %s", run_id, inner)
             if isinstance(summary, dict) and summary:
                 try:
                     _persist_shared_progress_snapshot(
@@ -2831,6 +3029,9 @@ def execute_pipeline_run(run_id: str, jobs_path: str, config_path: str) -> None:
                 os.environ.pop("FITCV_CP_SQLITE_PATH", None)
             else:
                 os.environ["FITCV_CP_SQLITE_PATH"] = previous_sqlite_path_env
+
+
+
 
 
 

@@ -1,0 +1,25 @@
+shortlist_lexical:
+  version: shortlist_lexical_v1
+  scoring_mode: weighted_sum_fallback
+  field_weights:
+    target_role: 3.0
+    headline: 3.0
+    skills: 2.5
+    recent_roles: 1.5
+    role_families: 1.0
+    domains: 0.75
+    location_types: 0.5
+  phrase_boost:
+    per_phrase: 0.2
+    cap_ratio_of_max_base: 0.2
+  protected_terms:
+    manual_seed: ["ml", "etl", "dbt", "gcp", "sql", "nlp", "ga4", "llm", "rag", "mlops", "mlflow", "rq"]
+    derive_from_taxonomy: true
+    taxonomy_sources:
+      - "config/taxonomy/domain_synonyms.yaml"
+      - "config/taxonomy/role_family_synonyms.yaml"
+      - "config/taxonomy/skill_synonyms.yaml"
+    max_len_auto_protect: 5
+    punctuation_markers: ["+", "#", "."]
+    stopword_exclusions: ["and", "or", "the", "for", "with", "from", "into"]
+

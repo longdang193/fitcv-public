@@ -24,6 +24,7 @@ from fitcv.config import sqlite_mode_enabled
 from fitcv.persistence import build_bigquery_client
 from fitcv.ranking_contract import (
     validate_missing_defaults_contract,
+    validate_preference_fit_weights_contract,
     validate_weight_contract,
 )
 
@@ -154,6 +155,7 @@ def get_preference_fit_weights(config: dict[str, Any] | None = None) -> dict[str
         raw_weight = configured.get(key)
         if raw_weight is not None:
             resolved[key] = float(raw_weight)
+    validate_preference_fit_weights_contract(resolved)
     return resolved
 
 
@@ -514,3 +516,69 @@ def store_final_ranking(
     errors = client.insert_rows_json(table_ref, rows)
     if errors:
         raise RuntimeError(f"BigQuery insert errors for final_ranking: {errors}")
+def compute_ranking_runtime_diagnostics(
+    ranking_inputs: list[dict[str, Any]],
+    *,
+    supported_features: tuple[str, ...] = SUPPORTED_RANKING_FEATURES,
+) -> dict[str, Any]:
+    total_rows = len(ranking_inputs)
+    by_feature: dict[str, dict[str, float]] = {}
+    total_applied = 0
+
+    for feature_name in supported_features:
+        count = 0
+        for row in ranking_inputs:
+            flags = row.get("missing_feature_default_applied")
+            if isinstance(flags, dict) and bool(flags.get(feature_name)):
+                count += 1
+        total_applied += count
+        by_feature[feature_name] = {
+            "count": count,
+            "rate": (float(count) / float(total_rows)) if total_rows > 0 else 0.0,
+        }
+
+    domain_unmatched_count = 0
+    role_family_unmatched_count = 0
+    neighbor_match_count = 0
+    active_comparisons = 0
+    unmatched_total = 0
+
+    for row in ranking_inputs:
+        match_details = row.get("preference_fit_match_details")
+        if not isinstance(match_details, dict):
+            continue
+        for key in ("domain", "role_family"):
+            state = str(match_details.get(key) or "").strip().lower()
+            if state == "neutral":
+                continue
+            active_comparisons += 1
+            if state == "neighbor":
+                neighbor_match_count += 1
+            elif state == "none":
+                unmatched_total += 1
+                if key == "domain":
+                    domain_unmatched_count += 1
+                elif key == "role_family":
+                    role_family_unmatched_count += 1
+
+    return {
+        "missing_feature_fallbacks": {
+            "total_applied": total_applied,
+            "total_rows": total_rows,
+            "by_feature": by_feature,
+        },
+        "taxonomy_drift": {
+            "domain_unmatched_count": domain_unmatched_count,
+            "role_family_unmatched_count": role_family_unmatched_count,
+            "neighbor_match_count": neighbor_match_count,
+            "active_comparisons": active_comparisons,
+            "unmatched_total": unmatched_total,
+            "unmatched_rate": (float(unmatched_total) / float(active_comparisons)) if active_comparisons > 0 else 0.0,
+        },
+    }
+
+
+
+
+
+

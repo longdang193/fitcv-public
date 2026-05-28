@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from fitcv_cp import bq_store
 from fitcv_cp.models import PipelineRun, RunEvent
+from fitcv_cp.run_artifact_contracts import decode_run_attempt_payload_or_none
 
 
 class RunStore(Protocol):
@@ -57,6 +58,7 @@ class RunStore(Protocol):
     def list_run_structured_jobs(self, run_id: str) -> list[dict[str, Any]]: ...
     def list_filter_results_for_run(self, run_id: str) -> list[dict[str, Any]]: ...
     def get_pipeline_runs_schema_status(self) -> dict[str, Any]: ...
+    def list_run_attempt_payloads(self, run_id: str) -> list[dict[str, Any]]: ...
     def append_event(self, event: RunEvent) -> dict[str, str]: ...
     def update_run_effective_settings(self, run_id: str, effective_settings_json: str) -> dict[str, str]: ...
     def update_run_synonym_proposals(
@@ -103,10 +105,16 @@ class ControlPlaneStore:
         return fn(*args, **kwargs)
 
     def _call_list(self, override_fn: Any | None, default_fn: Any, *args: Any, **kwargs: Any) -> list[Any]:
-        return list(self._call(override_fn, default_fn, *args, **kwargs))
+        value = self._call(override_fn, default_fn, *args, **kwargs)
+        if value is None:
+            return []
+        return list(value)
 
     def _call_dict(self, override_fn: Any | None, default_fn: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        return dict(self._call(override_fn, default_fn, *args, **kwargs))
+        value = self._call(override_fn, default_fn, *args, **kwargs)
+        if value is None:
+            return {}
+        return dict(value)
 
     def insert_run(self, run: PipelineRun) -> None:
         self._call(
@@ -118,8 +126,8 @@ class ControlPlaneStore:
             dataset=self.dataset,
         )
 
-    def update_run_queue_job_id(self, run_id: str, queue_job_id: str) -> None:
-        return dict(self._call(
+    def update_run_queue_job_id(self, run_id: str, queue_job_id: str) -> dict[str, str]:
+        return self._call_dict(
             self.update_run_queue_job_id_fn,
             bq_store.update_run_queue_job_id,
             run_id,
@@ -127,7 +135,7 @@ class ControlPlaneStore:
             self.bq,
             project=self.project,
             dataset=self.dataset,
-        ))
+        )
 
     def update_run_orchestration_binding(
         self,
@@ -137,7 +145,7 @@ class ControlPlaneStore:
         orchestration_backend: str | None,
         orchestration_run_id: str | None,
     ) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_orchestration_binding_fn,
             bq_store.update_run_orchestration_binding,
             run_id,
@@ -147,7 +155,7 @@ class ControlPlaneStore:
             bq=self.bq,
             project=self.project,
             dataset=self.dataset,
-        ))
+        )
 
     def get_run(self, run_id: str) -> PipelineRun | None:
         return self._call(
@@ -188,7 +196,7 @@ class ControlPlaneStore:
         )
 
     def update_run_status(self, run_id: str, status: Any, **kwargs: Any) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_status_fn,
             bq_store.update_run_status,
             run_id,
@@ -197,10 +205,10 @@ class ControlPlaneStore:
             project=self.project,
             dataset=self.dataset,
             **kwargs,
-        ))
+        )
 
     def update_run_checkpoint(self, run_id: str, **kwargs: Any) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_checkpoint_fn,
             bq_store.update_run_checkpoint,
             run_id,
@@ -208,7 +216,7 @@ class ControlPlaneStore:
             project=self.project,
             dataset=self.dataset,
             **kwargs,
-        ))
+        )
 
     def request_run_cancel(
         self,
@@ -299,6 +307,15 @@ class ControlPlaneStore:
             dataset=self.dataset,
         )
 
+    def list_run_attempt_payloads(self, run_id: str) -> list[dict[str, Any]]:
+        payloads: list[dict[str, Any]] = []
+        for event in self.get_events(run_id):
+            payload = decode_run_attempt_payload_or_none(event.payload_json)
+            if payload is None:
+                continue
+            payloads.append(payload)
+        return payloads
+
     def append_event(self, event: RunEvent) -> dict[str, str]:
         return dict(
             self._call(
@@ -312,7 +329,7 @@ class ControlPlaneStore:
         )
 
     def update_run_effective_settings(self, run_id: str, effective_settings_json: str) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_effective_settings_fn,
             bq_store.update_run_effective_settings,
             run_id,
@@ -320,7 +337,7 @@ class ControlPlaneStore:
             self.bq,
             project=self.project,
             dataset=self.dataset,
-        ))
+        )
 
     def update_run_synonym_proposals(
         self, run_id: str, synonym_proposals_json: str
@@ -338,7 +355,7 @@ class ControlPlaneStore:
         )
 
     def update_run_cv_generation_debug(self, run_id: str, cv_generation_debug_json: str) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_cv_generation_debug_fn,
             bq_store.update_run_cv_generation_debug,
             run_id,
@@ -346,14 +363,14 @@ class ControlPlaneStore:
             self.bq,
             project=self.project,
             dataset=self.dataset,
-        ))
+        )
 
     def update_run_stage_transition_artifacts(
         self,
         run_id: str,
         stage_transition_artifacts_json: str,
     ) -> dict[str, str]:
-        return dict(self._call(
+        return self._call_dict(
             self.update_run_stage_transition_artifacts_fn,
             bq_store.update_run_stage_transition_artifacts,
             run_id,
@@ -361,7 +378,7 @@ class ControlPlaneStore:
             self.bq,
             project=self.project,
             dataset=self.dataset,
-        ))
+        )
 
     def insert_cv_version_row(self, row: dict[str, Any]) -> list[Any]:
         return self._call_list(

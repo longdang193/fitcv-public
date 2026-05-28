@@ -52,6 +52,7 @@ _POLICY_FILE_CANDIDATES = [
         ("taxonomy/role_family_synonyms.yaml", "role_family_synonyms.yaml"),
     ),
     ("taxonomy", ("taxonomy/taxonomy.yaml", "taxonomy.yaml")),
+    ("shortlist_lexical", ("shortlist_lexical.yaml",)),
     ("pipeline", ("runtime/pipeline.yaml", "pipeline.yaml")),
     ("ranking", ("policy/ranking.yaml", "ranking.yaml")),
     ("cv_analysis", ("policy/cv_analysis.yaml", "cv_analysis.yaml")),
@@ -1346,6 +1347,7 @@ def get_cv_acceptance_policy(config: dict[str, Any]) -> dict[str, Any]:
         ],
     })
     return merged_policy
+
 
 
 

@@ -47,3 +47,12 @@ control_plane:
 
   feature_flags:
     sqlite_mode_enabled: true
+
+  fitcv_cp:
+    retry:
+      enabled: false
+      max_attempts: 1
+      backoff_seconds: [1, 2, 4, 8]
+      lease_seconds: 900
+      reconciler_interval_seconds: 0
+      error_details_max_chars: 2048

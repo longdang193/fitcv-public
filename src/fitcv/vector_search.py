@@ -18,6 +18,7 @@ lifecycle:
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, TypedDict
@@ -38,6 +39,7 @@ from fitcv.shortlist_runtime import (
 DEFAULT_RECENT_ROLE_COUNT = 3
 DEFAULT_ROLE_FAMILY_HINT_COUNT = 3
 DEFAULT_DOMAIN_HINT_COUNT = 5
+DEFAULT_LOCATION_TYPE_HINT_COUNT = 3
 CANDIDATE_QUERY_SCHEMA_VERSION = "shortlist_candidate_query_v1"
 REUSED_CACHED_QUERY_EMBEDDING_STATUS = "reused_cached_query_embedding"
 FRESH_QUERY_EMBEDDING_STATUS = "fresh_query_embedding"
@@ -165,11 +167,169 @@ def _normalize_query_scalar(value: Any) -> str:
     return normalize_text_scalar(value)
 
 
+def _shortlist_lexical_policy(config: dict[str, Any] | None) -> dict[str, Any]:
+    policy = dict(((config or {}).get("shortlist_lexical") or {}))
+    protected = dict(policy.get("protected_terms") or {})
+    policy["protected_terms"] = protected
+    return policy
+
+def _iter_taxonomy_candidate_terms(config: dict[str, Any] | None) -> list[str]:
+    cfg = config or {}
+    candidates: list[str] = []
+    for key in ("skill_synonyms", "domain_alias_map", "role_family_alias_map"):
+        payload = cfg.get(key) or {}
+        if not isinstance(payload, dict):
+            continue
+        for alias, canonical in payload.items():
+            candidates.append(str(alias))
+            candidates.append(str(canonical))
+    return candidates
+
+def build_protected_terms(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build deterministic protected-term set from config + taxonomy-derived candidates."""
+    policy = _shortlist_lexical_policy(config)
+    protected_cfg = dict(policy.get("protected_terms") or {})
+    manual_seed_raw = list(protected_cfg.get("manual_seed") or [])
+    manual_seed = {str(term).strip().lower() for term in manual_seed_raw if str(term).strip()}
+    max_len = int(protected_cfg.get("max_len_auto_protect", 5) or 5)
+    punctuation_markers = [str(marker) for marker in list(protected_cfg.get("punctuation_markers") or ["+", "#", "."])]
+    stopword_exclusions = {
+        str(term).strip().lower()
+        for term in list(protected_cfg.get("stopword_exclusions") or [])
+        if str(term).strip()
+    }
+    derive_from_taxonomy = bool(protected_cfg.get("derive_from_taxonomy", True))
+
+    derived: set[str] = set()
+    if derive_from_taxonomy:
+        for raw_candidate in _iter_taxonomy_candidate_terms(config):
+            candidate = str(raw_candidate or "").strip().lower()
+            if not candidate:
+                continue
+            if " " in candidate:
+                continue
+            has_marker = any(marker and marker in candidate for marker in punctuation_markers)
+            has_digit = any(ch.isdigit() for ch in candidate)
+            include_candidate = (candidate in manual_seed) or (len(candidate) <= max_len) or has_marker or has_digit
+            if not include_candidate:
+                continue
+            if candidate not in manual_seed and candidate in stopword_exclusions:
+                continue
+            derived.add(candidate)
+
+    protected_terms = sorted(manual_seed.union(derived))
+    payload_json, protected_terms_hash = hash_payload({"protected_terms": protected_terms})
+    return {
+        "protected_terms": protected_terms,
+        "protected_terms_hash": protected_terms_hash,
+        "protected_terms_count": len(protected_terms),
+        "protected_terms_payload_json": payload_json,
+    }
+
+
+def _tokenize_lexical_text(text: str) -> list[str]:
+    return [token for token in re.findall(r"[a-z0-9+#.]+", str(text).lower()) if token]
+
+def _build_role_phrases(components: dict[str, Any]) -> list[str]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for field in ("headline", "target_role"):
+        value = str(components.get(field) or "").strip().lower()
+        tokens = _tokenize_lexical_text(value)
+        for size in (2, 3):
+            for idx in range(0, max(0, len(tokens) - size + 1)):
+                phrase = " ".join(tokens[idx : idx + size]).strip()
+                if phrase and phrase not in seen:
+                    seen.add(phrase)
+                    phrases.append(phrase)
+    for role in list(components.get("recent_roles") or []):
+        tokens = _tokenize_lexical_text(str(role or "").strip().lower())
+        for size in (2, 3):
+            for idx in range(0, max(0, len(tokens) - size + 1)):
+                phrase = " ".join(tokens[idx : idx + size]).strip()
+                if phrase and phrase not in seen:
+                    seen.add(phrase)
+                    phrases.append(phrase)
+    return phrases
+
+def build_weighted_bm25_query_terms(
+    components: dict[str, Any],
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build deterministic lexical term payload from canonical shortlist components."""
+    lexical_cfg = _shortlist_lexical_policy(config)
+    field_weights = dict(lexical_cfg.get("field_weights") or {})
+    scoring_mode = str(lexical_cfg.get("scoring_mode") or "weighted_sum_fallback").strip().lower()
+    if scoring_mode not in {"bm25f", "weighted_sum_fallback"}:
+        scoring_mode = "weighted_sum_fallback"
+
+    phrase_cfg = dict(lexical_cfg.get("phrase_boost") or {})
+    phrase_boost_per_phrase = float(phrase_cfg.get("per_phrase", 0.2) or 0.2)
+    phrase_boost_cap_ratio = float(phrase_cfg.get("cap_ratio_of_max_base", 0.2) or 0.2)
+
+    protected = build_protected_terms(config)
+    protected_set = set(list(protected.get("protected_terms") or []))
+
+    field_values: dict[str, list[str]] = {
+        "headline": [str(components.get("headline") or "")],
+        "target_role": [str(components.get("target_role") or "")],
+        "recent_roles": [str(item) for item in list(components.get("recent_roles") or [])],
+        "skills": [str(item) for item in list(components.get("skills") or components.get("flattened_skills") or [])],
+        "role_families": [str(item) for item in list(components.get("role_families") or components.get("role_family_hints") or [])],
+        "domains": [str(item) for item in list(components.get("domains") or components.get("domain_hints") or [])],
+        "location_types": [str(item) for item in list(components.get("location_types") or components.get("location_type_hints") or [])],
+    }
+
+    terms_by_field: dict[str, list[str]] = {}
+    for field, values in field_values.items():
+        tokens: list[str] = []
+        for value in values:
+            for token in _tokenize_lexical_text(value):
+                if token in protected_set or len(token) > 1:
+                    tokens.append(token)
+        seen_tokens: set[str] = set()
+        deduped_tokens: list[str] = []
+        for token in tokens:
+            if token in seen_tokens:
+                continue
+            seen_tokens.add(token)
+            deduped_tokens.append(token)
+        terms_by_field[field] = deduped_tokens
+
+    role_phrases = _build_role_phrases(components)
+    tie_break_order = ["lexical_base_score_desc", "phrase_hit_count_desc", "job_url_asc"]
+
+    payload = {
+        "terms_by_field": terms_by_field,
+        "field_weights": field_weights,
+        "role_phrases": role_phrases,
+        "protected_terms": list(protected.get("protected_terms") or []),
+        "scoring_mode": scoring_mode,
+        "scoring_formula": (
+            "bm25f_weighted" if scoring_mode == "bm25f"
+            else "sum_f(weight_f * bm25_f(doc, query_terms_f))"
+        ),
+        "phrase_boost": {
+            "per_phrase": phrase_boost_per_phrase,
+            "cap_ratio_of_max_base": phrase_boost_cap_ratio,
+            "accumulation": "sum_then_cap",
+        },
+        "tie_break_order": tie_break_order,
+    }
+    payload_json, bm25_terms_hash = hash_payload(payload)
+    return {
+        "payload": payload,
+        "payload_json": payload_json,
+        "bm25_terms_hash": bm25_terms_hash,
+        "protected_terms_hash": str(protected.get("protected_terms_hash") or ""),
+        "protected_terms_count": int(protected.get("protected_terms_count") or 0),
+    }
+
 def build_candidate_query_components(
     profile: dict[str, Any],
     config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return the bounded deterministic component groups used for shortlist retrieval."""
+    """Return bounded deterministic shortlist intent components (SSOT)."""
     max_skills = int((config or {}).get("vector_max_candidate_skills", 15))
 
     headline = str(profile.get("headline") or "").strip()
@@ -186,24 +346,24 @@ def build_candidate_query_components(
         if len(recent_roles) >= DEFAULT_RECENT_ROLE_COUNT:
             break
 
-    flattened_skills: list[str] = []
+    skills: list[str] = []
     seen_skills: set[str] = set()
     for skill in flatten_skills(profile):
-        _append_unique_text(flattened_skills, skill, seen_skills)
-        if len(flattened_skills) >= max_skills:
+        _append_unique_text(skills, skill, seen_skills)
+        if len(skills) >= max_skills:
             break
 
-    role_family_hints: list[str] = []
+    role_families: list[str] = []
     seen_role_families: set[str] = set()
     for role_family in prefs.get("role_families", []) or []:
-        _append_unique_text(role_family_hints, str(role_family), seen_role_families)
-        if len(role_family_hints) >= DEFAULT_ROLE_FAMILY_HINT_COUNT:
+        _append_unique_text(role_families, str(role_family), seen_role_families)
+        if len(role_families) >= DEFAULT_ROLE_FAMILY_HINT_COUNT:
             break
-    if len(role_family_hints) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
+    if len(role_families) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
         inferred_target_family = infer_role_family(target_role, config=config)
         if inferred_target_family:
-            _append_unique_text(role_family_hints, inferred_target_family, seen_role_families)
-    if len(role_family_hints) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
+            _append_unique_text(role_families, inferred_target_family, seen_role_families)
+    if len(role_families) < DEFAULT_ROLE_FAMILY_HINT_COUNT:
         for experience in profile.get("experiences", []) or []:
             explicit_family = str(experience.get("role_family") or "").strip()
             inferred_family = infer_role_family(
@@ -212,41 +372,54 @@ def build_candidate_query_components(
                 config=config,
             )
             if inferred_family:
-                _append_unique_text(role_family_hints, inferred_family, seen_role_families)
-            if len(role_family_hints) >= DEFAULT_ROLE_FAMILY_HINT_COUNT:
+                _append_unique_text(role_families, inferred_family, seen_role_families)
+            if len(role_families) >= DEFAULT_ROLE_FAMILY_HINT_COUNT:
                 break
 
-    domain_hints: list[str] = []
+    domains: list[str] = []
     seen_domains: set[str] = set()
     for domain in prefs.get("domains", []) or []:
-        _append_unique_text(domain_hints, str(domain), seen_domains)
-        if len(domain_hints) >= DEFAULT_DOMAIN_HINT_COUNT:
+        _append_unique_text(domains, str(domain), seen_domains)
+        if len(domains) >= DEFAULT_DOMAIN_HINT_COUNT:
             break
-    if len(domain_hints) < DEFAULT_DOMAIN_HINT_COUNT:
+    if len(domains) < DEFAULT_DOMAIN_HINT_COUNT:
         for experience in profile.get("experiences", []) or []:
             for domain_tag in experience.get("domain_tags", []) or []:
-                _append_unique_text(domain_hints, str(domain_tag), seen_domains)
-                if len(domain_hints) >= DEFAULT_DOMAIN_HINT_COUNT:
+                _append_unique_text(domains, str(domain_tag), seen_domains)
+                if len(domains) >= DEFAULT_DOMAIN_HINT_COUNT:
                     break
-            if len(domain_hints) >= DEFAULT_DOMAIN_HINT_COUNT:
+            if len(domains) >= DEFAULT_DOMAIN_HINT_COUNT:
                 break
-    if len(domain_hints) < DEFAULT_DOMAIN_HINT_COUNT:
+    if len(domains) < DEFAULT_DOMAIN_HINT_COUNT:
         for project in profile.get("projects", []) or []:
             for domain_tag in project.get("domain_tags", []) or []:
-                _append_unique_text(domain_hints, str(domain_tag), seen_domains)
-                if len(domain_hints) >= DEFAULT_DOMAIN_HINT_COUNT:
+                _append_unique_text(domains, str(domain_tag), seen_domains)
+                if len(domains) >= DEFAULT_DOMAIN_HINT_COUNT:
                     break
-            if len(domain_hints) >= DEFAULT_DOMAIN_HINT_COUNT:
+            if len(domains) >= DEFAULT_DOMAIN_HINT_COUNT:
                 break
+
+    location_types: list[str] = []
+    seen_location_types: set[str] = set()
+    for location_type in prefs.get("location_types", []) or []:
+        _append_unique_text(location_types, str(location_type), seen_location_types)
+        if len(location_types) >= DEFAULT_LOCATION_TYPE_HINT_COUNT:
+            break
 
     return {
         "headline": headline,
         "target_role": target_role,
         "recent_roles": recent_roles,
-        "role_family_hints": role_family_hints,
-        "flattened_skills": flattened_skills,
-        "domain_hints": domain_hints,
+        "skills": skills,
+        "role_families": role_families,
+        "domains": domains,
+        "location_types": location_types,
+        "role_family_hints": role_families,
+        "flattened_skills": skills,
+        "domain_hints": domains,
+        "location_type_hints": location_types,
     }
+
 
 
 def build_candidate_query_signature_record(components: dict[str, Any]) -> dict[str, Any]:
@@ -259,19 +432,24 @@ def build_candidate_query_signature_record(components: dict[str, Any]) -> dict[s
             for value in list(components.get("recent_roles") or [])
             if _normalize_query_scalar(value)
         ],
-        "role_family_hints": [
+        "skills": [
             _normalize_query_scalar(value)
-            for value in list(components.get("role_family_hints") or [])
+            for value in list(components.get("skills") or components.get("flattened_skills") or [])
             if _normalize_query_scalar(value)
         ],
-        "flattened_skills": [
+        "role_families": [
             _normalize_query_scalar(value)
-            for value in list(components.get("flattened_skills") or [])
+            for value in list(components.get("role_families") or components.get("role_family_hints") or [])
             if _normalize_query_scalar(value)
         ],
-        "domain_hints": [
+        "domains": [
             _normalize_query_scalar(value)
-            for value in list(components.get("domain_hints") or [])
+            for value in list(components.get("domains") or components.get("domain_hints") or [])
+            if _normalize_query_scalar(value)
+        ],
+        "location_types": [
+            _normalize_query_scalar(value)
+            for value in list(components.get("location_types") or components.get("location_type_hints") or [])
             if _normalize_query_scalar(value)
         ],
     }
@@ -304,46 +482,22 @@ def build_candidate_query_text(
     profile: dict[str, Any],
     config: dict[str, Any] | None = None,
 ) -> str:
-    """Build the single candidate query string for v1 Option A retrieval.
-
-    Combines: headline + target role + recent roles + top skills
-    (up to vector_max_candidate_skills) + preferred domains.
-    Deterministic — same profile always produces the same text.
-    No embedding call; used as input to generate_embedding().
-
-    Format:
-        Candidate: <headline>
-        Skills: <comma-joined skills>
-        Target domains: <comma-joined domains>
-    """
+    """Build deterministic canonical shortlist query text from SSOT components."""
     components = build_candidate_query_components(profile, config)
-    parts: list[str] = []
 
-    headline = str(components.get("headline") or "").strip()
-    if headline:
-        parts.append(f"Candidate: {headline}")
+    def _join(values: list[str]) -> str:
+        return " | ".join(str(value).strip() for value in values if str(value).strip())
 
-    target_role = str(components.get("target_role") or "").strip()
-    if target_role:
-        parts.append(f"Target role: {target_role}")
-
-    recent_roles = list(components.get("recent_roles") or [])
-    if recent_roles:
-        parts.append(f"Recent roles: {', '.join(recent_roles)}")
-
-    role_family_hints = list(components.get("role_family_hints") or [])
-    if role_family_hints:
-        parts.append(f"Role families: {', '.join(role_family_hints)}")
-
-    skill_names = list(components.get("flattened_skills") or [])
-    if skill_names:
-        parts.append(f"Skills: {', '.join(skill_names)}")
-
-    domains = list(components.get("domain_hints") or [])
-    if domains:
-        parts.append(f"Domain hints: {', '.join(str(d) for d in domains)}")
-
-    return "\n".join(parts)
+    lines = [
+        f"Headline: {str(components.get('headline') or '').strip()}",
+        f"Target Role: {str(components.get('target_role') or '').strip()}",
+        f"Recent Roles: {_join(list(components.get('recent_roles') or []))}",
+        f"Skills: {_join(list(components.get('skills') or []))}",
+        f"Role Families: {_join(list(components.get('role_families') or []))}",
+        f"Domains: {_join(list(components.get('domains') or []))}",
+        f"Location Types: {_join(list(components.get('location_types') or []))}",
+    ]
+    return "\n".join(lines)
 
 
 def _load_latest_candidate_query_embedding(
@@ -798,5 +952,11 @@ def store_shortlist(
     errors = client.insert_rows_json(table_ref, rows)
     if errors:
         raise RuntimeError(f"BigQuery insert errors for vector_shortlist: {errors}")
+
+
+
+
+
+
 
 

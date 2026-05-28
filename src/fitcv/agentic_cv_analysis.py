@@ -101,9 +101,17 @@ def build_evidence_used(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_analysis_input_summary(job: dict[str, Any]) -> dict[str, Any]:
+    required_skills = list(job.get("required_skills_canonical") or [])
+    if not required_skills:
+        required_skills = list(job.get("required_skills") or [])
+
+    preferred_skills = list(job.get("preferred_skills_canonical") or [])
+    if not preferred_skills:
+        preferred_skills = list(job.get("preferred_skills") or [])
+
     summary = {
-        "required_skills": list(job.get("required_skills") or []),
-        "preferred_skills": list(job.get("preferred_skills") or []),
+        "required_skills": required_skills,
+        "preferred_skills": preferred_skills,
         "responsibilities": list(job.get("responsibilities") or []),
         "job_family": str(job.get("job_family") or ""),
         "domain": str(job.get("domain") or ""),
@@ -114,7 +122,6 @@ def build_analysis_input_summary(job: dict[str, Any]) -> dict[str, Any]:
         for key, value in summary.items()
         if value not in (None, "", [])
     }
-
 
 def _build_runtime_provenance() -> dict[str, Any]:
     return {
@@ -195,6 +202,13 @@ def _build_cv_analysis_trace_record(
     fallback_used = bool(normalized_summary.get("fallback_used", False))
     error_summary = dict(error) if isinstance(error, dict) else None
     trace_status = "degraded" if status == ANALYSIS_FAILED_STATUS else "completed"
+    trace_required_skills = list(job.get("required_skills_canonical") or [])
+    if not trace_required_skills:
+        trace_required_skills = list(job.get("required_skills") or [])
+
+    trace_preferred_skills = list(job.get("preferred_skills_canonical") or [])
+    if not trace_preferred_skills:
+        trace_preferred_skills = list(job.get("preferred_skills") or [])
     return {
         "trace_schema_version": "agentic_step_trace_record_v1",
         "trace_family": "agentic_step_trace",
@@ -215,8 +229,8 @@ def _build_cv_analysis_trace_record(
         ],
         "input_summary": {
             "analysis_input_fingerprint": analysis_input_fingerprint,
-            "required_skills_count": len(list(job.get("required_skills") or [])),
-            "preferred_skills_count": len(list(job.get("preferred_skills") or [])),
+            "required_skills_count": len(trace_required_skills),
+            "preferred_skills_count": len(trace_preferred_skills),
             "responsibilities_count": len(list(job.get("responsibilities") or [])),
         },
         "output_summary": {
@@ -574,3 +588,7 @@ def analyze_ranked_job(
                 "message": str(exc),
             },
         )
+
+
+
+

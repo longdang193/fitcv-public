@@ -75,8 +75,11 @@ See deep stage behavior in [docs/FitCV-pipeline.md](docs/FitCV-pipeline.md) and 
 - **shortlist**
   - candidate+job embedding retrieval (`embeddings.py`)
   - vector shortlist with similarity scoring (cosine)
+  - deterministic lexical BM25 query-term payload from canonical candidate components (`config/shortlist_lexical.yaml`)
+  - shortlist debug hashes (`components_hash`, `canonical_text_hash`, `bm25_terms_hash`, `protected_terms_hash`) for invariance/symmetry evidence
   - query embedding cache + contract fingerprint (reuse vs fresh)
   - top-N controls (`vector_search_top_n`, retrieval strategy)
+  - note: hybrid retrieval fusion (`vector + bm25 + rrf`) remains proposed and is not yet runtime-enabled on main
 
 - **ranking**
   - weighted ensemble over features: `ai_score`, `must_have_match`, `vector_similarity`, `title_relevance`, `seniority_fit`, `preference_fit`
@@ -196,3 +199,5 @@ docker compose up -d --build redis web worker
 | Pipeline (contract-ish) | [docs/pipeline.md](docs/pipeline.md) |
 | Pipeline (story) | [docs/FitCV-pipeline.md](docs/FitCV-pipeline.md) |
 | Observability | [docs/observability.md](docs/observability.md) |
+
+

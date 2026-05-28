@@ -56,6 +56,7 @@ sys.modules["rq.scheduler"] = _rq_scheduler_stub
 
 import redis
 from rq import Queue
+from rq.job import Retry
 
 # Remove the stub so reload() can re-import the real module from disk.
 sys.modules.pop("rq.scheduler", None)
@@ -94,14 +95,26 @@ def _enqueue_inline_after_delay(target: object, args: tuple[object, ...]) -> str
     return queue_job_id
 
 
-def _run_inline_job(job_id: str, run_id: str, jobs_path: str, config_path: str) -> None:
+def _run_inline_job(
+    job_id: str,
+    run_id: str,
+    jobs_path: str,
+    config_path: str,
+    attempt_id: str | None = None,
+) -> None:
     from fitcv_cp import worker_job  # noqa: F401
     from fitcv_cp.bq_store import append_event, update_run_status
     from fitcv_cp.models import RunEvent, RunStatus
 
     _INLINE_JOB_STATUS[job_id] = "started"
     try:
-        worker_job.execute_pipeline_run(run_id=run_id, jobs_path=jobs_path, config_path=config_path)
+        worker_job.execute_pipeline_run(
+            run_id=run_id,
+            jobs_path=jobs_path,
+            config_path=config_path,
+            attempt_id=attempt_id,
+            queue_job_id=job_id,
+        )
         _INLINE_JOB_STATUS[job_id] = "finished"
     except Exception as exc:
         _INLINE_JOB_STATUS[job_id] = "failed"
@@ -130,11 +143,20 @@ def _run_inline_job(job_id: str, run_id: str, jobs_path: str, config_path: str) 
         )
 
 
-def _run_inline_job_after_delay(job_id: str, run_id: str, jobs_path: str, config_path: str) -> None:
+def _run_inline_job_after_delay(
+    job_id: str,
+    run_id: str,
+    jobs_path: str,
+    config_path: str,
+    attempt_id: str | None = None,
+) -> None:
     delay_seconds = _inline_start_delay_seconds()
     if delay_seconds > 0:
         time.sleep(delay_seconds)
-    _run_inline_job(job_id, run_id, jobs_path, config_path)
+    if attempt_id is None:
+        _run_inline_job(job_id, run_id, jobs_path, config_path)
+        return
+    _run_inline_job(job_id, run_id, jobs_path, config_path, attempt_id)
 
 def _run_inline_cv_regenerate_once(
     job_id: str,
@@ -207,9 +229,19 @@ def enqueue_run_with_job_id(
     if _inline_execution_enabled():
         job_id = _enqueue_inline_after_delay(
             _run_inline_job_after_delay,
-            (run_id, jobs_path, config_path),
+            (run_id, jobs_path, config_path, str(uuid.uuid4())),
         )
         return run_id, job_id
+    retry: Retry | None = None
+
+    from fitcv_cp.retry_settings import load_retry_settings
+
+    settings = load_retry_settings()
+    if settings.enabled and settings.max_attempts > 1:
+        intervals = list(settings.backoff_seconds)
+        retry = Retry(max=settings.max_attempts - 1, interval=intervals or [1, 2, 4, 8])
+
+
     from fitcv_cp import worker_job  # noqa: F401
     q = get_queue(redis_url)
     job = q.enqueue(
@@ -218,6 +250,7 @@ def enqueue_run_with_job_id(
         jobs_path=jobs_path,
         config_path=config_path,
         job_timeout=3600,
+        retry=retry,
     )
     return run_id, job.id
 

@@ -81,3 +81,25 @@ def validate_missing_defaults_contract(
             raise ValueError(
                 f"Invalid missing-value default for '{feature_name}': {value}. Expected within [0.0, 1.0]."
             )
+def validate_preference_fit_weights_contract(weights: dict[str, float]) -> None:
+    expected_keys = ("domain", "role_family", "location_type")
+    missing = [key for key in expected_keys if key not in weights]
+    if missing:
+        raise ValueError(f"Missing preference-fit weights: {missing}")
+
+    unknown = [key for key in weights if key not in expected_keys]
+    if unknown:
+        raise ValueError(f"Unknown preference-fit weights: {unknown}")
+
+    total = 0.0
+    for key in expected_keys:
+        value = weights[key]
+        if value < 0.0 or value > 1.0:
+            raise ValueError(
+                f"Invalid preference-fit weight for '{key}': {value}. Expected within [0.0, 1.0]."
+            )
+        total += value
+
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(f"Invalid preference-fit weights sum: {total}. Expected 1.0.")
+

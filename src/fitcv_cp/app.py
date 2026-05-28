@@ -8462,6 +8462,83 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         )
         return {"status": "queued", "run_id": run.run_id, "replay_mode": replay_mode}
 
+    @app.post("/admin/runs/{run_id}/retry")
+    def admin_retry_run(run_id: str) -> dict[str, Any]:
+        run = get_run(run_id, bq, project=project, dataset=dataset)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        if run.status == RunStatus.CANCELLED:
+            raise HTTPException(status_code=409, detail="Cancelled runs cannot be retried")
+        if getattr(run, "cancel_requested_at", None) is not None:
+            raise HTTPException(status_code=409, detail="Cancel requested: run cannot be retried")
+        if run.status not in {RunStatus.FAILED, RunStatus.QUEUED, RunStatus.RUNNING}:
+            raise HTTPException(status_code=409, detail=f"Cannot retry run with status '{run.status.value}'")
+
+        store = _resolve_run_store(bq, project=project, dataset=dataset)
+        attempt_payloads = store.list_run_attempt_payloads(run_id)
+        attempt_ids = {
+            str((payload.get("attempt") or {}).get("attempt_id") or "").strip()
+            for payload in attempt_payloads
+            if isinstance(payload, dict)
+        }
+        attempt_ids.discard("")
+        attempt_count = len(attempt_ids)
+        from fitcv_cp.retry_settings import load_retry_settings
+
+        max_attempts = load_retry_settings().max_attempts
+        if attempt_count >= max_attempts:
+            raise HTTPException(status_code=409, detail="Retry rejected: max_attempts exhausted")
+
+        update_run_status(run.run_id, RunStatus.QUEUED, bq, project=project, dataset=dataset)
+        _, queue_job_id = enqueue_run_with_job_id(
+            jobs_path=run.jobs_path,
+            config_path=run.config_path,
+            triggered_by="admin_retry",
+            redis_url=redis_url,
+            run_id=run.run_id,
+        )
+        submission = _resolve_submission_binding(run.run_id, queue_job_id)
+        _persist_run_orchestration_binding(
+            run.run_id,
+            queue_job_id=submission.queue_job_id,
+            orchestration_backend=submission.backend,
+            orchestration_run_id=submission.backend_run_id,
+            bq=bq,
+            project=project,
+            dataset=dataset,
+        )
+        _persist_run_queue_job_id(run.run_id, submission.queue_job_id, bq=bq, project=project, dataset=dataset)
+
+        append_event(
+            RunEvent(
+                run_id=run.run_id,
+                event_id=str(uuid.uuid4()),
+                stage="retry_requested",
+                level="info",
+                message="Run retry queued by admin",
+                created_at=datetime.datetime.now(datetime.timezone.utc),
+                payload_json=_json.dumps(
+                    {
+                        "attempt_count": attempt_count,
+                        "max_attempts": max_attempts,
+                        "queue_job_id": submission.queue_job_id,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+            bq,
+            project=project,
+            dataset=dataset,
+        )
+
+        return {
+            "status": "queued",
+            "run_id": run.run_id,
+            "queue_job_id": submission.queue_job_id,
+            "attempt_count": attempt_count,
+            "max_attempts": max_attempts,
+        }
+
     @app.post("/admin/runs/{run_id}/archive")
     def admin_archive_run(run_id: str) -> dict:
         """Archive a terminal run. Returns JSON for fetch() callers."""
@@ -8750,6 +8827,31 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         dead_letter_replay_summary = _latest_dead_letter_replay_summary(events)
         reuse_anomaly_summary = _latest_reuse_anomaly_summary(events)
         orchestration_diagnostics = _build_orchestration_diagnostics(run)
+        from fitcv_cp.run_artifact_contracts import decode_run_attempt_payload_or_none
+        run_attempt_events: list[dict[str, Any]] = []
+        for event in events:
+            payload = decode_run_attempt_payload_or_none(event.payload_json)
+            if payload is None:
+                continue
+            attempt = payload.get("attempt") if isinstance(payload, dict) else None
+            if not isinstance(attempt, dict):
+                continue
+            error = attempt.get("error") if isinstance(attempt.get("error"), dict) else {}
+            retry = attempt.get("retry") if isinstance(attempt.get("retry"), dict) else {}
+            run_attempt_events.append(
+                {
+                    "created_at": event.created_at,
+                    "attempt_id": attempt.get("attempt_id"),
+                    "status": attempt.get("status"),
+                    "rq_job_id": attempt.get("rq_job_id"),
+                    "worker_id": attempt.get("worker_id"),
+                    "lease_expires_at": attempt.get("lease_expires_at"),
+                    "finished_at": attempt.get("finished_at"),
+                    "error_summary": error.get("summary"),
+                    "retry_eligible": retry.get("eligible"),
+                }
+            )
+        run_attempt_events.sort(key=lambda row: row.get("created_at") or datetime.datetime.min, reverse=True)
         replay_context_summary = _run_replay_context_summary(run)
         data_plane_summary = _run_data_plane_summary(run)
         stage_result_summary_rows = _stage_result_summary_rows(run)
@@ -8806,6 +8908,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 "dead_letter_replay_summary": dead_letter_replay_summary,
                 "reuse_anomaly_summary": reuse_anomaly_summary,
                 "orchestration_diagnostics": orchestration_diagnostics,
+                "run_attempt_events": run_attempt_events,
                 "replay_context_summary": replay_context_summary,
                 "data_plane_summary": data_plane_summary,
                 "stage_result_summary_rows": stage_result_summary_rows,
@@ -8859,6 +8962,19 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             fallback=_bookmark_destination_for_request(request, run_id),
         )
         return RedirectResponse(url=redirect_to, status_code=303)
+
+    @app.post("/admin/reconciler/run-attempts")
+    def admin_reconcile_run_attempts() -> dict[str, Any]:
+        from fitcv_cp.reconciler import reconcile_abandoned_attempts
+
+        store = _resolve_run_store(bq, project=project, dataset=dataset)
+        summary = reconcile_abandoned_attempts(store)
+        return {
+            "scanned_runs": summary.scanned_runs,
+            "abandoned_attempts": summary.abandoned_attempts,
+            "requeued_attempts": summary.requeued_attempts,
+            "terminal_failed_runs": summary.terminal_failed_runs,
+        }
 
     @app.get("/admin/bookmarks", response_class=HTMLResponse)
     def admin_bookmarks(request: Request) -> HTMLResponse:
@@ -11313,4 +11429,6 @@ def _run_to_dict(run: PipelineRun) -> dict:
 def _is_hitl_resolution_pending(resolution_status: str | None) -> bool:
     normalized = str(resolution_status or "").strip().lower() or "pending"
     return normalized not in _HITL_TERMINAL_RESOLUTION_STATUSES
+
+
 

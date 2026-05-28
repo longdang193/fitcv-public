@@ -26,6 +26,9 @@ RUN_MODE_LABELS = {
     "manual_staged": "Stage by Stage",
 }
 
+RUN_ATTEMPT_SCHEMA_VERSION = "run_attempt.v1"
+_DEFAULT_ERROR_DETAILS_MAX_CHARS = 2048
+
 
 def string_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) else None
@@ -78,15 +81,19 @@ def decode_json_object_or_raise(raw_payload: str | None) -> dict[str, Any]:
         raise ValueError("decoded_json_not_object")
     return payload
 
+
 def encode_json_object(payload: dict[str, Any]) -> str:
     return _json.dumps(payload, ensure_ascii=False)
+
 
 def stable_json_dumps(payload: Any) -> str:
     return _json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
+
 def stable_sha256_fingerprint(payload: Any) -> str:
     raw = stable_json_dumps(payload)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
 
 def require_payload_keys(
     payload: dict[str, Any],
@@ -131,3 +138,87 @@ def replay_context_payload(*, replay_context: dict[str, Any], run_id: str) -> di
         "policy_registry_version": str(replay_context.get("policy_registry_version") or "policy_registry.v1"),
         "policy_envelope_signature": str(replay_context.get("policy_envelope_signature") or ""),
     }
+
+
+def _bounded_error_details(
+    details: dict[str, Any] | None,
+    *,
+    max_chars: int | None,
+) -> dict[str, Any] | None:
+    if details is None:
+        return None
+    max_chars = int(max_chars) if isinstance(max_chars, int) else _DEFAULT_ERROR_DETAILS_MAX_CHARS
+    if max_chars <= 0:
+        return None
+    try:
+        raw = stable_json_dumps(details)
+    except Exception:
+        raw = stable_json_dumps({"unserializable": True, "type": str(type(details))})
+        details = {"unserializable": True, "type": str(type(details))}
+
+    if len(raw) <= max_chars:
+        return details
+
+    fingerprint = stable_sha256_fingerprint(details)
+    return {
+        "truncated": True,
+        "sha256": fingerprint,
+        "original_chars": len(raw),
+        "max_chars": max_chars,
+    }
+
+
+def run_attempt_payload_v1(
+    *,
+    attempt_id: str,
+    status: str,
+    rq_job_id: str | None = None,
+    worker_id: str | None = None,
+    lease_started_at: datetime.datetime | None = None,
+    lease_expires_at: datetime.datetime | None = None,
+    finished_at: datetime.datetime | None = None,
+    error_classification: str | None = None,
+    error_summary: str | None = None,
+    error_details: dict[str, Any] | None = None,
+    error_details_max_chars: int | None = None,
+    retry_eligible: bool | None = None,
+    retry_after_seconds: int | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": RUN_ATTEMPT_SCHEMA_VERSION,
+        "attempt": {
+            "attempt_id": str(attempt_id),
+            "status": str(status),
+            "rq_job_id": string_or_none(rq_job_id),
+            "worker_id": string_or_none(worker_id),
+            "lease_started_at": lease_started_at,
+            "lease_expires_at": lease_expires_at,
+            "finished_at": finished_at,
+            "error": {
+                "classification": string_or_none(error_classification),
+                "summary": string_or_none(error_summary),
+                "details": _bounded_error_details(error_details, max_chars=error_details_max_chars),
+            },
+            "retry": {
+                "eligible": retry_eligible,
+                "after_seconds": retry_after_seconds,
+            },
+        },
+    }
+    return json_safe(payload)
+
+
+def decode_run_attempt_payload_or_none(raw_payload: str | None) -> dict[str, Any] | None:
+    payload = decode_json_object_or_none(raw_payload)
+    if not schema_version_matches(payload, RUN_ATTEMPT_SCHEMA_VERSION):
+        return None
+    attempt = payload.get("attempt") if isinstance(payload, dict) else None
+    if not isinstance(attempt, dict):
+        return None
+    attempt_id = attempt.get("attempt_id")
+    status = attempt.get("status")
+    if not (isinstance(attempt_id, str) and attempt_id.strip()):
+        return None
+    if not (isinstance(status, str) and status.strip()):
+        return None
+    return payload

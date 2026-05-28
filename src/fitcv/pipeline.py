@@ -125,6 +125,7 @@ from fitcv.ranking import (
     compute_must_have_match,
     compute_preference_fit_details,
     compute_preference_fit,
+    compute_ranking_runtime_diagnostics,
     compute_seniority_fit,
     compute_title_relevance,
     get_active_missing_value_defaults,
@@ -413,6 +414,15 @@ def _enrich_jobs_with_reuse(
         return list(result_holder.get("rows") or [])
 
     if fresh_jobs:
+        heartbeat_events_enabled = str(os.environ.get("FITCV_ENRICH_HEARTBEAT_EVENTS", "") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if not heartbeat_events_enabled:
+            heartbeat_callback = None
+
         debug_heartbeat_enabled = str(os.environ.get("FITCV_ENRICH_DEBUG_HEARTBEAT", "") or "").strip().lower() in {
             "1",
             "true",
@@ -2871,7 +2881,7 @@ def _build_shortlist_quality_metrics(
     }
 
 
-def _build_ranking_quality_metrics(ranking_inputs: list[dict[str, Any]]) -> dict[str, Any]:
+def _build_ranking_quality_metrics(ranking_inputs: list[dict[str, Any]], config: dict[str, Any] | None = None) -> dict[str, Any]:
     strong_count = 0
     stretch_count = 0
     skip_count = 0
@@ -3193,6 +3203,12 @@ def _build_stage_transition_artifacts(
         "candidate_query_contract_fingerprint": str(
             candidate_query_debug.get("candidate_query_contract_fingerprint") or ""
         ),
+        "components_hash": str(candidate_query_debug.get("components_hash") or ""),
+        "canonical_text_hash": str(candidate_query_debug.get("canonical_text_hash") or ""),
+        "bm25_terms_hash": str(candidate_query_debug.get("bm25_terms_hash") or ""),
+        "protected_terms_hash": str(candidate_query_debug.get("protected_terms_hash") or ""),
+        "protected_terms_count": int(candidate_query_debug.get("protected_terms_count") or 0),
+        "shortlist_lexical_scoring_mode": str(candidate_query_debug.get("shortlist_lexical_scoring_mode") or ""),
     }
 
     shortlist_candidate_query_debug = {
@@ -3326,7 +3342,7 @@ def _build_stage_transition_artifacts(
         backfilled_jobs_total=len(backfilled_job_urls),
         scoring_shortlisted_jobs_total=len(shortlist),
     )
-    ranking_quality_metrics = _build_ranking_quality_metrics(ranking_inputs)
+    ranking_quality_metrics = _build_ranking_quality_metrics(ranking_inputs, config=config)
     ranking_reuse_metrics = {
         "reused_ai_scores": sum(
             1 for row in ai_scores
@@ -3989,6 +4005,7 @@ def run_pipeline(
                     build_candidate_query_embedding_contract_fingerprint,
                     build_candidate_query_signature_record,
                     build_candidate_query_text,
+                    build_weighted_bm25_query_terms,
                 )
 
                 candidate_query_components = dict(
@@ -3999,6 +4016,11 @@ def run_pipeline(
                 )
                 signature_record = build_candidate_query_signature_record(candidate_query_components)
                 contract_record = build_candidate_query_embedding_contract_fingerprint(config)
+                bm25_term_record = build_weighted_bm25_query_terms(candidate_query_components, config)
+                components_hash = hashlib.sha256(
+                    json.dumps(candidate_query_components, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                ).hexdigest()
+                canonical_text_hash = hashlib.sha256(candidate_summary.encode("utf-8")).hexdigest()
                 candidate_query_debug = {
                     "candidate_query_reuse_status": str(
                         candidate_query_record.get("candidate_query_reuse_status") or ""
@@ -4010,6 +4032,12 @@ def run_pipeline(
                         candidate_query_record.get("candidate_query_contract_fingerprint")
                         or contract_record["fingerprint"]
                     ),
+                    "components_hash": components_hash,
+                    "canonical_text_hash": canonical_text_hash,
+                    "bm25_terms_hash": str(bm25_term_record.get("bm25_terms_hash") or ""),
+                    "protected_terms_hash": str(bm25_term_record.get("protected_terms_hash") or ""),
+                    "protected_terms_count": int(bm25_term_record.get("protected_terms_count") or 0),
+                    "shortlist_lexical_scoring_mode": str((bm25_term_record.get("payload") or {}).get("scoring_mode") or ""),
                 }
                 shortlist_fail_fast = bool((config.get("pipeline", {}) or {}).get("shortlist_fail_fast_empty_raw_hits", False))
                 if shortlist_fail_fast and passed_jobs and not raw_shortlist:
@@ -4882,7 +4910,7 @@ def run_pipeline(
             record for record in cv_analysis_results
             if str(record.get("status") or "") == "ready_for_generation"
         ]
-        if generation_ready_records:
+        if generation_ready_records and not agentic_late_stage_enabled:
             try:
                 validate_cv_generation_routing_ready(config)
             except RuntimeError as exc:
@@ -5003,9 +5031,13 @@ def run_pipeline(
 
         def _initialize_cv_generation_runtime_state(work_item: dict[str, Any]) -> dict[str, Any]:
             job = dict(work_item["job"])
-            job_runtime_provenance: dict[str, Any] | None = _non_agentic_cv_generation_runtime_provenance(
-                config,
-                cv_generation_model_value
+            # Agentic path resolves runtime provenance from generation result.
+            # Avoid non-agentic routing readiness checks here, which can require
+            # provider credentials not needed for mocked/agentic execution paths.
+            job_runtime_provenance: dict[str, Any] | None = (
+                None
+                if agentic_late_stage_enabled
+                else _non_agentic_cv_generation_runtime_provenance(config, cv_generation_model_value)
             )
             return {
                 "job": job,
@@ -5845,7 +5877,7 @@ def run_pipeline(
             results.append({
                 "job_url": str(job.get("job_url") or ""),
                 "fit": fit,
-                "ranking_fit_label": fit,
+                "ranking_fit_label": _authoritative_ranking_fit_label(job, fit),
                 "cv_version_id": version["version_id"],
                 "gap": gap,
                 "structured_cv": structured_cv,
@@ -6452,7 +6484,7 @@ def run_pipeline(
                     results.append({
                         "job_url": str(job.get("job_url") or ""),
                         "fit": fit,
-                        "ranking_fit_label": fit,
+                        "ranking_fit_label": _authoritative_ranking_fit_label(job, fit),
                         "cv_version_id": version["version_id"],
                         "gap": gap,
                         "structured_cv": structured_cv_final,
@@ -6857,6 +6889,12 @@ def run_pipeline(
                     ),
                 )  # type: ignore[union-attr]
     return summary
+
+
+
+
+
+
 
 
 

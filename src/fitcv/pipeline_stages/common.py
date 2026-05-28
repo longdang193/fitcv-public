@@ -178,6 +178,9 @@ def ranking_row_sample(row: Mapping[str, Any]) -> dict[str, Any] | None:
         "ai_score_reuse_status": row.get("ai_score_reuse_status"),
         "ai_score_input_fingerprint": row.get("ai_score_input_fingerprint"),
         "reranker_parser_status": row.get("parser_status"),
+        "diagnostic_score_reasoning": row.get("score_reasoning"),
+        "diagnostic_key_risks": row.get("key_risks"),
+        "diagnostic_matched_strengths": row.get("matched_strengths"),
         "reranker_score_reasoning": row.get("score_reasoning"),
         "reranker_key_risks": row.get("key_risks"),
         "reranker_matched_strengths": row.get("matched_strengths"),
@@ -322,3 +325,6 @@ def debug_record_changed_sample(
         "error": record.get("error"),
     }
     return {key: value for key, value in sample.items() if value not in (None, "", [])}
+
+
+

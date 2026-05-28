@@ -25,6 +25,9 @@ Score the candidate-to-job match using this ranking policy:
     stretch ($stretch_threshold <= ai_score < $strong_threshold)
     skip    (ai_score < $stretch_threshold)
 Return a JSON object ONLY — no prose, no markdown fences:
+- "matched_strengths" and "key_risks" are diagnostic-only fields for observability and review context.
+- They MUST NOT be treated as ranking, fit-gate, or CV-generation control inputs.
+
 {
   "ai_score": <float 0.0–1.0>,
   "fit_label": "<strong|stretch|skip>",
@@ -32,3 +35,4 @@ Return a JSON object ONLY — no prose, no markdown fences:
   "matched_strengths": ["<strength 1>", ...],
   "key_risks": ["<risk 1>", ...]
 }
+
