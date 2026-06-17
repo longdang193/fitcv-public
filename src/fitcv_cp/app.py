@@ -53,6 +53,7 @@ from fitcv.contracts import (
     STAGE_TRANSITION_ARTIFACTS_STAGE_SCHEMA_VERSION,
     SYNONYM_PROPOSALS_QUEUE_SCHEMA_VERSION,
 )
+from fitcv.enrich import derive_required_skills_display
 from fitcv.openai_compat import (
     decode_openai_compat_response_body,
     extract_openai_chat_completions_text,
@@ -4698,45 +4699,11 @@ def _parse_json_list_field(raw_value: Any) -> list[Any]:
     return parsed if isinstance(parsed, list) else []
 
 
-def _parse_required_skill_entities_for_display(job: dict[str, Any]) -> list[str]:
-    entities = job.get("required_skill_entities")
-    if not isinstance(entities, list):
-        entities = _parse_json_list_field(job.get("required_skill_entities_json"))
-    display_values: list[str] = []
-    seen: set[str] = set()
-    for entity in entities:
-        if not isinstance(entity, dict):
-            continue
-        for candidate in (
-            str(entity.get("raw_text") or "").strip(),
-            str(entity.get("canonical") or "").strip(),
-        ):
-            normalized = candidate.lower()
-            if not candidate or normalized in seen:
-                continue
-            seen.add(normalized)
-            display_values.append(candidate)
-    return display_values
-
-
 def _with_required_skills_display(job: dict[str, Any]) -> dict[str, Any]:
     normalized_job = dict(job)
-    display_values = _normalize_display_list(normalized_job.get("required_skills"))
-    display_source = "required_skills" if display_values else None
-    if not display_values:
-        display_values = _parse_required_skill_entities_for_display(normalized_job)
-        if display_values:
-            display_source = "required_skill_entities"
-    if not display_values:
-        display_values = _normalize_display_list(normalized_job.get("tech_stack"))
-        if display_values:
-            display_source = "tech_stack"
-    if not display_values:
-        display_values = _normalize_display_list(normalized_job.get("keywords"))
-        if display_values:
-            display_source = "keywords"
-    normalized_job["required_skills_display"] = display_values
-    normalized_job["required_skills_display_source"] = display_source
+    display = derive_required_skills_display(normalized_job)
+    normalized_job["required_skills_display"] = list(display.get("values") or [])
+    normalized_job["required_skills_display_source"] = display.get("source")
     return normalized_job
 
 

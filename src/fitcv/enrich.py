@@ -41,6 +41,7 @@ from fitcv.prompts import get_prompt_definition, render_prompt
 logger = logging.getLogger(__name__)
 
 _SQLITE_STRUCTURED_JOBS_TABLE = "structured_jobs_cache"
+_VERBOSE_REQUIRED_SKILL_MAX_LEN = 80
 
 # ── shared request-start pacing state ─────────────────────────────────────────
 _ENRICH_RATE_STATE_LOCK: threading.Lock = threading.Lock()
@@ -290,6 +291,31 @@ _SPARSE_REQUIRED_SKILLS_THRESHOLD = 3
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 _MISSING_STRING_COMMA_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"\s+"([^"\\]*(?:\\.[^"\\]*)*)"')
+_DESCRIPTION_SEGMENT_SPLIT_RE = re.compile(r"(?:\r?\n+|[•●▪◦·]+)")
+_DESCRIPTION_LIST_SPLIT_RE = re.compile(r"\s*(?:,|;|\bund\b|\band\b|\boder\b|\bor\b)\s*", re.IGNORECASE)
+_DESCRIPTION_REQUIREMENT_MARKERS: tuple[str, ...] = (
+    "experience",
+    "erfahrung",
+    "kenntnis",
+    "knowledge",
+    "required",
+    "must have",
+    "you have",
+    "du hast",
+    "ideal",
+    "idealerweise",
+)
+_DESCRIPTION_REQUIREMENT_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"\d+\+?\s*(?:years?|jahre)\s+(?:of\s+)?(?:experience|erfahrung)\s+(?:in|with|im|ins|in der|in dem)?\s*|"
+    r"(?:experience|erfahrung|kenntnisse?|knowledge)\s+(?:in|with|mit|im|ins|in der|in dem)?\s*"
+    r")",
+    re.IGNORECASE,
+)
+_DESCRIPTION_TRAILING_CONTEXT_RE = re.compile(
+    r"\s*(?:-|–|—)\s*(?:ideally|ideal|idealerweise|preferred)\b.*$",
+    re.IGNORECASE,
+)
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -575,6 +601,80 @@ def _build_array_companions(
     return companions
 
 
+class RequiredSkillsDisplay(TypedDict):
+    values: list[str]
+    source: str | None
+
+
+def _parse_required_skill_entities_payload(row: dict[str, Any]) -> list[dict[str, Any]]:
+    entities = row.get("required_skill_entities")
+    if isinstance(entities, list):
+        return [entity for entity in entities if isinstance(entity, dict)]
+    raw_json = row.get("required_skill_entities_json")
+    if not isinstance(raw_json, str) or not raw_json.strip():
+        return []
+    try:
+        payload = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [entity for entity in payload if isinstance(entity, dict)]
+
+
+def _is_concise_required_skill_value(value: str) -> bool:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return False
+    if len(candidate) > _VERBOSE_REQUIRED_SKILL_MAX_LEN:
+        return False
+    if ". " in candidate or ":" in candidate or ";" in candidate:
+        return False
+    if candidate.count(",") >= 2:
+        return False
+    if "(" in candidate and ")" in candidate and len(candidate) > 60:
+        return False
+    return True
+
+
+def _display_values_from_required_skill_entities(row: dict[str, Any]) -> list[str]:
+    display_values: list[str] = []
+    seen: set[str] = set()
+    for entity in _parse_required_skill_entities_payload(row):
+        raw_text = str(entity.get("raw_text") or "").strip()
+        canonical = str(entity.get("canonical") or "").strip()
+        preferred = raw_text if _is_concise_required_skill_value(raw_text) else canonical
+        fallback = canonical if preferred == raw_text else raw_text
+        for candidate in (preferred, fallback):
+            normalized = candidate.strip().lower()
+            if not candidate or not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            display_values.append(candidate)
+            break
+    return display_values
+
+
+def derive_required_skills_display(row: dict[str, Any]) -> RequiredSkillsDisplay:
+    required_skills = _normalize_array_values(
+        row.get("required_skills") if isinstance(row.get("required_skills"), list) else []
+    )
+    entity_values = _display_values_from_required_skill_entities(row)
+    if required_skills and all(_is_concise_required_skill_value(value) for value in required_skills):
+        return {"values": required_skills, "source": "required_skills"}
+    if entity_values:
+        return {"values": entity_values, "source": "required_skill_entities"}
+    if required_skills:
+        return {"values": required_skills, "source": "required_skills"}
+    tech_stack = _normalize_array_values(row.get("tech_stack") if isinstance(row.get("tech_stack"), list) else [])
+    if tech_stack:
+        return {"values": tech_stack, "source": "tech_stack"}
+    keywords = _normalize_array_values(row.get("keywords") if isinstance(row.get("keywords"), list) else [])
+    if keywords:
+        return {"values": keywords, "source": "keywords"}
+    return {"values": [], "source": None}
+
+
 def _required_skill_fallback_values(
     row: dict[str, Any],
     config: dict | None,
@@ -592,6 +692,80 @@ def _required_skill_fallback_values(
                 continue
             fallback_values.append(raw_value)
     return _dedupe_text_values(fallback_values)
+
+
+def _is_requirement_like_description_segment(segment: str) -> bool:
+    lowered = segment.strip().lower()
+    if not lowered:
+        return False
+    if any(marker in lowered for marker in _DESCRIPTION_REQUIREMENT_MARKERS):
+        return True
+    return bool(
+        re.match(
+            r"^\d+\+?\s*(?:years?|jahre)\s+(?:of\s+)?(?:experience|erfahrung)\b",
+            lowered,
+        )
+    )
+
+
+def _clean_description_skill_candidate(raw_value: str) -> str:
+    cleaned = raw_value.strip()
+    cleaned = _DESCRIPTION_REQUIREMENT_PREFIX_RE.sub("", cleaned)
+    cleaned = _DESCRIPTION_TRAILING_CONTEXT_RE.sub("", cleaned)
+    return cleaned.strip(" -–—:;,.()[]{}")
+
+
+def _looks_like_description_skill_candidate(candidate: str) -> bool:
+    words = re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9+#./&-]+", candidate)
+    if not words or len(words) > 4:
+        return False
+    lowered = candidate.lower()
+    if any(
+        marker in lowered
+        for marker in (
+            "arbeitsweise",
+            "priorit",
+            "stakeholder",
+            "coordinat",
+            "set ",
+            "setzen",
+            "support",
+        )
+    ):
+        return False
+    if len(words) == 1:
+        token = words[0]
+        return bool(re.search(r"[A-Z0-9+#/&-]", token))
+    return candidate[0].isupper()
+
+
+def _required_skill_candidates_from_description(
+    row: dict[str, Any],
+    config: dict | None,
+) -> list[str]:
+    description = _normalize_text_item(row.get("description_cleaned") or row.get("description"))
+    if description is None:
+        return []
+
+    candidates: list[str] = []
+    for raw_segment in _DESCRIPTION_SEGMENT_SPLIT_RE.split(description):
+        segment = raw_segment.strip()
+        if not _is_requirement_like_description_segment(segment):
+            continue
+        segment_body = segment.split(":", 1)[-1].strip()
+        segment_candidates: list[str] = []
+        for raw_part in _DESCRIPTION_LIST_SPLIT_RE.split(segment_body):
+            cleaned = _clean_description_skill_candidate(raw_part)
+            if not _looks_like_description_skill_candidate(cleaned):
+                continue
+            canonical = _canonicalize_text_item("required_skills", cleaned, config)
+            if not _is_allowed_skill_entity(cleaned, canonical):
+                continue
+            segment_candidates.append(cleaned)
+        if len(segment_candidates) < 2:
+            continue
+        candidates.extend(segment_candidates)
+    return _dedupe_text_values(candidates)
 
 
 def _supplement_sparse_required_skills(
@@ -614,6 +788,16 @@ def _supplement_sparse_required_skills(
         config,
         source_fields=("tech_stack",),
     ):
+        normalized_text = raw_value.strip().lower()
+        canonical = _canonicalize_text_item("required_skills", raw_value, config)
+        if normalized_text in existing_text or canonical in existing_canonical:
+            continue
+        supplemented.append(raw_value)
+        existing_text.add(normalized_text)
+        existing_canonical.add(canonical)
+    if len(supplemented) >= _SPARSE_REQUIRED_SKILLS_THRESHOLD:
+        return supplemented
+    for raw_value in _required_skill_candidates_from_description(row, config):
         normalized_text = raw_value.strip().lower()
         canonical = _canonicalize_text_item("required_skills", raw_value, config)
         if normalized_text in existing_text or canonical in existing_canonical:

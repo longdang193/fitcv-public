@@ -1,5 +1,5 @@
 skill_synonyms:
-  3nf: third normal form (3nf)
+  3nf: third normal form
   a/b testing: a/b testing
   academic writing: academic writing
   acceptance criteria: acceptance criteria
@@ -13,6 +13,10 @@ skill_synonyms:
   adobe indesign: adobe indesign
   adobe photoshop: adobe photoshop
   adobe premiere: adobe premiere
+  adtech solutions: adtech solutions
+  adtech tools: adtech tools
+  adtech-lösungen: adtech solutions
+  adtech-tools: adtech tools
   advanced analytics: advanced analytics
   advanced analytics tools: advanced analytics
   advanced excel: microsoft excel
@@ -23,7 +27,7 @@ skill_synonyms:
   agent-systeme: ai agents
   agentic ai: agentic ai
   agentic workflows: agentic workflows
-  agents are a bonus: llm agents
+  agents are a bonus: ai agents
   agile frameworks: agile frameworks
   agile methodologies: agile methodologies
   agile methods: agile methodologies
@@ -31,13 +35,14 @@ skill_synonyms:
   agile software development: agile software development
   agiles projektmanagement: agile project management
   ahrefs: ahrefs
-  ahrefs/semrush: seo tools
+  ai agent orchestration: ai agent orchestration
   ai agents: ai agents
   ai coding assistants: ai coding assistants
   ai platforms: ai platforms
   ai productivity tools: ai productivity tools
   ai tools: ai tools
   ai workflows: ai workflows
+  ai-powered tools: ai tools
   ai-powered workflows: ai workflows
   ai-supported productivity tools: ai productivity tools
   airflow: apache airflow
@@ -58,6 +63,7 @@ skill_synonyms:
   analysierst relevante kpis: kpi analysis
   analysing conversion funnels: conversion funnel analysis
   analysing data: data analysis
+  analysis of alternatives: analysis of alternatives
   analytical skills: analytical skills
   analyze data: data analysis
   analyze financial statements: financial statement analysis
@@ -73,9 +79,10 @@ skill_synonyms:
   arbeitest sicher mit excel: microsoft excel
   arbeitest sicher mit powerpoint: microsoft powerpoint
   arbeitest sicher mit word: microsoft word
+  arbeitssicherheitsvorgaben: occupational safety regulations
   architecting complex data models: data modeling
   archiving: archiving
-  arrays: excel array formulas
+  arrays: arrays
   artificial intelligence: artificial intelligence
   as400: ibm as/400
   as400 von vorteil: ibm as/400
@@ -101,11 +108,13 @@ skill_synonyms:
   balance assembly: balance assembly
   basic coding knowledge: programming fundamentals
   basic knowledge of accounting: accounting
+  basic knowledge of cms: cms
   basic machine learning understanding: machine learning
   battery analysis: battery analysis
   beamforming: beamforming
   behavior management: behavior management
   benefits realization management: benefits realization management
+  betriebsprüfungen: tax audits
   bi-tool board: board bi
   big query: google bigquery
   bigquery: google bigquery
@@ -113,10 +122,15 @@ skill_synonyms:
   bildbearbeitung: image editing
   biochar production: biochar production
   bloomberg: bloomberg terminal
-  board: board bi
+  bloomberg terminal: bloomberg terminal
+  board bi: board bi
   bookkeeping: bookkeeping
   bpmn 2.0: bpmn 2.0
   brand strategy: brand strategy
+  brandschutz: fire protection
+  briefing: briefing
+  bsi grundschutz: bsi grundschutz
+  bsi-grundschutz: bsi grundschutz
   budget management: budget management
   budget variance analysis: budget variance analysis
   budgeting: budgeting
@@ -135,10 +149,10 @@ skill_synonyms:
   c4c: sap cloud for customer
   cad: cad design
   cad design: cad design
+  campaign development: campaign development
   campaign execution: campaign execution
   campaign management: campaign management
   campaign scaling: campaign scaling
-  can: can bus
   can bus: can bus
   candidate interviewing: candidate interviewing
   candidate screening: candidate screening
@@ -150,24 +164,25 @@ skill_synonyms:
   ccna security: ccna security
   change management: change management
   chassis maintenance: chassis maintenance
+  ci weiterentwickeln: corporate identity
   ci/cd: ci/cd
   ci/cd pipelines: ci/cd pipelines
   ci/cd-prozesse: ci/cd pipelines
   circuit design: electrical circuit design
-  classification algorithms: machine learning classification
-  classroom and behavior management: classroom management
+  classification algorithms: classification algorithms
   classroom management: classroom management
   clean code: clean code
   cleanroom operations: cleanroom operations
   clear reporting through dashboards: dashboard reporting
   cloud architecture: cloud architecture
   cloud data warehouse: cloud data warehousing
+  cloud data warehousing: cloud data warehousing
   cloud deployment: cloud deployment
   cloud-erfahrung mit aws: amazon web services
   clustering: machine learning clustering
+  cms: cms
   code mit git: git
   code review: code review
-  code reviews in git/github: code review
   cognos tm1: ibm cognos tm1
   cohort analysis: cohort analysis
   cold calling: cold calling
@@ -179,6 +194,7 @@ skill_synonyms:
   competitive intelligence: competitive intelligence
   compliance preparation: compliance preparation
   computational finance: computational finance
+  computer networking: computer networking
   configuring ai coding assistants: ai coding assistants
   confluence: confluence
   container technologies: containers
@@ -188,6 +204,7 @@ skill_synonyms:
   content moderation: content moderation
   content seo: seo
   context engineering: context engineering
+  continuous improvement: continuous improvement
   contribution margin analysis: contribution margin analysis
   control engineering: control engineering
   control strategy: control strategy
@@ -195,12 +212,15 @@ skill_synonyms:
   control towers: supply chain control tower
   conversion funnel analysis: conversion funnel analysis
   conversion rate optimization: conversion rate optimization
+  copy direction: copy direction
+  copy-direction: copy direction
+  copywriting: copywriting
+  corporate identity: corporate identity
   corporate pitch decks: pitch deck design
   corporate valuation: corporate valuation
   cost-benefit analysis: cost-benefit analysis
   covenant analysis: covenant analysis
   covenant headroom testing: covenant analysis
-  create dashboards and reports: dashboard development
   create execution roadmaps: project roadmap planning
   create process models: process modeling
   create user requirement specifications: requirements specification
@@ -209,12 +229,15 @@ skill_synonyms:
   credit risk monitoring: credit risk monitoring
   creo parametric: creo parametric
   crm: crm
+  crm data hygiene: crm data hygiene
   crm hygiene: crm data hygiene
   cro initiatives: conversion rate optimization
   ctes: sql common table expressions
   custom orchestration: ai agent orchestration
-  customer journey mapping: user journey mapping
+  customer journey mapping: customer journey mapping
   customer support: customer support
+  cyber resilience: cyber resilience
+  cyberresilienz: cyber resilience
   cycle time analysis: cycle time analysis
   dairy processing: dairy processing
   dashboard building: dashboard development
@@ -231,10 +254,10 @@ skill_synonyms:
   data catalogs: data catalog
   data cleaning: data cleaning
   data cleansing: data cleaning
+  data distribution service: data distribution service
   data engineering: data engineering
   data entry: data entry
   data fusion: data fusion
-  data fusion and analysis: data fusion
   data governance: data governance
   data governance concepts: data governance
   data governance framework: data governance
@@ -249,6 +272,7 @@ skill_synonyms:
   data modelling principles: data modeling
   data normalization: data normalization
   data partitioning: data partitioning
+  data pipeline development: data pipelines
   data pipelines: data pipelines
   data platform: data platform
   data platforms: data platform
@@ -259,8 +283,8 @@ skill_synonyms:
   data transformation: data transformation
   data validation: data validation
   data vault: data vault
-  data vault und 3nf: data vault
   data visualization: data visualization
+  data visualization tools: data visualization tools
   data warehouse: data warehousing
   data warehousing: data warehousing
   datenanalyse: data analysis
@@ -280,6 +304,7 @@ skill_synonyms:
   debugging: debugging
   debugging discrepancies: debugging
   define target operating models: target operating model
+  demand-side platforms: demand-side platforms
   derating: derating
   derivatebewertung: derivatives valuation
   derivatives pricing: derivatives pricing
@@ -292,23 +317,30 @@ skill_synonyms:
   developing critical dashboards: dashboard development
   developing metabase dashboards: metabase dashboarding
   devops: devops
+  diagnostics over ip: diagnostics over ip
   digital asset management: digital asset management
   digital campaign management: digital campaign management
   digital marketing: digital marketing
   digital marketing strategy: digital marketing strategy
   digital transformation: digital transformation
   digital transformation strategy: digital transformation strategy
+  digitalisierung: digitalization
+  digitalisierung von kmu prozessen: digitalization of sme processes
+  digitalization: digitalization
+  digitalization of sme processes: digitalization of sme processes
   distributed system design: distributed systems design
   distributed systems design: distributed systems design
   docker: docker
   document management: document management
   document management software: document management software
+  documentation: documentation
   doip: diagnostics over ip
   dokumentation von änderungen: documentation
   drehen: turning
   driving end-to-end recruitment: recruitment management
   dry sanitation: dry sanitation
   dry toilet operation: dry sanitation
+  dsps: demand-side platforms
   due diligence: due diligence
   due-diligence-aktivitäten: due diligence
   dynamics 365 business central: microsoft dynamics 365 business central
@@ -346,14 +378,13 @@ skill_synonyms:
   etl: etl
   etl tools: etl tools
   etl-prozesse: etl
-  etl/elt: etl/elt
-  etl/elt architecture: etl/elt architecture
   event management: event management
   event organisation: event management
   event planning: event planning
   event tracking: event tracking
   excel: microsoft excel
   excel array formulas: excel array formulas
+  excel index function: excel index function
   excel lookup functions: excel lookup functions
   excel macros: excel macros
   excel pivottables: excel pivottables
@@ -373,11 +404,14 @@ skill_synonyms:
   financial modeling: financial modeling
   financial modelling: financial modeling
   financial reporting: financial reporting
+  financial statement analysis: financial statement analysis
   finanzanalysen: financial analysis
   finanzmathematischer modellierung: financial mathematical modeling
   finanzmodellierungsfähigkeiten: financial modeling
   fine-tuning: model fine-tuning
+  fire protection: fire protection
   fit-gap analysis: fit-gap analysis
+  flat file: flat file
   flatfiles: flat file
   flexray: flexray
   flowcharting: flowcharting
@@ -385,19 +419,23 @@ skill_synonyms:
   forecasting: forecasting
   forklift operation: forklift operation
   fortgeschrittene excel-kenntnisse: microsoft excel
+  freeze drying: freeze drying
+  freimessen: gas measurement
   frontend-frameworks wie react: react
   fräsen: milling
-  function calling: llm tool calling
+  function calling: function calling
   fundierte kenntnisse in sql: sql
   funnel instrumentation: funnel instrumentation
   ga4: google analytics 4
-  gcp: google cloud
+  gas measurement: gas measurement
+  gcp: google cloud platform
   gefriertrocknung: freeze drying
+  gefährdungsbeurteilungen: risk assessment
   gemini: google gemini
   generative ai: generative ai
   generative ai security: generative ai security
+  german energy market knowledge: german energy market knowledge
   git: git
-  git / github: git / github
   git branching strategies: git branching strategies
   github: github
   go-to-market: go-to-market strategy
@@ -425,12 +463,18 @@ skill_synonyms:
   handling missing values: missing data handling
   hands-on experience in looker: looker
   heat treatment: heat treatment
+  heatmap analytics: heatmap analytics
   heatmaps: heatmap analytics
   hgb: hgb accounting
-  high-voltage battery analysis: battery analysis
+  hgb accounting: hgb accounting
+  high-voltage battery analysis: high-voltage battery analysis
   hochverfügbaren daten-pipelines: data pipelines
+  hr analytics: hr analytics
+  hr it systems: hr it systems
+  hr strategy: hr strategy
+  hr-analytics-lösungen: hr analytics
+  hr-strategie: hr strategy
   hubspot: hubspot
-  hubspot or equivalent crm: crm
   hvac: hvac
   ibm as/400: ibm as/400
   ibm cognos tm1: ibm cognos tm1
@@ -443,17 +487,18 @@ skill_synonyms:
   image editing: image editing
   impact analysis: impact analysis
   impact-analysen: impact analysis
+  implementierung von hr-it-systemen: hr it systems
   in-design: adobe indesign
   inbound marketing: inbound marketing
   incoming and outgoing invoices: invoice processing
   indesign: adobe indesign
-  index: excel index function
   influencer booking: influencer booking
   information flow analysis: information flow analysis
   information security: information security
+  informationssicherheit: information security
   insbesondere excel: microsoft excel
   insbesondere powerpoint: microsoft powerpoint
-  instagram ads: meta ads
+  instagram ads: instagram ads
   instagram marketing: instagram marketing
   instagram reels: instagram reels
   instagram stories: instagram stories
@@ -465,13 +510,17 @@ skill_synonyms:
   javascript: javascript
   jenkins: jenkins
   jira: jira
+  jira workflow configuration: jira workflow configuration
   jira workflows: jira workflow configuration
   job description writing: job description writing
+  joy in copywriting: copywriting
   k8s: kubernetes
   kafka: apache kafka
+  kampagnen entwickeln: campaign development
+  kenntnisse im deutschen energiemarkt: german energy market knowledge
   ki: artificial intelligence
   ki-tools: ai tools
-  know your customer: kyc
+  know your customer: know your customer
   kpi analysis: kpi analysis
   kpi definition: kpi definition
   kpi development: kpi development
@@ -483,17 +532,21 @@ skill_synonyms:
   kyc: know your customer
   landing page optimization: landing page optimization
   large language models: large language models
+  large-scale data analysis: large-scale data analysis
   lead generation: lead generation
   lean manufacturing: lean manufacturing
   lean manufacturing principles: lean manufacturing
   led panel assembly: led panel assembly
   lineage: data lineage
+  linearbeschleuniger: linearbeschleuniger
   linkedin: linkedin
   linux: linux
   liquidity risk modeling: liquidity risk modeling
   llm: large language models
   llm agents: llm agents
+  llm function calling: llm tool calling
   llm tool calling: llm tool calling
+  llm tool use: llm tool use
   llms: large language models
   logo design: logo design
   looker: looker
@@ -511,6 +564,7 @@ skill_synonyms:
   macros: excel macros
   management reporting: management reporting
   manufacturing process analysis: manufacturing process analysis
+  mapping documentation: mapping documentation
   mapping user journeys: user journey mapping
   margin analysis: margin analysis
   market analysis: market analysis
@@ -521,16 +575,23 @@ skill_synonyms:
   marketing performance analysis: marketing analytics
   marketplace platforms: marketplace platforms
   materials characterization: materials characterization
+  measurement data analysis: measurement data analysis
   measurement technology: metrology
   medical terminology: medical terminology
   mergers & acquisitions: mergers and acquisitions
+  mergers and acquisitions: mergers and acquisitions
+  messaging framework: messaging framework
+  messaging-framework: messaging framework
   meta ad library: meta ad library
   meta ads: meta ads
   meta business suite: meta business suite
   metabase: metabase
+  metabase dashboarding: metabase dashboarding
   metabase power user: metabase
+  metal processing: metal processing
   metallverarbeitung: metal processing
   metrics design: metrics design
+  metrology: metrology
   mica compliance preparation: mica compliance preparation
   microlearning: microlearning
   microservice architectures: microservices architecture
@@ -544,8 +605,12 @@ skill_synonyms:
   microsoft fabric: microsoft fabric
   microsoft office: microsoft office
   microsoft outlook: microsoft outlook
+  microsoft power apps: microsoft power apps
+  microsoft power automate: microsoft power automate
+  microsoft power bi: microsoft power bi
   microsoft powerpoint: microsoft powerpoint
   microsoft sharepoint: microsoft sharepoint
+  microsoft sql server: microsoft sql server
   microsoft teams: microsoft teams
   microsoft visio: microsoft visio
   microsoft word: microsoft word
@@ -598,15 +663,18 @@ skill_synonyms:
   observability: observability
   observability stacks: observability
   occupational safety: occupational safety
+  occupational safety regulations: occupational safety regulations
   office administration: office administration
-  office management: office administration
+  office management: office management
   office-anwendungen: microsoft office
   ooh advertising: out-of-home advertising
   operational planning: operational planning
   operational planning process: operational planning
-  oracle: oracle database
+  oracle: oracle
+  oracle database: oracle database
   oracle hyperion: oracle hyperion
   organic rice intensification: organic rice intensification
+  out-of-home advertising: out-of-home advertising
   outbound marketing: outbound marketing
   outlook: microsoft outlook
   paid social advertising: paid social advertising
@@ -616,16 +684,17 @@ skill_synonyms:
   performance dashboards: dashboard development
   performance-dashboards: dashboard development
   permaculture: permaculture
-  pg: postgresql
   phone screening: phone screening
   photography: photography
   photoshop: adobe photoshop
-  pipeline development: data pipelines
+  pipeline development: pipeline development
   pitch deck design: pitch deck design
   pivots: excel pivottables
   plant commissioning: plant commissioning
   plant layout: plant layout
   polishing: polishing
+  positionierung: positioning
+  positioning: positioning
   postgres: postgresql
   postgresql: postgresql
   power apps: microsoft power apps
@@ -636,6 +705,7 @@ skill_synonyms:
   powerbi: microsoft power bi
   powerpoint: microsoft powerpoint
   precedent transactions: precedent transactions analysis
+  precedent transactions analysis: precedent transactions analysis
   prepare reports: reporting
   press fitting: press fitting
   pricing analysis: pricing analysis
@@ -652,8 +722,10 @@ skill_synonyms:
   product launch activation: product launch activation
   production control: production control
   production planning: production planning
+  production-grade python: python
   produktive erfahrung mit dbt: dbt
   proficiency in google suite: google workspace
+  proficiency in ms office: microsoft office
   programmatic advertising: programmatic advertising
   programme governance: programme governance
   programming: programming
@@ -662,15 +734,18 @@ skill_synonyms:
   project finance: project finance
   project management: project management
   project roadmap planning: project roadmap planning
+  projektkoordination: project coordination
   promotion management: promotion management
   prompt engineering: prompt engineering
-  py: python
+  präzise briefings: briefing
   python: python
   python programming: python
   quality assurance: quality assurance
   quality management: quality management
-  quality oversight: quality management
+  quality oversight: quality oversight
+  qualitätsmanagement: quality management
   quantitative analysis: quantitative analysis
+  quantitative modeling: quantitative modeling
   quantitative modelling: quantitative modeling
   rag: retrieval-augmented generation
   rag pipeline: retrieval-augmented generation
@@ -681,8 +756,9 @@ skill_synonyms:
   react js: react
   real-time dashboards: real-time dashboards
   real-time planning dashboards: real-time dashboards
-  recruitment: recruitment management
+  recruitment: recruitment
   recruitment automation: recruitment automation
+  recruitment management: recruitment management
   red teaming: red teaming
   redshift: amazon redshift
   regelmäßige code-reviews: code review
@@ -707,6 +783,7 @@ skill_synonyms:
   reverse etl: reverse etl
   review code logic: code review
   risk analysis: risk analysis
+  risk assessment: risk assessment
   riveting: riveting
   roas optimization: roas optimization
   roi optimization: roi optimization
@@ -716,6 +793,7 @@ skill_synonyms:
   sales controlling: sales controlling
   sales demos: sales demos
   salesforce: salesforce
+  salesforce reporting: salesforce reporting
   salesforce reports: salesforce reporting
   sanctions screening alert review: sanctions screening alert review
   sap: sap
@@ -728,6 +806,9 @@ skill_synonyms:
   sap mm: sap mm
   sap s/4hana: sap s/4hana
   sap signavio: sap signavio
+  scale-up team experience: scale-up team experience
+  scc: scc certification
+  scc certification: scc certification
   scenario analysis: scenario analysis
   scikit-learn: scikit-learn
   screw fastening: screw fastening
@@ -736,12 +817,12 @@ skill_synonyms:
   second-level support: second-level support
   security operations center: security operations center
   security operations center (soc): security operations center
+  security operations center analysis: security operations center analysis
   self-service analytics: self-service analytics
   self-service bi: self-service bi
-  self-service reporting: self-service bi
+  self-service reporting: self-service reporting
   semantic search: semantic search
   semrush: semrush
-  sensitivities and stress tests: stress testing
   sensitivity analysis: sensitivity analysis
   seo: seo
   seo tools: seo tools
@@ -754,6 +835,8 @@ skill_synonyms:
   sicherer umgang mit ms-office: microsoft office
   sicherer umgang mit office-anwendungen: microsoft office
   sicherer umgang mit powerpoint: microsoft powerpoint
+  sigeko: sigeko (safety and health coordinator)
+  sigeko (safety and health coordinator): sigeko (safety and health coordinator)
   sigma computing: sigma computing
   signal processing: signal processing
   simplis: simplis
@@ -767,31 +850,35 @@ skill_synonyms:
   software architecture: software architecture
   software testing: software testing
   softwarearchitektur: software architecture
-  solide statistik-kenntnisse: statistical analysis
+  solide statistik-kenntnisse: statistics
   solidworks: solidworks
   some/ip: some/ip
   sotif: sotif
   spark: apache spark
   splunk: splunk
+  splunk enterprise security: splunk enterprise security
   splunk es: splunk enterprise security
   spreadsheets: spreadsheets
   sql: sql
+  sql common table expressions: sql common table expressions
   sql joins: sql joins
   sql query optimization: sql query optimization
   sql server clustering: sql server clustering
   sql server replication: sql server replication
   sql window functions: sql window functions
-  sql-/sap-kenntnisse sind von vorteil: sql
   startup valuation: startup valuation
   statistical analysis: statistical analysis
   statistical analysis of results: statistical analysis
   statistics: statistics
   statistik: statistics
+  steuererklärungen: tax returns
+  steuerliche compliance-beratung: tax compliance consulting
   strategic vendor management: vendor management
   stress testing: stress testing
   strong command of sql: sql
   strong sql skills: sql
   structured output formatting: structured output generation
+  structured output generation: structured output generation
   structured outputs: structured output generation
   strukturierte branching-strategien: git branching strategies
   supervised learning: supervised learning
@@ -802,6 +889,10 @@ skill_synonyms:
   taking photos: photography
   target operating model: target operating model
   target operating model (tom): target operating model
+  tax audits: tax audits
+  tax compliance consulting: tax compliance consulting
+  tax returns: tax returns
+  teamerfahrung in einem scale-up: scale-up team experience
   technical proposal preparation: technical proposal preparation
   technical sizing: technical sizing
   technical writing: technical writing
@@ -811,25 +902,30 @@ skill_synonyms:
   test strategy: test strategy
   test-driven development: test-driven development
   test-driven development (tdd): test-driven development
-  testing: software testing
+  testing: testing
   text embeddings: text embeddings
   texture design: texture design
   thermodynamics: thermodynamics
   third normal form: third normal form
+  third normal form (3nf): third normal form
   thomson reuters: thomson reuters
   ticket handling: ticket handling
   tiktok: tiktok
   time series analysis: time series analysis
+  tms: transportation management system
   token refresh: token refresh
   token refresh logic: token refresh
   tool calling: llm tool calling
-  tool use: llm tool use
+  tool use: tool use
   tools for data integration: data integration
   tools such as excel: microsoft excel
+  tracking systems: tracking systems
+  tracking-systeme: tracking systems
   trade marketing: trade marketing
   trademark law: trademark law
   transmission maintenance: transmission maintenance
-  transportation management system: transportation management system (tms)
+  transportation management system: transportation management system
+  transportation management system (tms): transportation management system
   travel expense accounting: travel expense accounting
   trend scouting: trend scouting
   troubleshooting: troubleshooting
@@ -846,6 +942,7 @@ skill_synonyms:
   unternehmensbewertungen: business valuation
   user acceptance testing: user acceptance testing
   user acceptance testing (uat): user acceptance testing
+  user journey mapping: user journey mapping
   user stories: user stories
   using relational databases: relational databases
   ux/ui: ux/ui design
@@ -853,12 +950,14 @@ skill_synonyms:
   valuation: valuation
   valuation techniques: valuation
   value at risk modeling: value at risk modeling
+  value stream mapping: value stream mapping
   variance analysis: variance analysis
   vba: vba
   vector databases: vector databases
   vector search: vector search
   vehicle inspection: vehicle inspection
   vendor management: vendor management
+  versiert in office-programmen: microsoft office
   vertex ai: google vertex ai
   veterinary anesthesia: veterinary anesthesia
   video editing: video editing
@@ -883,3 +982,44 @@ skill_synonyms:
   z. b. ms access: microsoft access
   zalando advertising: zalando advertising
   zeitreihenanalyse: time series analysis
+  zwei linearbeschleuniger: linearbeschleuniger
+  analytics engineering: analytics engineering
+  audience segmentation: audience segmentation
+  azure machine learning: azure machine learning
+  azure ml: azure machine learning
+  brand analysis: brand analysis
+  bruin: bruin
+  business intelligence: business intelligence
+  campaign analytics: campaign analytics
+  category management: category management
+  commercial coordination: commercial coordination
+  concept validation: concept validation
+  consumer research: consumer research
+  cross functional collaboration: cross-functional collaboration
+  cross-functional collaboration: cross-functional collaboration
+  data analysis expressions: dax
+  dax: dax
+  decision support: decision support systems
+  decision support systems: decision support systems
+  docker compose: docker compose
+  docker-compose: docker compose
+  drift detection: drift detection
+  duckdb: duckdb
+  exploratory analysis: exploratory data analysis
+  fastapi: fastapi
+  insight generation: insight generation
+  llm workflow design: llm workflow design
+  microsoft power query: power query
+  mlflow: mlflow
+  model drift detection: drift detection
+  new product development: new product development
+  performance analysis: performance analysis
+  power bi dax: dax
+  power query: power query
+  process standardization: process standardization
+  product and commercial analysis: product and commercial analysis
+  redis: redis
+  rq: rq
+  stakeholder communication: stakeholder communication
+  stakeholder engagement: stakeholder management
+  stakeholder management: stakeholder management

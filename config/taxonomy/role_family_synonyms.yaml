@@ -1,65 +1,40 @@
-## @architecture
-## owner: cv_system
-## features:
-##   - cv_system
-## stages:
-##   - cv_analysis
-##   - cv_generation
-## capabilities:
-##   - cv_system.analysis-grounded-validation
-## role: config
-## canonical: true
-
-# Role-family synonym source-of-truth.
-# Keys = alias variants; values = canonical role_family token (both normalized to lowercase by loaders).
 role_family_alias_map:
-  "customer support": "customer support"
-  "customer support role": "customer support"
-  "customer service": "customer support"
-
-  "project finance": "finance"
-  "project finance teams": "finance"
-  "corporate finance": "finance"
-  "investment banking": "finance"
-
-  "recruitment": "talent acquisition"
-  "recruiting": "talent acquisition"
-  "talent acquisition": "talent acquisition"
-  "driving end-to-end recruitment": "talent acquisition"
-
-  "office management": "office administration"
-  "managing our office": "office administration"
-  "office administration": "office administration"
-
-  "marketing team leadership": "marketing"
-  "leading a marketing team": "marketing"
-  "brand marketing": "marketing"
-  "trade marketing": "marketing"
-  "digital marketing": "marketing"
-
-  "software development": "software engineering"
-  "software engineering": "software engineering"
-  "software development and it services and it consulting": "software engineering"
-
-  "business analysis": "business analysis"
-  "end-to-end business analysis": "business analysis"
-  "requirements engineering": "business analysis"
-
-  "data analytics": "data analytics"
-  "analytics": "data analytics"
-  "business intelligence": "data analytics"
-
-  "product management": "product management"
-  "product backlog management": "product management"
-  "go-to-market": "product / growth"
-
-  "project management": "project management"
-  "program management": "project management"
-  "programme governance": "project management"
-
-  "operations": "operations"
-  "supply chain": "supply chain"
-  "production control": "operations"
-
-# Optional neighbor graph (kept empty unless intentionally curated).
-role_family_neighbors: {}
+  analytics: data analytics
+  brand marketing: marketing
+  business analysis: business analysis
+  business intelligence: data analytics
+  corporate finance: finance
+  customer service: customer support
+  customer support: customer support
+  customer support role: customer support
+  data analytics: data analytics
+  digital marketing: marketing
+  driving end-to-end recruitment: talent acquisition
+  end-to-end business analysis: business analysis
+  finance: finance
+  go-to-market: product / growth
+  investment banking: finance
+  leading a marketing team: marketing
+  managing our office: office administration
+  marketing: marketing
+  marketing team leadership: marketing
+  office administration: office administration
+  office management: office administration
+  operations: operations
+  product / growth: product / growth
+  product backlog management: product management
+  product management: product management
+  production control: operations
+  program management: project management
+  programme governance: project management
+  project finance: finance
+  project finance teams: finance
+  project management: project management
+  recruiting: talent acquisition
+  recruitment: talent acquisition
+  requirements engineering: business analysis
+  software development: software engineering
+  software engineering: software engineering
+  supply chain: supply chain
+  talent acquisition: talent acquisition
+  trade marketing: marketing
