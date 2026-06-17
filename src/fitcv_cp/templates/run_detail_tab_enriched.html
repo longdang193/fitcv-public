@@ -15,23 +15,71 @@
   </span>
 </div>
 
-<form method="get" action="/admin/runs/{{ run.run_id }}/tabs/enriched" onsubmit="return submitRunDetailTabForm(event, 'enriched', this)" style="display:flex;gap:0.75rem;padding:0.75rem 1.25rem;border-bottom:1px solid var(--accent);flex-wrap:wrap;align-items:center">
+<form method="get" action="/admin/runs/{{ run.run_id }}/tabs/enriched" onsubmit="return submitRunDetailTabForm(event, 'enriched', this)" class="enr-toolbar">
   <input type="hidden" name="page" value="1">
-  <label class="meta" for="enr-filter" style="font-size:0.85rem">Filter</label>
-  <select id="enr-filter" name="filter_name" style="font-size:0.85rem;padding:0.25rem 0.5rem">
-    <option value="all" {% if enriched_filter == 'all' %}selected{% endif %}>All</option>
-    <option value="passed" {% if enriched_filter == 'passed' %}selected{% endif %}>Passed</option>
-    <option value="rejected" {% if enriched_filter == 'rejected' %}selected{% endif %}>Rejected</option>
-    <option value="unknown" {% if enriched_filter == 'unknown' %}selected{% endif %}>Unknown</option>
-  </select>
-  <input id="enr-search" type="search" name="q" value="{{ enriched_query }}" placeholder="Search title, domain, job family…" style="flex:1;min-width:16rem;font-size:0.85rem;padding:0.25rem 0.6rem">
-  <label class="meta" for="enr-page-size" style="font-size:0.85rem">Rows</label>
-  <select id="enr-page-size" name="page_size" style="font-size:0.85rem;padding:0.25rem 0.5rem">
-    {% for size in (25, 50, 100) %}
-    <option value="{{ size }}" {% if enriched_page_size == size %}selected{% endif %}>{{ size }}</option>
-    {% endfor %}
-  </select>
+
+  <div class="enr-toolbar-group">
+    <label class="meta enr-toolbar-label" for="enr-filter">Filter</label>
+    <span class="enr-select-shell"><select id="enr-filter" name="filter_name" class="enr-toolbar-select enr-filter-select enr-select-caret">
+      <option value="all" {% if enriched_filter == 'all' %}selected{% endif %}>All</option>
+      <option value="passed" {% if enriched_filter == 'passed' %}selected{% endif %}>Passed</option>
+      <option value="rejected" {% if enriched_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+      <option value="unknown" {% if enriched_filter == 'unknown' %}selected{% endif %}>Unknown</option>
+    </select>
+  </div>
+
+  <input id="enr-search" type="search" name="q" value="{{ enriched_query }}" placeholder="Search title, domain, job family…" class="enr-toolbar-search">
+
+  <div class="enr-toolbar-group enr-toolbar-outcome" data-multiselect-root="pipeline-outcome">
+    <label class="meta enr-toolbar-label" for="enr-pipeline-outcome-toggle">Pipeline Outcome</label>
+    <details data-multiselect-details class="enr-multiselect-details">
+      <summary
+        id="enr-pipeline-outcome-toggle"
+        class="enr-multiselect-toggle"
+      >
+        <span data-multiselect-summary>All outcomes</span>
+        <span class="enr-caret" aria-hidden="true">▾</span>
+      </summary>
+      <div data-multiselect-panel class="enr-multiselect-panel">
+        <input type="search" placeholder="Search outcomes..." data-multiselect-search class="enr-multiselect-search">
+        <label class="enr-multiselect-row enr-multiselect-select-all">
+          <input type="checkbox" data-multiselect-select-all>
+          <span>(Select all)</span>
+        </label>
+        <div data-multiselect-options class="enr-multiselect-options">
+          {% for outcome in enriched_pipeline_outcome_options %}
+          <label data-multiselect-option-row class="enr-multiselect-row">
+            <input
+              type="checkbox"
+              data-multiselect-option
+              value="{{ outcome.value }}"
+              data-label="{{ outcome.label }}"
+              {% if outcome.value in enriched_selected_pipeline_outcomes %}checked{% endif %}
+            >
+            <span>{{ outcome.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+    <select id="enr-pipeline-outcome" name="pipeline_outcome" multiple class="enr-hidden-multiselect" aria-hidden="true" tabindex="-1">
+      {% for outcome in enriched_pipeline_outcome_options %}
+      <option value="{{ outcome.value }}" {% if outcome.value in enriched_selected_pipeline_outcomes %}selected{% endif %}>{{ outcome.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="enr-toolbar-group">
+    <label class="meta enr-toolbar-label" for="enr-page-size">Rows</label>
+    <span class="enr-select-shell"><select id="enr-page-size" name="page_size" class="enr-toolbar-select enr-rows-select enr-select-caret">
+      {% for size in (25, 50, 100) %}
+      <option value="{{ size }}" {% if enriched_page_size == size %}selected{% endif %}>{{ size }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
   <button type="submit" class="btn-secondary">Apply</button>
+  <a class="btn-secondary enr-export-btn" href="{{ enriched_download_url }}" data-tab-fragment-skip="true">Export</a>
 </form>
 
 <div class="card" style="padding:0;overflow:hidden">
@@ -60,8 +108,11 @@
           </div>
         </td>
         <td class="meta">
-          {% if job.required_skills %}
-            {{ job.required_skills[:5] | join(', ') }}{% if job.required_skills | length > 5 %}, <em class="meta">+{{ job.required_skills | length - 5 }} more</em>{% endif %}
+          {% if job.required_skills_display %}
+            {{ job.required_skills_display[:5] | join(', ') }}{% if job.required_skills_display | length > 5 %}, <em class="meta">+{{ job.required_skills_display | length - 5 }} more</em>{% endif %}
+            {% if job.required_skills_display_source and job.required_skills_display_source != 'required_skills' %}
+            <div class="meta" style="margin-top:0.3rem">Fallback: {{ job.required_skills_display_source | replace('_', ' ') }}</div>
+            {% endif %}
           {% else %}
             —
           {% endif %}
@@ -110,16 +161,14 @@
 {% if enriched_total_pages > 1 %}
 <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1.25rem;justify-content:flex-end">
   {% if enriched_has_prev %}
-  {% set enriched_prev_url = "/admin/runs/" ~ run.run_id ~ "/tabs/enriched?page=" ~ (enriched_current_page - 1) ~ "&page_size=" ~ enriched_page_size ~ "&filter_name=" ~ enriched_filter ~ "&q=" ~ (enriched_query | urlencode) %}
-  <a href="{{ enriched_prev_url | safe }}"
+    <a href="{{ enriched_prev_url | safe }}"
      class="btn-secondary"
      data-tab-fragment-url="{{ enriched_prev_url | safe }}"
      data-tab-id="enriched">← Prev</a>
   {% endif %}
   <span class="meta">Page {{ enriched_current_page }} of {{ enriched_total_pages }}</span>
   {% if enriched_has_next %}
-  {% set enriched_next_url = "/admin/runs/" ~ run.run_id ~ "/tabs/enriched?page=" ~ (enriched_current_page + 1) ~ "&page_size=" ~ enriched_page_size ~ "&filter_name=" ~ enriched_filter ~ "&q=" ~ (enriched_query | urlencode) %}
-  <a href="{{ enriched_next_url | safe }}"
+    <a href="{{ enriched_next_url | safe }}"
      class="btn-secondary"
      data-tab-fragment-url="{{ enriched_next_url | safe }}"
      data-tab-id="enriched">Next →</a>
@@ -193,3 +242,12 @@
   </details>
 </div>
 {% endif %}
+
+
+
+
+
+
+
+
+

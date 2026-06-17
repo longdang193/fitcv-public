@@ -115,8 +115,8 @@ Important: run Docker commands from the repo checkout or git worktree whose file
 
 Examples:
 
-- main checkout: `C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT`
-- feature worktree: `C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.worktrees\<feature-branch>`
+- main checkout: `<repo-root>`
+- feature worktree: `<repo-root>\.worktrees\<feature-branch>`
 
 Docker uses the current build context directory. If you run `docker compose up -d --build redis web worker` from a feature worktree, the containers are built from that worktree's files, not from another branch or checkout.
 
@@ -129,14 +129,16 @@ $env:GCP_SA_KEY_PATH="C:\secure\your-service-account.json"
 Then change into the checkout or worktree you want to run and start everything:
 
 ```powershell
-cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.worktrees\<feature-branch>"
+$repoRoot = "<repo-root>"
+cd "$repoRoot\.worktrees\<feature-branch>"
 docker compose up -d --build redis web worker
 ```
 
 If you want to run the main checkout instead, use:
 
 ```powershell
-cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT"
+$repoRoot = "<repo-root>"
+cd $repoRoot
 docker compose up -d --build redis web worker
 ```
 
@@ -222,9 +224,10 @@ Use one of these:
 Rebuild and restart the containers:
 
 ```powershell
-cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT"
+$repoRoot = "<repo-root>"
+cd $repoRoot
 # or:
-# cd "C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.worktrees\<feature-branch>"
+# cd "$repoRoot\.worktrees\<feature-branch>"
 docker compose down
 docker compose up -d --build redis web worker
 ```
@@ -340,7 +343,10 @@ Exit codes:
 Example `schtasks` registration (every 10 minutes):
 
 ```powershell
-schtasks /Create /TN "FitCV-Outbox-Replay-Health" /SC MINUTE /MO 10 /F /TR "\"C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\.venv\Scripts\python.exe\" \"C:\Users\HOANG PHI LONG DANG\repos\JOB-PROJECT\scripts\check_outbox_replay_health.py\" --base-url http://localhost:8000 --view active --min-replay-success-ratio 0.95"
+$repoRoot = "<repo-root>"
+$pythonExe = "$repoRoot\.venv\Scripts\python.exe"
+$scriptPath = "$repoRoot\scripts\check_outbox_replay_health.py"
+schtasks /Create /TN "FitCV-Outbox-Replay-Health" /SC MINUTE /MO 10 /F /TR "`"$pythonExe`" `"$scriptPath`" --base-url http://localhost:8000 --view active --min-replay-success-ratio 0.95"
 ```
 
 Run now:

@@ -141,8 +141,8 @@
     <input type="text" id="jobs_path" value="data/sample_jobs.json" placeholder="jobs_path">
   </div>
   <div id="jobs-pane-upload" style="display:none;margin-bottom:1rem">
-    <input type="file" id="jobs_file" accept=".json" multiple>
-    <span class="meta" style="display:block;margin-top:0.25rem">Select one or more JSON files to merge into one run</span>
+    <input type="file" id="jobs_file" accept=".json,.jsonl,application/json,application/x-ndjson,text/plain" multiple>
+    <span class="meta" style="display:block;margin-top:0.25rem">Select one or more JSON or JSONL files to merge into one run</span>
   </div>
   <div id="jobs-pane-paste" style="display:none;margin-bottom:1rem">
     <textarea id="jobs_text" class="code-area" placeholder='[{"title": "Data Engineer", "job_url": "..."}, ...]'
@@ -361,7 +361,7 @@ async function triggerRun() {
       fd.append('jobs_path', document.getElementById('jobs_path').value);
     } else if (_jobsMode === 'upload') {
       const files = document.getElementById('jobs_file').files;
-      if (!files.length) { alert('Please select at least one jobs JSON file.'); return; }
+      if (!files.length) { alert('Please select at least one jobs JSON or JSONL file.'); return; }
       for (const f of files) {
         fd.append('jobs_files', f);
       }
@@ -547,4 +547,5 @@ async function bulkLifecycleAction(action, btn) {
 restoreLifecycleNotice();
 </script>
 {% endblock %}
+
 

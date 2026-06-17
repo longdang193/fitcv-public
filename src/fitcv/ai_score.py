@@ -36,6 +36,11 @@ from fitcv.config import (
     sqlite_mode_enabled,
 )
 from fitcv.contracts import RANKING_AI_SCORE_PROMPT_SCHEMA_VERSION
+from fitcv.openai_compat import (
+    decode_openai_compat_response_body,
+    extract_openai_chat_completions_text,
+    extract_openai_responses_text as _extract_openai_responses_text,
+)
 from fitcv.persistence import build_bigquery_client, get_local_sqlite_path
 from fitcv.prompts import render_prompt
 from fitcv.ranking_contract import (
@@ -51,26 +56,6 @@ logger = logging.getLogger(__name__)
 _DEFAULT_STRONG_THRESHOLD = DEFAULT_FIT_LABEL_STRONG_THRESHOLD
 _DEFAULT_STRETCH_THRESHOLD = DEFAULT_FIT_LABEL_STRETCH_THRESHOLD
 _VALID_FIT_LABELS = VALID_FIT_LABELS
-
-def _extract_openai_responses_text(body: dict[str, Any]) -> str:
-    """Extract assistant text from OpenAI-compatible /responses payloads."""
-    direct = str(body.get("output_text") or "").strip()
-    if direct:
-        return direct
-    output = body.get("output")
-    if not isinstance(output, list):
-        return ""
-    chunks: list[str] = []
-    for item in output:
-        if not isinstance(item, dict):
-            continue
-        for content_item in item.get("content") or []:
-            if not isinstance(content_item, dict):
-                continue
-            text = str(content_item.get("text") or "").strip()
-            if text:
-                chunks.append(text)
-    return "\n".join(chunks).strip()
 
 
 def _stable_json_fingerprint(payload: dict[str, Any]) -> str:
@@ -295,7 +280,7 @@ def _make_genai_client(config: dict[str, Any]) -> Any:
                     try:
                         resp = client.post(f"{base_url.rstrip('/')}/responses", headers=headers, json=payload)
                         resp.raise_for_status()
-                        body = dict(resp.json() or {})
+                        body = decode_openai_compat_response_body(resp)
                         text = _extract_openai_responses_text(body)
                     except httpx.HTTPStatusError as exc:
                         # Compatibility fallback: some OpenAI-compatible providers
@@ -310,8 +295,8 @@ def _make_genai_client(config: dict[str, Any]) -> Any:
                         }
                         resp = client.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload)
                         resp.raise_for_status()
-                        body = dict(resp.json() or {})
-                        text = str((((body.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
+                        body = decode_openai_compat_response_body(resp)
+                        text = extract_openai_chat_completions_text(body)
                 else:
                     payload = {
                         "model": resolved_model,
@@ -321,8 +306,8 @@ def _make_genai_client(config: dict[str, Any]) -> Any:
                     }
                     resp = client.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload)
                     resp.raise_for_status()
-                    body = dict(resp.json() or {})
-                    text = str((((body.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
+                    body = decode_openai_compat_response_body(resp)
+                    text = extract_openai_chat_completions_text(body)
             return SimpleNamespace(text=text)
 
         return SimpleNamespace(models=SimpleNamespace(generate_content=_generate_content))

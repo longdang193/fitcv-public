@@ -30,6 +30,11 @@ from fitcv.placeholder_policy import (
     is_placeholder_token as _shared_is_placeholder_token,
     normalize_placeholder_token as _shared_normalize_placeholder_token,
 )
+from fitcv.openai_compat import (
+    decode_openai_compat_response_body,
+    extract_openai_chat_completions_text,
+    extract_openai_responses_text,
+)
 from fitcv.config import (
     CV_SECTION_KEY_TO_NAME,
     CV_STRUCTURED_SECTION_KEYS,
@@ -122,22 +127,8 @@ def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
                 try:
                     resp = client.post(f"{base_url.rstrip('/')}/responses", headers=headers, json=payload)
                     resp.raise_for_status()
-                    body = dict(resp.json() or {})
-                    text = str(body.get("output_text") or "").strip()
-                    if not text:
-                        output = body.get("output")
-                        if isinstance(output, list):
-                            chunks: list[str] = []
-                            for item in output:
-                                if not isinstance(item, dict):
-                                    continue
-                                for content_item in item.get("content") or []:
-                                    if not isinstance(content_item, dict):
-                                        continue
-                                    chunk = str(content_item.get("text") or "").strip()
-                                    if chunk:
-                                        chunks.append(chunk)
-                            text = "\n".join(chunks).strip()
+                    body = decode_openai_compat_response_body(resp)
+                    text = extract_openai_responses_text(body)
                 except httpx.HTTPStatusError as exc:
                     if exc.response is None or exc.response.status_code != 404:
                         raise
@@ -149,8 +140,8 @@ def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
                     }
                     resp = client.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload)
                     resp.raise_for_status()
-                    body = dict(resp.json() or {})
-                    text = str((((body.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
+                    body = decode_openai_compat_response_body(resp)
+                    text = extract_openai_chat_completions_text(body)
             else:
                 payload = {
                     "model": resolved_model,
@@ -160,8 +151,8 @@ def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
                 }
                 resp = client.post(f"{base_url.rstrip('/')}/chat/completions", headers=headers, json=payload)
                 resp.raise_for_status()
-                body = dict(resp.json() or {})
-                text = str((((body.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
+                body = decode_openai_compat_response_body(resp)
+                text = extract_openai_chat_completions_text(body)
         return SimpleNamespace(text=text)
 
     return SimpleNamespace(models=SimpleNamespace(generate_content=_generate_content))

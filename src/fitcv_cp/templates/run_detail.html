@@ -750,6 +750,7 @@ async function ensureTabLoaded(id, overrideUrl = null) {
     });
     if (!resp.ok) throw new Error('Failed to load tab');
     pane.innerHTML = await resp.text();
+    initEnrichedOutcomeMultiselect(pane);
     pane.dataset.loaded = 'true';
   } catch (err) {
     pane.innerHTML = '<div class="card"><p class="field-error">Could not load this tab right now.</p></div>';
@@ -758,13 +759,74 @@ async function ensureTabLoaded(id, overrideUrl = null) {
   }
 }
 
+function initEnrichedOutcomeMultiselect(scope = document) {
+  const root = scope.querySelector('[data-multiselect-root="pipeline-outcome"]');
+  if (!root || root.dataset.initialized === 'true') return;
+  root.dataset.initialized = 'true';
+
+  const details = root.querySelector('[data-multiselect-details]');
+  const summary = root.querySelector('[data-multiselect-summary]');
+  const search = root.querySelector('[data-multiselect-search]');
+  const selectAll = root.querySelector('[data-multiselect-select-all]');
+  const checkboxes = Array.from(root.querySelectorAll('[data-multiselect-option]'));
+  const rows = Array.from(root.querySelectorAll('[data-multiselect-option-row]'));
+  const selectEl = root.querySelector('#enr-pipeline-outcome');
+  const optionMap = new Map(Array.from(selectEl.options).map((opt) => [opt.value, opt]));
+
+  const visibleRows = () => rows.filter((row) => row.style.display !== 'none');
+  const syncSummary = () => {
+    const selected = checkboxes.filter((box) => box.checked);
+    if (selected.length === 0) { summary.textContent = 'All outcomes'; return; }
+    if (selected.length <= 2) { summary.textContent = selected.map((box) => box.dataset.label || box.value).join(', '); return; }
+    summary.textContent = `${selected.length} selected`;
+  };
+  const syncSelectAll = () => {
+    const visible = visibleRows().map((row) => row.querySelector('[data-multiselect-option]'));
+    const selectedVisible = visible.filter((box) => box && box.checked).length;
+    selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
+  };
+  const syncHiddenSelect = () => {
+    checkboxes.forEach((box) => {
+      const opt = optionMap.get(box.value);
+      if (opt) opt.selected = box.checked;
+    });
+  };
+  const syncAll = () => { syncHiddenSelect(); syncSelectAll(); syncSummary(); };
+
+  const form = root.closest('form');
+  if (form) form.addEventListener('submit', () => syncHiddenSelect(), true);
+  if (details) details.addEventListener('toggle', () => { if (details.open && search) search.focus(); });
+  if (search) {
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      rows.forEach((row) => {
+        const label = (row.textContent || '').toLowerCase();
+        row.style.display = !q || label.includes(q) ? 'flex' : 'none';
+      });
+      syncSelectAll();
+    });
+  }
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      const setChecked = selectAll.checked;
+      visibleRows().forEach((row) => {
+        const box = row.querySelector('[data-multiselect-option]');
+        if (box) box.checked = setChecked;
+      });
+      syncAll();
+    });
+  }
+  checkboxes.forEach((box) => box.addEventListener('change', syncAll));
+  syncAll();
+}
 function submitRunDetailTabForm(event, tabId, form) {
   event.preventDefault();
   const url = new URL(form.action, window.location.origin);
   const params = new URLSearchParams();
   for (const [key, value] of new FormData(form).entries()) {
     if (value !== null && String(value).length > 0) {
-      params.set(key, String(value));
+      params.append(key, String(value));
     }
   }
   const target = url.pathname + (params.toString() ? '?' + params.toString() : '');
@@ -965,6 +1027,193 @@ async function lifecycleAction(runId, action, btn) {
   z-index: 1;
   background: var(--table-header-bg, var(--card-bg, #1a1b2e));
 }
+
+.enr-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--accent);
+  flex-wrap: nowrap;
+  align-items: center;
+  overflow-x: visible;
+}
+
+.enr-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.enr-toolbar-label {
+  font-size: 0.85rem;
+}
+
+.enr-toolbar-select {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  appearance: auto;
+}
+
+
+.enr-filter-select {
+  min-width: 7rem;
+}
+
+.enr-rows-select {
+  min-width: 4.5rem;
+}
+
+.enr-toolbar-search {
+  flex: 1;
+  min-width: 14rem;
+  max-width: 22rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.enr-toolbar-outcome {
+  position: relative;
+}
+
+.enr-multiselect-details {
+  position: relative;
+}
+
+.enr-multiselect-toggle {
+  min-width: 15rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+  min-height: 2.15rem;
+}
+
+
+.enr-multiselect-toggle::marker {
+  content: "";
+}
+
+.enr-multiselect-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.enr-multiselect-panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 200;
+  min-width: 20rem;
+  max-width: 24rem;
+  max-height: 18rem;
+  overflow: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.enr-multiselect-search {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.enr-multiselect-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.enr-multiselect-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.enr-multiselect-select-all {
+  margin-bottom: 0.35rem;
+}
+
+.enr-hidden-multiselect {
+  display: none;
+}
+
+.enr-export-btn {
+  margin-left: auto;
+}
+
+.inspection-card {
+  overflow: visible;
+}
+
+.pane-container {
+  overflow: visible;
+}
+
+.enr-caret {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1;
+  font-weight: 500;
+  margin-left: 0.35rem;
+}
+.enr-select-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.enr-select-caret {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 1.6rem;
+  min-height: 2.15rem;
+}
+
+.enr-select-shell::after {
+  content: "▾";
+  position: absolute;
+  right: 0.55rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.enr-multiselect-toggle:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.enr-multiselect-row:hover {
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+
+.enr-multiselect-toggle,
+.enr-multiselect-panel,
+.enr-multiselect-search,
+.enr-multiselect-row,
+.enr-multiselect-row input,
+.enr-multiselect-panel input,
+.enr-multiselect-panel label {
+  font-family: inherit;
+}
 </style>
 
 <script>
@@ -977,6 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   {% endif %}
   window.setTimeout(() => ensureTabLoaded('enriched'), 50);
+  initEnrichedOutcomeMultiselect(document);
   const promoteSelectAllBtn = document.getElementById('promote-select-all-btn');
   const promoteClearAllBtn = document.getElementById('promote-clear-all-btn');
   const promoteSelectedCount = document.getElementById('promote-selected-count');
@@ -1029,6 +1279,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
+
+
+
+
+
+
+
+
+
+
+
 
 
 

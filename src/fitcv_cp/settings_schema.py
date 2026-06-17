@@ -940,6 +940,7 @@ AGENTIC_ADVANCED_SECTION_KEYS: list[str] = [
 
 AGENTIC_SETTINGS_SECTIONS: dict[str, list[str]] = {
     "agentic-enablement": list(AGENTIC_ENABLEMENT_SECTION_KEYS),
+    "agentic-reuse": list(AGENTIC_REUSE_SECTION_KEYS),
     "agentic-automation": list(AGENTIC_AUTOMATION_SECTION_KEYS),
     "agentic-advanced": list(AGENTIC_ADVANCED_SECTION_KEYS),
 }

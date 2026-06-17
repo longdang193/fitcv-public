@@ -383,6 +383,68 @@ Trace-specific note:
   - `agentic-live-trace.json` with `step_id=cv_generation`
   - `synonym-proposals-trace.json` with `step_id=synonym_proposals`
 
+### Filtered enriched export for rerun input
+
+- `GET /admin/runs/{run_id}/enriched/export-filtered.zip`
+
+Purpose:
+
+- export server-side filtered enriched rows as rerun-ready bundle.
+
+Query params:
+
+- `filter_name` (`all | passed | rejected | unknown`)
+- `q` (search query)
+- repeated `pipeline_outcome` values (for example `not_shortlisted`, `scored_not_ranked`)
+
+Response:
+
+- `application/zip`
+- includes:
+  - `jobs.filtered.jsonl`
+  - `jobs.filtered.manifest.json`
+
+JSONL row shape (`rerun_input.v1`):
+
+- `schema_version`
+- `job_url`
+- `source_run_id`
+- `pipeline_outcome`
+- `filter_status`
+- `shortlist_status`
+- `scoring_status`
+- `final_top_n_status`
+- `raw_job`
+
+Manifest highlights:
+
+- `schema_version`
+- `generated_at`
+- `source_run_id`
+- `export_id`
+- `filters`
+- `row_count`
+- `ordering`
+- `checksum_sha256`
+- `warnings`
+
+Compatibility note:
+
+- bundle is designed for direct re-upload into trigger flow using JSONL mode described below.
+
+### Upload trigger JSONL compatibility
+
+`POST /admin/upload-trigger` with `jobs_input_mode=upload` now accepts:
+
+- JSON array files (existing behavior)
+- rerun JSONL files (`.jsonl`) where each line contains an object with `raw_job`
+
+JSONL validation:
+
+- each non-empty line must be valid JSON object
+- each row must include object field `raw_job`
+- uploaded rows are converted into canonical merged jobs JSON array snapshot
+
 ### Aggregate exports
 
 - `GET /admin/mapping-suggestions.json`

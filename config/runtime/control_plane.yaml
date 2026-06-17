@@ -31,13 +31,13 @@ control_plane:
     parts:
       enrich_extraction:
         provider: openai_compatible
-        model: cx/gpt-5.2
+        model: ds/deepseek-v4-flash
       ranking_ai_score:
         provider: openai_compatible
-        model: cx/gpt-5.2
+        model: ds/deepseek-v4-flash
       cv_generation_structured_write:
         provider: openai_compatible
-        model: cx/gpt-5.2
+        model: ds/deepseek-v4-flash
     task_overrides: {}
 
   observability:
@@ -56,3 +56,4 @@ control_plane:
       lease_seconds: 900
       reconciler_interval_seconds: 0
       error_details_max_chars: 2048
+

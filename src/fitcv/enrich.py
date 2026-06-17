@@ -31,6 +31,10 @@ from types import SimpleNamespace
 from pydantic import BaseModel as _BaseModel, Field as _Field, ValidationError as _ValidationError
 from fitcv.config import get_gemini_model, resolve_model_routing_part, sqlite_mode_enabled
 from fitcv.candidate import infer_role_family
+from fitcv.openai_compat import (
+    decode_openai_compat_response_body as _decode_openai_compat_response_body,
+    extract_openai_responses_text,
+)
 from fitcv.pipeline_stages.common import extract_job_url
 from fitcv.prompts import get_prompt_definition, render_prompt
 
@@ -280,6 +284,7 @@ ENRICH_SKILL_POSTPROCESSING_VERSION = "canonical_skill_entities_v1"
 ENRICH_CONTRACT_VERSION = "enrich_contract_v1"
 FRESH_ENRICHMENT_STATUS = "fresh_enrichment"
 REUSED_CACHED_ENRICHMENT_STATUS = "reused_cached_enrichment"
+_SPARSE_REQUIRED_SKILLS_THRESHOLD = 3
 
 # ── Markdown fence stripper ───────────────────────────────────────────────────
 
@@ -341,6 +346,30 @@ def _normalize_array_values(values: list[Any] | None) -> list[str]:
 
 def _build_canonical_list(raw_values: list[str], field_name: str, config: dict | None) -> list[str]:
     return [_canonicalize_text_item(field_name, raw_value, config) for raw_value in raw_values]
+
+
+def _dedupe_text_values(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = value.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(value)
+    return deduped
+
+
+def _dedupe_canonical_values(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = value.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
 
 
 def _normalise_confidence(value: Any) -> float | None:
@@ -544,6 +573,128 @@ def _build_array_companions(
         singular_prefix = "required_skill" if field_name == "required_skills" else "preferred_skill"
         companions[f"{singular_prefix}_entities"] = skill_entities
     return companions
+
+
+def _required_skill_fallback_values(
+    row: dict[str, Any],
+    config: dict | None,
+    *,
+    source_fields: tuple[str, ...] = ("tech_stack", "keywords"),
+) -> list[str]:
+    fallback_values: list[str] = []
+    for field_name in source_fields:
+        raw_values = row.get(field_name)
+        if not isinstance(raw_values, list):
+            continue
+        for raw_value in _normalize_array_values(raw_values):
+            canonical = _canonicalize_text_item("required_skills", raw_value, config)
+            if not _is_allowed_skill_entity(raw_value, canonical):
+                continue
+            fallback_values.append(raw_value)
+    return _dedupe_text_values(fallback_values)
+
+
+def _supplement_sparse_required_skills(
+    required_skills: list[str],
+    row: dict[str, Any],
+    config: dict | None,
+) -> list[str]:
+    if len(required_skills) >= _SPARSE_REQUIRED_SKILLS_THRESHOLD:
+        return required_skills
+
+    supplemented = list(required_skills)
+    existing_text = {value.strip().lower() for value in supplemented}
+    existing_canonical = {
+        canonical
+        for canonical in _build_canonical_list(supplemented, "required_skills", config)
+        if canonical.strip()
+    }
+    for raw_value in _required_skill_fallback_values(
+        row,
+        config,
+        source_fields=("tech_stack",),
+    ):
+        normalized_text = raw_value.strip().lower()
+        canonical = _canonicalize_text_item("required_skills", raw_value, config)
+        if normalized_text in existing_text or canonical in existing_canonical:
+            continue
+        supplemented.append(raw_value)
+        existing_text.add(normalized_text)
+        existing_canonical.add(canonical)
+    return supplemented
+
+
+def _repair_required_skill_signal(
+    row: dict[str, Any],
+    config: dict | None,
+) -> dict[str, Any]:
+    repaired = dict(row)
+    original_required_skills = _normalize_array_values(
+        repaired.get("required_skills") if isinstance(repaired.get("required_skills"), list) else []
+    )
+    required_skills = list(original_required_skills)
+    required_skills_changed = False
+    existing_required_entities = (
+        list(repaired.get("required_skill_entities"))
+        if isinstance(repaired.get("required_skill_entities"), list)
+        else []
+    )
+    required_entities = existing_required_entities
+    if not required_skills:
+        required_skills = _required_skill_fallback_values(repaired, config)
+        if required_skills:
+            required_skills_changed = True
+    else:
+        supplemented_required_skills = _supplement_sparse_required_skills(required_skills, repaired, config)
+        if supplemented_required_skills != required_skills:
+            required_skills = supplemented_required_skills
+            required_skills_changed = True
+    if required_skills_changed:
+        repaired["required_skills"] = required_skills
+    if required_skills and (required_skills_changed or not required_entities):
+        required_entities = _build_skill_entities(required_skills, "required_skills", config)
+    required_canonical = _normalize_array_values(
+        repaired.get("required_skills_canonical")
+        if isinstance(repaired.get("required_skills_canonical"), list)
+        else []
+    )
+    if required_skills_changed:
+        required_canonical = _dedupe_canonical_values(
+            _build_canonical_list(required_skills, "required_skills", config)
+        )
+    elif not required_canonical and required_entities:
+        required_canonical = _canonical_from_entities(
+            _normalise_skill_entities(required_entities, config=config)
+        )
+    if not required_canonical and required_skills:
+        required_canonical = _dedupe_canonical_values(
+            _build_canonical_list(required_skills, "required_skills", config)
+        )
+    repaired["required_skill_entities"] = required_entities
+    repaired["required_skills_canonical"] = required_canonical
+    return repaired
+
+
+def _is_semantically_blank_enrichment_row(row: dict[str, Any]) -> bool:
+    for field_name in (
+        "required_skills",
+        "required_skill_entities",
+        "preferred_skills",
+        "preferred_skill_entities",
+        "responsibilities",
+        "tech_stack",
+        "keywords",
+    ):
+        value = row.get(field_name)
+        if isinstance(value, list) and _normalize_array_values(value):
+            return False
+    for field_name in ("location_type", "seniority", "job_family", "domain"):
+        if _normalize_text_item(row.get(field_name)) is not None:
+            return False
+    for field_name in ("years_experience_min", "years_experience_max"):
+        if isinstance(row.get(field_name), int):
+            return False
+    return True
 
 
 def _coerce_field(key: str, value: Any, config: dict | None = None) -> Any:
@@ -1050,7 +1201,7 @@ def merge_scraped_and_enriched(
                 }
             )
         merged["role_family_mapping_suggestions"] = existing_role
-    return merged
+    return _repair_required_skill_signal(merged, config)
 
 
 def _parse_json_field(raw_value: Any) -> Any:
@@ -1159,7 +1310,7 @@ def lookup_reusable_structured_jobs(
                     continue
                 if not isinstance(cached_payload, dict):
                     continue
-                reusable_rows[job_url] = merge_scraped_and_enriched(
+                merged_row = merge_scraped_and_enriched(
                     normalized_job,
                     {
                         **cached_payload,
@@ -1169,6 +1320,9 @@ def lookup_reusable_structured_jobs(
                     },
                     config,
                 )
+                if _is_semantically_blank_enrichment_row(merged_row):
+                    continue
+                reusable_rows[job_url] = merged_row
         return reusable_rows
     if not project or not dataset or not key_path:
         logger.info(
@@ -1234,7 +1388,7 @@ def lookup_reusable_structured_jobs(
         normalized_job = normalized_by_url.get(job_url)
         if normalized_job is None:
             continue
-        reusable_rows[job_url] = merge_scraped_and_enriched(
+        merged_row = merge_scraped_and_enriched(
             normalized_job,
             {
                 **_cached_structured_row_to_enriched_payload(row_dict),
@@ -1244,6 +1398,9 @@ def lookup_reusable_structured_jobs(
             },
             config,
         )
+        if _is_semantically_blank_enrichment_row(merged_row):
+            continue
+        reusable_rows[job_url] = merged_row
     return reusable_rows
 
 
@@ -1314,19 +1471,8 @@ def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
                     json=responses_payload,
                 )
                 resp.raise_for_status()
-                body = dict(resp.json() or {})
-                text = str(body.get("output_text") or "").strip()
-                if not text:
-                    output = body.get("output") or []
-                    if isinstance(output, list):
-                        for item in output:
-                            for content_item in list((item or {}).get("content") or []):
-                                candidate = str(content_item.get("text") or "").strip()
-                                if candidate:
-                                    text = candidate
-                                    break
-                            if text:
-                                break
+                body = _decode_openai_compat_response_body(resp)
+                text = extract_openai_responses_text(body)
             else:
                 chat_payload = {
                     "model": resolved_model,
@@ -1340,7 +1486,7 @@ def _build_openai_compat_client(config: dict[str, Any]) -> Any | None:
                     json=chat_payload,
                 )
                 resp.raise_for_status()
-                body = dict(resp.json() or {})
+                body = _decode_openai_compat_response_body(resp)
                 text = str((((body.get("choices") or [{}])[0]).get("message") or {}).get("content") or "").strip()
         parsed: Any = None
         if text:
@@ -1711,12 +1857,16 @@ def load_structured_jobs(
     Returns:
         Number of rows upserted.
     """
+    cacheable_rows = [row for row in enriched if not _is_semantically_blank_enrichment_row(row)]
+    if not cacheable_rows:
+        return 0
+
     if sqlite_mode_enabled(config):
         with sqlite3.connect(_sqlite_path(), timeout=30) as conn:
             _configure_sqlite_connection(conn)
             _ensure_sqlite_structured_jobs_table(conn)
             rows = []
-            for row in enriched:
+            for row in cacheable_rows:
                 job_url = str(row.get("job_url") or "").strip()
                 if not job_url:
                     continue
@@ -1743,7 +1893,7 @@ def load_structured_jobs(
                 rows,
             )
             conn.commit()
-        return len(enriched)
+        return len(rows)
     from google.cloud import bigquery  # type: ignore[import-untyped]
     from google.oauth2 import service_account  # type: ignore[import-untyped]
 
@@ -1777,7 +1927,7 @@ def load_structured_jobs(
         source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
         schema=schema,
     )
-    load_rows = [_map_to_structured_jobs_row(row) for row in enriched]
+    load_rows = [_map_to_structured_jobs_row(row) for row in cacheable_rows]
     load_job = client.load_table_from_json(
         load_rows,
         staging_ref,
@@ -1795,7 +1945,7 @@ def load_structured_jobs(
     VALUES ({insert_vals})
     """
     client.query(merge_sql).result()
-    return len(enriched)
+    return len(load_rows)
 
 
 # ── integration: run-scoped append ───────────────────────────────────────────────
