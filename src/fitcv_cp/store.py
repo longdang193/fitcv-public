@@ -53,6 +53,7 @@ class RunStore(Protocol):
     ) -> bool: ...
     def archive_run(self, run_id: str, archived_by: str) -> None: ...
     def unarchive_run(self, run_id: str) -> None: ...
+    def delete_archived_runs(self, older_than_days: int | str, run_ids: list[str] | None = None) -> dict[str, Any]: ...
     def list_cvs_for_run(self, run_id: str) -> list[dict[str, Any]]: ...
     def get_cv_markdown(self, version_id: str) -> str | None: ...
     def list_run_structured_jobs(self, run_id: str) -> list[dict[str, Any]]: ...
@@ -85,6 +86,7 @@ class ControlPlaneStore:
     request_run_cancel_fn: Any | None = None
     archive_run_fn: Any | None = None
     unarchive_run_fn: Any | None = None
+    delete_archived_runs_fn: Any | None = None
     list_cvs_for_run_fn: Any | None = None
     get_cv_markdown_fn: Any | None = None
     list_run_structured_jobs_fn: Any | None = None
@@ -258,6 +260,17 @@ class ControlPlaneStore:
             dataset=self.dataset,
         )
 
+
+    def delete_archived_runs(self, older_than_days: int | str, run_ids: list[str] | None = None) -> dict[str, Any]:
+        return self._call_dict(
+            self.delete_archived_runs_fn,
+            bq_store.delete_archived_runs,
+            older_than_days,
+            self.bq,
+            project=self.project,
+            dataset=self.dataset,
+            run_ids=run_ids,
+        )
     def list_cvs_for_run(self, run_id: str) -> list[dict[str, Any]]:
         return self._call_list(
             self.list_cvs_for_run_fn,
@@ -389,3 +402,7 @@ class ControlPlaneStore:
             project=self.project,
             dataset=self.dataset,
         )
+
+
+
+

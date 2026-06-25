@@ -877,6 +877,26 @@
   function applyAxisFilters() {
     document.querySelectorAll('[data-entry-key]').forEach(function(row) {
       const visible = entryMatchesFilters(row);
+      row.classList.toggle('is-axis-hidden', !visible);
+    });
+    recomputeSettingsVisibility();
+  }
+
+  function applySearchFilter(term) {
+    const q = (term || '').trim().toLowerCase();
+    document.querySelectorAll('[data-entry-key]').forEach(function(row) {
+      const text = row.textContent.toLowerCase();
+      const match = q.length === 0 || text.includes(q);
+      row.classList.toggle('is-search-hidden', !match);
+    });
+    recomputeSettingsVisibility();
+  }
+
+  // ponytail: single owner for combined filter visibility; danger-zone
+  // is hidden only by axis filter, not search
+  function recomputeSettingsVisibility() {
+    document.querySelectorAll('[data-entry-key]').forEach(function(row) {
+      const visible = !row.classList.contains('is-axis-hidden') && !row.classList.contains('is-search-hidden');
       row.classList.toggle('is-filter-hidden', !visible);
     });
     document.querySelectorAll('.settings-panel').forEach(function(panel) {
@@ -889,8 +909,14 @@
       details.classList.toggle('is-filter-hidden', hidden);
     });
     document.querySelectorAll('[data-task-section]').forEach(function(section) {
-      const hasVisiblePanel = section.querySelector('.settings-panel:not(.is-filter-hidden)') !== null;
-      section.classList.toggle('is-filter-hidden', !hasVisiblePanel);
+      const isDanger = section.getAttribute('data-task-section') === 'danger-zone';
+      if (isDanger) {
+        const hasAxisVisible = section.querySelector('[data-entry-key]:not(.is-axis-hidden)') !== null;
+        section.classList.toggle('is-filter-hidden', !hasAxisVisible);
+      } else {
+        const hasVisiblePanel = section.querySelector('.settings-panel:not(.is-filter-hidden)') !== null;
+        section.classList.toggle('is-filter-hidden', !hasVisiblePanel);
+      }
     });
     const emptyState = document.getElementById('empty-filter-state');
     if (emptyState) {
@@ -1043,27 +1069,8 @@
     applyAxisFilters();
 
     const searchInput = document.getElementById('settings-search');
-    function applySearchFilter(term) {
-      const q = (term || '').trim().toLowerCase();
-      document.querySelectorAll('[data-entry-key]').forEach(function(row) {
-        const text = row.textContent.toLowerCase();
-        const match = q.length === 0 || text.includes(q);
-        if (!match) row.classList.add('is-filter-hidden');
-      });
-      document.querySelectorAll('.settings-panel').forEach(function(panel) {
-        const hasVisible = panel.querySelector('[data-entry-key]:not(.is-filter-hidden)') !== null;
-        panel.classList.toggle('is-filter-hidden', !hasVisible);
-      });
-      document.querySelectorAll('[data-task-section]').forEach(function(section) {
-        const hasVisiblePanel = section.querySelector('.settings-panel:not(.is-filter-hidden)') !== null;
-        if (section.getAttribute('data-task-section') !== 'danger-zone') {
-          section.classList.toggle('is-filter-hidden', !hasVisiblePanel);
-        }
-      });
-    }
     if (searchInput) {
       searchInput.addEventListener('input', function() {
-        applyAxisFilters();
         applySearchFilter(searchInput.value);
       });
     }

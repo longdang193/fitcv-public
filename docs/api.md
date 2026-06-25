@@ -316,6 +316,7 @@ These are primarily operator-facing action endpoints:
 - `POST /admin/runs/bulk/cancel`
 - `POST /admin/runs/bulk/archive`
 - `POST /admin/runs/bulk/unarchive`
+- `POST /admin/runs/bulk/delete-archived`
 - `POST /admin/runs/{run_id}/archive`
 - `POST /admin/runs/{run_id}/unarchive`
 - `POST /admin/runs/{run_id}/repair-cancellation`
@@ -328,6 +329,51 @@ These are primarily operator-facing action endpoints:
 - `POST /admin/runs/{run_id}/synonym-proposals/promote-preview`
 - `POST /admin/runs/{run_id}/synonym-proposals/promote-commit`
 - `POST /admin/runs/{run_id}/synonym-proposals/triage-refresh`
+
+
+### `POST /admin/runs/bulk/delete-archived`
+
+Purpose:
+
+- permanently delete archived runs that match one age filter derived from `archived_at`
+
+Request body:
+
+```json
+{
+  "older_than_days": 30
+}
+```
+
+`older_than_days` accepts fixed integers like `7`, `30`, `90`, or sentinel `"all"`.
+
+Typical success response:
+
+```json
+{
+  "status": "deleted",
+  "deleted_count": 42,
+  "deleted_run_ids": ["run-1", "run-2"],
+  "older_than_days": 30
+}
+```
+
+Empty-match response:
+
+```json
+{
+  "status": "no_matches",
+  "deleted_count": 0,
+  "deleted_run_ids": [],
+  "older_than_days": 30
+}
+```
+
+Notes:
+
+- route accepts optional preview-scoped `run_ids`; server still enforces archived status plus age-filter eligibility before deleting
+- action deletes matching archived run rows, event history, and deterministic local artifact mirrors
+- action does not clear shared caches or unrelated operator tables
 
 These generally redirect in the HTML workflow, and they may return conflict or
 not-found errors when the run is not in a valid state for the action.

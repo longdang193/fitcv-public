@@ -66,6 +66,14 @@ Operator lifecycle actions are exposed through run-scoped admin routes:
 - archive/unarchive run: `POST /admin/runs/{run_id}/archive`, `POST /admin/runs/{run_id}/unarchive`
 - bulk archive/unarchive/cancel: `POST /admin/runs/bulk/archive`, `POST /admin/runs/bulk/unarchive`, `POST /admin/runs/bulk/cancel`
 - reconciliation/repair when needed: `POST /admin/runs/{run_id}/repair-cancellation`
+- bulk delete archived runs: `POST /admin/runs/bulk/delete-archived`
+
+Archive and delete stay separate on purpose:
+
+- `Archive` hides run from active view but keeps run detail, events, and exports.
+- `Delete archived runs` is available only from `/admin/runs?view=archived`.
+- delete uses `archived_at` age, defaults to `Older than 30 days`, and sends the currently matched archived run ids from the UI preview so confirmation and execution stay aligned.
+- delete does not clear shared caches, embeddings, bookmarks, or settings.
 
 ## Settings Workflow
 

@@ -42,6 +42,7 @@ class PipelineState:
     cv_analysis_results: list[dict[str, Any]] = field(default_factory=list)
     cv_results: list[dict[str, Any]] = field(default_factory=list)
     cv_generation_debug_records: list[dict[str, Any]] = field(default_factory=list)
+    completed_stage: str | None = None
 
     @classmethod
     def from_checkpoint_payload(
@@ -50,15 +51,32 @@ class PipelineState:
         run_id: str,
         checkpoint_payload: dict[str, Any] | None,
     ) -> "PipelineState":
-        payload = checkpoint_payload or {}
-        if isinstance(payload.get("checkpoint_payload"), dict):
-            payload = dict(payload["checkpoint_payload"])
+        root_payload = dict(checkpoint_payload or {})
+        payload = root_payload
+        if isinstance(root_payload.get("checkpoint_payload"), dict):
+            payload = dict(root_payload["checkpoint_payload"])
+
+        schema_version = root_payload.get("schema_version", payload.get("schema_version"))
+        if schema_version is not None:
+            try:
+                normalized_schema_version = int(schema_version)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Unsupported checkpoint schema version: {schema_version}") from exc
+            if normalized_schema_version > cls.CHECKPOINT_SCHEMA_VERSION:
+                raise ValueError(
+                    f"Unsupported checkpoint schema version: {normalized_schema_version}"
+                )
+
         state = cls(run_id=run_id)
         for key in cls.payload_keys():
-            value = payload.get(key)
+            value = payload.get(key, root_payload.get(key))
             if key == "candidate_query_debug":
                 if isinstance(value, dict):
                     setattr(state, key, dict(value))
+                continue
+            if key == "completed_stage":
+                if isinstance(value, str) and value.strip():
+                    state.completed_stage = value.strip()
                 continue
             if isinstance(value, list):
                 setattr(state, key, list(value))
@@ -84,6 +102,7 @@ class PipelineState:
             "cv_analysis_results",
             "cv_results",
             "cv_generation_debug_records",
+            "completed_stage",
         )
 
     def as_state_dict(self) -> dict[str, Any]:
@@ -106,11 +125,17 @@ class PipelineState:
             "cv_analysis_results": list(self.cv_analysis_results),
             "cv_results": list(self.cv_results),
             "cv_generation_debug_records": list(self.cv_generation_debug_records),
+            "completed_stage": self.completed_stage,
         }
 
 
 def infer_last_completed_stage_from_state(state: dict[str, Any]) -> str | None:
+    explicit_stage = str(state.get("completed_stage") or state.get("last_completed_stage") or "").strip()
+    if explicit_stage:
+        return explicit_stage
+
     stage_state_keys = (
+        ("cv_generation", ("cv_results", "cv_generation_debug_records")),
         ("cv_analysis", ("cv_analysis_results",)),
         ("ranking", ("ranked", "ranking_inputs", "ai_scores")),
         ("shortlist", ("shortlist", "raw_shortlist", "backfilled_job_urls", "candidate_query_debug")),

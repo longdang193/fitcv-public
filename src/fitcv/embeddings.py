@@ -120,10 +120,14 @@ def get_shortlist_embedding_model(config: dict[str, Any]) -> str:
 
 def build_embedding_contract_fingerprint(config: dict[str, Any]) -> dict[str, Any]:
     """Fingerprint shortlist embedding behavior to invalidate reuse on contract drift."""
+    sqlite_backend = sqlite_mode_enabled(config)
     payload = {
+        "embedding_backend": "sqlite_deterministic_local" if sqlite_backend else "provider_managed",
+        "embedding_dimension": SQLITE_EMBED_DIM if sqlite_backend else None,
         "embedding_model": get_shortlist_embedding_model(config),
         "summary_schema_version": SHORTLIST_SUMMARY_SCHEMA_VERSION,
     }
+    payload = {key: value for key, value in payload.items() if value is not None}
     fingerprint = build_contract_fingerprint(payload)
     return {
         "payload": payload,
@@ -504,10 +508,11 @@ def embed_and_store_jobs(
         for job in structured_jobs
         if str(job.get("job_url") or "")
     ]
+    reuse_allowed = get_embedding_failure_policy(config) == EMBEDDING_FAILURE_POLICY_RAISE
     latest_metadata_by_url = _load_latest_job_embedding_metadata(
         client=client,
         table_ref=table_ref,
-        job_urls=job_urls,
+        job_urls=job_urls if reuse_allowed else [],
     )
 
     rows: list[dict[str, Any]] = []
@@ -515,7 +520,7 @@ def embed_and_store_jobs(
         signature_record = build_job_summary_signature_record(job)
         job["embedding_input_signature"] = signature_record["signature"]
         job["embedding_contract_fingerprint"] = embedding_contract["fingerprint"]
-        latest_metadata = latest_metadata_by_url.get(str(job.get("job_url") or ""))
+        latest_metadata = latest_metadata_by_url.get(str(job.get("job_url") or "")) if reuse_allowed else None
         if latest_metadata and (
             latest_metadata.get("embedding_input_signature") == signature_record["signature"]
             and latest_metadata.get("embedding_contract_fingerprint") == embedding_contract["fingerprint"]

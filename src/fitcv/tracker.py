@@ -16,6 +16,7 @@ lifecycle:
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -23,6 +24,8 @@ from typing import Any
 from fitcv.config import sqlite_mode_enabled
 from fitcv.contracts import DEFAULT_APPLICATION_STATUSES
 from fitcv.persistence import build_bigquery_client
+
+logger = logging.getLogger(__name__)
 
 
 # ── default status enum ───────────────────────────────────────────────────────
@@ -188,6 +191,7 @@ def store_cv_version(record: dict[str, Any], config: dict[str, Any]) -> None:
 
     errors = client.insert_rows_json(table_ref, [record])
     if errors and _is_missing_structured_cv_column_error(errors):
+        logger.warning("legacy cv_versions schema fallback for %s", record.get("job_url") or "")
         legacy_record = _legacy_cv_version_record(record)
         errors = client.insert_rows_json(table_ref, [legacy_record])
     if errors:

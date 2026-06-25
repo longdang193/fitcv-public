@@ -1866,6 +1866,7 @@ def enrich_batch(
     config: dict[str, Any],
     *,
     job_event_callback: Callable[[dict[str, Any]], None] | None = None,
+    on_chunk_complete: Callable[[list[dict[str, Any]]], None] | None = None,
 ) -> list[dict[str, Any]]:
     """Enrich a batch of normalized jobs with bounded parallel execution.
 
@@ -1887,8 +1888,13 @@ def enrich_batch(
     Rate limiting: request-start pacing is shared across chunk workers using a
     global slot scheduler. This preserves global throttling while allowing
     overlapping in-flight API calls when latency exceeds pacing interval.
+
+    Incremental persistence: if on_chunk_complete is provided, it is called with
+    each chunk's results immediately after that chunk finishes (in completion
+    order). This allows callers to persist partial results incrementally rather
+    than waiting for the entire batch to complete.
     """
-    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     batch_size = int(config.get("enrichment_batch_size", 10))
     concurrency = int(config.get("enrichment_concurrency", 1))
@@ -1902,21 +1908,29 @@ def enrich_batch(
     if not chunks:
         return []
 
-    # Submit all chunks; collect futures in original order
+    # Submit all chunks; collect futures in original order while allowing
+    # completion-driven callbacks for incremental persistence.
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        futures = [
-            executor.submit(_enrich_chunk, chunk, config, job_event_callback=job_event_callback)
-            for chunk in chunks
-        ]
+        future_to_idx = {
+            executor.submit(_enrich_chunk, chunk, config, job_event_callback=job_event_callback): idx
+            for idx, chunk in enumerate(chunks)
+        }
 
         # Collect results by original chunk index, not completion order.
         # This preserves deterministic merged output ordering.
-        chunk_results: list[list[dict[str, Any]]] = [None] * len(futures)  # type: ignore[list-item]
-        for idx, future in enumerate(futures):
+        chunk_results: list[list[dict[str, Any]]] = [None] * len(future_to_idx)  # type: ignore[list-item]
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
             # Calling .result() re-raises any exception from the chunk.
             # This preserves fail-fast semantics: if any chunk raises a
             # non-recoverable exception, it propagates here immediately.
-            chunk_results[idx] = future.result()
+            chunk_result = future.result()
+            chunk_results[idx] = chunk_result
+            if on_chunk_complete is not None and chunk_result:
+                try:
+                    on_chunk_complete(chunk_result)
+                except Exception:
+                    logger.warning('on_chunk_complete callback failed for chunk %d', idx, exc_info=True)
 
     # Flatten chunk results in original chunk order
     results: list[dict[str, Any]] = []
@@ -2284,7 +2298,9 @@ def load_run_structured_jobs(
 
 
 def _sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+    from fitcv.persistence import get_local_sqlite_path
+
+    return get_local_sqlite_path()
 
 
 def _configure_sqlite_connection(conn: sqlite3.Connection) -> None:

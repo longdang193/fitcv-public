@@ -338,6 +338,9 @@ def archive_run(run_id: str, archived_by: str, bq: Any, *, project: str, dataset
 def unarchive_run(run_id: str, bq: Any, *, project: str, dataset: str) -> None:
     _resolve_run_store(bq, project=project, dataset=dataset).unarchive_run(run_id)
 
+def delete_archived_runs(older_than_days: int | str, bq: Any, *, project: str, dataset: str, run_ids: list[str] | None = None) -> dict[str, Any]:
+    return dict(_resolve_run_store(bq, project=project, dataset=dataset).delete_archived_runs(older_than_days, run_ids))
+
 
 def list_cvs_for_run(run_id: str, bq: Any, *, project: str, dataset: str) -> list[dict[str, Any]]:
     return _resolve_run_store(bq, project=project, dataset=dataset).list_cvs_for_run(run_id)
@@ -5887,6 +5890,25 @@ class BulkRunActionRequest(BaseModel):
         deduped = list(dict.fromkeys(filtered))
         return deduped
 
+class BulkDeleteArchivedRunsRequest(BaseModel):
+    older_than_days: int | str
+    run_ids: list[str] | None = None
+
+    @field_validator("older_than_days")
+    @classmethod
+    def validate_older_than_days(cls, v: int | str) -> int | str:
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized == "all":
+                return "all"
+            if not normalized.isdigit():
+                raise ValueError("older_than_days must be a positive integer or all")
+            value = int(normalized)
+        else:
+            value = int(v)
+        if value <= 0:
+            raise ValueError("older_than_days must be a positive integer or all")
+        return value
 class CvReviewActionRequest(BaseModel):
     review_item_id: str | None = None
     job_url: str
@@ -8420,6 +8442,27 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             "skipped_items": skipped_items,
         }
 
+    @app.post("/admin/runs/bulk/delete-archived")
+    def admin_bulk_delete_archived_runs(payload: BulkDeleteArchivedRunsRequest) -> dict[str, Any]:
+        result = delete_archived_runs(payload.older_than_days, bq, project=project, dataset=dataset, run_ids=payload.run_ids)
+        deleted_count = int(result.get("deleted_count") or 0)
+        deleted_run_ids = [str(item) for item in list(result.get("deleted_run_ids") or []) if str(item).strip()]
+        status = "deleted" if deleted_count > 0 else "no_matches"
+        logger.info(
+            "Admin bulk delete archived runs completed",
+            extra={
+                "older_than_days": payload.older_than_days,
+                "deleted_count": deleted_count,
+                "deleted_run_ids": deleted_run_ids,
+                "status": status,
+            },
+        )
+        return {
+            "status": status,
+            "deleted_count": deleted_count,
+            "deleted_run_ids": deleted_run_ids,
+            "older_than_days": payload.older_than_days,
+        }
     @app.post("/admin/runs/{run_id}/synonym-overlay")
     async def admin_upload_run_synonym_overlay(
         request: Request,
@@ -11734,6 +11777,10 @@ def _run_to_dict(run: PipelineRun) -> dict:
 def _is_hitl_resolution_pending(resolution_status: str | None) -> bool:
     normalized = str(resolution_status or "").strip().lower() or "pending"
     return normalized not in _HITL_TERMINAL_RESOLUTION_STATUSES
+
+
+
+
 
 
 

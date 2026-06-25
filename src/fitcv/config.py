@@ -317,11 +317,13 @@ def resolve_model_routing_part(
     model_name = str(part_cfg.get("model") or "").strip() or str(model_fallback or "").strip()
     base_url = str(provider_cfg.get("base_url") or "").strip()
     wire_api = str(provider_cfg.get("wire_api") or "").strip()
+    timeout_seconds = str(provider_cfg.get("timeout_seconds") or "").strip()
     return {
         "provider": provider_name,
         "model": model_name,
         "base_url": base_url,
         "wire_api": wire_api,
+        "timeout_seconds": timeout_seconds,
     }
 
 def resolve_langgraph_runtime_expectation(
@@ -624,6 +626,10 @@ def apply_runtime_synonym_overlay(
     base_role_family_neighbors = _normalize_neighbor_map(updated_cfg.get("role_family_neighbors"))
     merged_role_family_neighbors = dict(base_role_family_neighbors)
     merged_role_family_neighbors.update(overlay_role_family_neighbors)
+    merged_role_taxonomy = dict(updated_cfg.get("role_taxonomy") or {})
+    merged_nested_role_family_neighbors = _normalize_neighbor_map(merged_role_taxonomy.get("role_family_neighbors"))
+    merged_nested_role_family_neighbors.update(overlay_role_family_neighbors)
+    merged_role_taxonomy["role_family_neighbors"] = dict(merged_nested_role_family_neighbors)
 
     runtime["pre_run_overlay_skill_synonyms"] = dict(base_effective_synonyms)
     runtime["has_overlay"] = bool(runtime.get("overlay_paths") or overlay_skill_synonyms)
@@ -653,6 +659,7 @@ def apply_runtime_synonym_overlay(
     updated_cfg["role_family_alias_map"] = merged_role_family_alias_map
     updated_cfg["domain_neighbors"] = merged_domain_neighbors
     updated_cfg["role_family_neighbors"] = merged_role_family_neighbors
+    updated_cfg["role_taxonomy"] = merged_role_taxonomy
     updated_cfg["skill_synonyms_runtime"] = runtime
     return updated_cfg
 

@@ -53,14 +53,13 @@ def resolve_cv_generation_routing(config: dict[str, Any]) -> CvGenerationRouting
 
 def build_langgraph_env_overrides() -> dict[str, str]:
     try:
-        enrich_route = resolve_model_routing_part("enrich_extraction")
         cv_route = resolve_model_routing_part("cv_generation_structured_write")
     except Exception:
         return {}
 
-    provider = str(enrich_route.get("provider") or "").strip()
-    base_url = str(enrich_route.get("base_url") or "").strip()
-    wire_api = str(enrich_route.get("wire_api") or "").strip()
+    provider = str(cv_route.get("provider") or "").strip()
+    base_url = str(cv_route.get("base_url") or "").strip()
+    wire_api = str(cv_route.get("wire_api") or "").strip()
     model = str(cv_route.get("model") or "").strip()
     overrides: dict[str, str] = {}
     if provider:

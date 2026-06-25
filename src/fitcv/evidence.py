@@ -1174,7 +1174,12 @@ def _score_required_skill_support_components(
     )
 
 
-def _score_role_alignment(item: dict[str, Any], job_context: dict[str, Any]) -> float:
+def _score_role_alignment(
+    item: dict[str, Any],
+    job_context: dict[str, Any],
+    *,
+    config: dict[str, Any] | None = None,
+) -> float:
     job_title = _normalize_optional_text(job_context.get("job_title"))
     job_family = _normalize_text(job_context.get("job_family")) or infer_role_family(job_title)
     item_family = _item_role_family(item)
@@ -1183,7 +1188,7 @@ def _score_role_alignment(item: dict[str, Any], job_context: dict[str, Any]) -> 
     if job_family and item_family:
         if job_family == item_family:
             family_score = 1.0
-        elif item_family in _role_family_neighbors().get(job_family, frozenset()):
+        elif item_family in _role_family_neighbors(config).get(job_family, frozenset()):
             family_score = ROLE_ALIGNMENT_NEIGHBOR_SCORE
 
     lexical_score = _overlap_ratio(
@@ -1207,7 +1212,7 @@ def _score_role_alignment_components(
         config=config,
         semantic_settings=semantic_settings,
         runtime_state=runtime_state,
-        lexical_score_fn=_score_role_alignment,
+        lexical_score_fn=lambda item_, job_context_: _score_role_alignment(item_, job_context_, config=config),
         semantic_job_texts_fn=_job_role_texts,
         semantic_item_text_fn=_item_role_text,
         lexical_weight_key="role_lexical_weight",
@@ -1862,7 +1867,9 @@ def retrieve_evidence(
 
 
 def _local_sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+    from fitcv.persistence import get_local_sqlite_path
+
+    return get_local_sqlite_path()
 
 
 

@@ -88,6 +88,11 @@
       {{ render_bookmark_rows(submitted_bookmarks) }}
     {% endif %}
 
+    {% if archived_bookmarks %}
+      <div style="font-weight:700;margin-top:0.9rem;margin-bottom:0.55rem">Archived</div>
+      {{ render_bookmark_rows(archived_bookmarks) }}
+    {% endif %}
+
     {% if not active_bookmarks and not submitted_bookmarks and not archived_bookmarks %}
       <div class="meta">No bookmarked jobs yet. Save jobs from Pipeline Results to see them here.</div>
     {% endif %}

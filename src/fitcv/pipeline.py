@@ -134,6 +134,12 @@ from fitcv.ranking import (
     rank_jobs,
     store_final_ranking,
 )
+from fitcv.late_stage_contract import (
+    cv_generation_status_for_analysis_status as _shared_cv_generation_status_for_analysis_status,
+    deterministic_truth_fields as _shared_deterministic_truth_fields,
+    shortlist_status_for_ranked_job as _shared_shortlist_status_for_ranked_job,
+    validation_status_for_cv_status as _shared_validation_status_for_cv_status,
+)
 from fitcv.ranking_contract import fit_label_from_score
 from fitcv.rule_filter import (
     apply_pre_enrichment_global_filters,
@@ -327,12 +333,55 @@ def _materialize_scoring_shortlist(
     return scoring_shortlist
 
 
+
+def _finalize_fresh_enriched_rows(
+    rows: list[dict[str, Any]],
+    *,
+    raw_job_fingerprints: dict[str, str],
+    enrich_contract_fingerprint: str,
+) -> list[dict[str, Any]]:
+    for row in rows:
+        job_url = extract_job_url(row)
+        if not job_url:
+            continue
+        row["raw_job_fingerprint"] = raw_job_fingerprints.get(job_url)
+        row["enrich_contract_fingerprint"] = enrich_contract_fingerprint
+        row["enrich_reuse_status"] = FRESH_ENRICHMENT_STATUS
+        row["reuse_decision"] = build_reuse_decision(
+            decision=FRESH_ENRICHMENT_STATUS,
+            reason_code="no_reusable_enrichment_row",
+            fingerprint=raw_job_fingerprints.get(job_url),
+            source_artifact_type="enrich",
+        )
+    return rows
+
+
+def _finalize_reused_enriched_row(
+    row: dict[str, Any],
+    *,
+    raw_job_fingerprints: dict[str, str],
+    enrich_contract_fingerprint: str,
+) -> dict[str, Any]:
+    job_url = extract_job_url(row)
+    if not job_url:
+        return row
+    row["raw_job_fingerprint"] = raw_job_fingerprints.get(job_url)
+    row["enrich_contract_fingerprint"] = enrich_contract_fingerprint
+    row["enrich_reuse_status"] = REUSED_CACHED_ENRICHMENT_STATUS
+    row["reuse_decision"] = build_reuse_decision(
+        decision=REUSED_CACHED_ENRICHMENT_STATUS,
+        reason_code="exact_fingerprint_match",
+        fingerprint=raw_job_fingerprints.get(job_url),
+        source_artifact_type="enrich",
+    )
+    return row
 def _enrich_jobs_with_reuse(
     normalized_jobs: list[dict[str, Any]],
     config: dict[str, Any],
     *,
     pipeline_store: PipelineStore | None = None,
     heartbeat_callback: Callable[[dict[str, Any]], None] | None = None,
+    incremental_save_run_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     import threading
 
@@ -377,6 +426,7 @@ def _enrich_jobs_with_reuse(
         if extract_job_url(job) and extract_job_url(job) not in reused_rows_by_url
     ]
     fresh_rows: list[dict[str, Any]] = []
+    incrementally_saved_fresh_urls: set[str] = set()
 
     def _run_enrich_call_with_polling(
         fn: Callable[[], list[dict[str, Any]]],
@@ -446,6 +496,21 @@ def _enrich_jobs_with_reuse(
         except ValueError:
             heartbeat_interval_secs = 15
 
+        def _persist_incremental_fresh_rows(rows: list[dict[str, Any]]) -> None:
+            if not incremental_save_run_id or not rows:
+                return
+            finalized_rows = _finalize_fresh_enriched_rows(
+                rows,
+                raw_job_fingerprints=raw_job_fingerprints,
+                enrich_contract_fingerprint=enrich_contract_fingerprint,
+            )
+            pipeline_store.load_structured_jobs(finalized_rows, config)
+            pipeline_store.load_run_structured_jobs(finalized_rows, incremental_save_run_id, config)
+            for row in finalized_rows:
+                job_url = extract_job_url(row)
+                if job_url:
+                    incrementally_saved_fresh_urls.add(job_url)
+
         if debug_heartbeat_enabled:
             total = len(fresh_jobs)
             for idx, job in enumerate(fresh_jobs, start=1):
@@ -481,6 +546,7 @@ def _enrich_jobs_with_reuse(
                     ) from exc
                 if batch_rows:
                     fresh_rows.extend(batch_rows)
+                    _persist_incremental_fresh_rows(batch_rows)
                 if heartbeat_callback:
                     heartbeat_callback(
                         {
@@ -539,11 +605,18 @@ def _enrich_jobs_with_reuse(
                         "heartbeat_interval_secs": heartbeat_interval_secs,
                     }
                 )
+            def _on_chunk_complete(chunk_rows: list[dict[str, Any]]) -> None:
+                try:
+                    _persist_incremental_fresh_rows(chunk_rows)
+                except Exception:
+                    logger.warning("Incremental save failed for chunk", exc_info=True)
+
             fresh_rows = _run_enrich_call_with_polling(
                 lambda: enrich_batch(
                     fresh_jobs,
                     config,
                     job_event_callback=_job_event_callback if emit_job_events_enabled else None,
+                    on_chunk_complete=_on_chunk_complete if incremental_save_run_id else None,
                 ),
                 heartbeat_interval_secs=heartbeat_interval_secs,
                 on_progress=(
@@ -568,19 +641,24 @@ def _enrich_jobs_with_reuse(
                         "fresh_rows_total": len(fresh_rows),
                     }
                 )
-        for row in fresh_rows:
-            job_url = extract_job_url(row)
-            if not job_url:
-                continue
-            row["raw_job_fingerprint"] = raw_job_fingerprints.get(job_url)
-            row["enrich_contract_fingerprint"] = enrich_contract_fingerprint
-            row["enrich_reuse_status"] = FRESH_ENRICHMENT_STATUS
-            row["reuse_decision"] = build_reuse_decision(
-                decision=FRESH_ENRICHMENT_STATUS,
-                reason_code="no_reusable_enrichment_row",
-                fingerprint=raw_job_fingerprints.get(job_url),
-                source_artifact_type="enrich",
-            )
+        _finalize_fresh_enriched_rows(
+            fresh_rows,
+            raw_job_fingerprints=raw_job_fingerprints,
+            enrich_contract_fingerprint=enrich_contract_fingerprint,
+        )
+        pending_fresh_rows = [
+            row
+            for row in fresh_rows
+            if (extract_job_url(row) or "") not in incrementally_saved_fresh_urls
+        ]
+        if pending_fresh_rows and pipeline_store is not None:
+            pipeline_store.load_structured_jobs(pending_fresh_rows, config)
+            if incremental_save_run_id:
+                pipeline_store.load_run_structured_jobs(
+                    pending_fresh_rows,
+                    incremental_save_run_id,
+                    config,
+                )
 
     fresh_rows_by_url = {
         extract_job_url(row): row
@@ -588,28 +666,31 @@ def _enrich_jobs_with_reuse(
         if extract_job_url(row)
     }
     enriched_rows: list[dict[str, Any]] = []
+    reused_rows: list[dict[str, Any]] = []
     for job in normalized_jobs:
         job_url = extract_job_url(job)
         if not job_url:
             continue
         reused_row = reused_rows_by_url.get(job_url)
         if reused_row is not None:
-            reused_row["raw_job_fingerprint"] = raw_job_fingerprints.get(job_url)
-            reused_row["enrich_contract_fingerprint"] = enrich_contract_fingerprint
-            reused_row["enrich_reuse_status"] = REUSED_CACHED_ENRICHMENT_STATUS
-            reused_row["reuse_decision"] = build_reuse_decision(
-                decision=REUSED_CACHED_ENRICHMENT_STATUS,
-                reason_code="exact_fingerprint_match",
-                fingerprint=raw_job_fingerprints.get(job_url),
-                source_artifact_type="enrich",
+            finalized_reused_row = _finalize_reused_enriched_row(
+                reused_row,
+                raw_job_fingerprints=raw_job_fingerprints,
+                enrich_contract_fingerprint=enrich_contract_fingerprint,
             )
-            enriched_rows.append(reused_row)
+            reused_rows.append(finalized_reused_row)
+            enriched_rows.append(finalized_reused_row)
             continue
         fresh_row = fresh_rows_by_url.get(job_url)
         if fresh_row is not None:
             enriched_rows.append(fresh_row)
+    if incremental_save_run_id and reused_rows and pipeline_store is not None:
+        pipeline_store.load_run_structured_jobs(
+            reused_rows,
+            incremental_save_run_id,
+            config,
+        )
     return enriched_rows, fresh_rows
-
 
 def _enrich_runtime_projection(config: dict[str, Any]) -> dict[str, Any]:
     projected = dict(config)
@@ -1261,6 +1342,10 @@ def _checkpoint_payload_from_state(state: dict[str, Any]) -> dict[str, Any]:
         if key == "candidate_query_debug":
             payload[key] = json_safe_value(state.get(key) or {})
             continue
+        if key == "completed_stage":
+            value = str(state.get(key) or state.get("last_completed_stage") or "").strip()
+            payload[key] = value or None
+            continue
         payload[key] = json_safe_value(state.get(key) or [])
     return payload
 
@@ -1478,7 +1563,9 @@ def _build_checkpoint_summary(
         late_stage_mode=late_stage_mode_payload,
     )
     summary["paused_after_stage"] = paused_after_stage
-    summary["checkpoint_payload"] = _checkpoint_payload_from_state(state)
+    checkpoint_payload = _checkpoint_payload_from_state(state)
+    checkpoint_payload["completed_stage"] = paused_after_stage
+    summary["checkpoint_payload"] = checkpoint_payload
     return summary
 
 
@@ -1792,78 +1879,15 @@ def _shortlist_status_for_export_row(
 
 
 def _shortlist_status_for_ranked_job(job: dict[str, Any]) -> str:
-    shortlist_origin = str(job.get("shortlist_origin") or "").strip().lower()
-    if shortlist_origin == "backfill":
-        return "backfilled_for_scoring"
-    return "returned_by_vector_search"
+    return _shared_shortlist_status_for_ranked_job(job)
 
 
 def _validation_status_for_cv_status(status: str) -> str:
-    if status == "accepted":
-        return "accepted"
-    if status == "validation_failed":
-        return "failed"
-    if status == "persistence_failed":
-        return "accepted"
-    return "not_run"
+    return _shared_validation_status_for_cv_status(status)
 
 
 def _deterministic_truth_fields(status: str | None) -> dict[str, str | None]:
-    normalized_status = str(status or "").strip()
-    if not normalized_status:
-        return {
-            "deterministic_outcome": None,
-            "stage_owned_subreason": None,
-            "source_stage": None,
-        }
-    if normalized_status == "accepted":
-        return {
-            "deterministic_outcome": "accepted",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_generation",
-        }
-    if normalized_status == CV_GENERATION_REVIEW_REQUIRED_STATUS:
-        return {
-            "deterministic_outcome": "not_applicable",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_generation",
-        }
-    if normalized_status in {"validation_failed", "generation_failed", "persistence_failed"}:
-        return {
-            "deterministic_outcome": "rejected",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_generation",
-        }
-    if normalized_status == CV_ANALYSIS_BLOCKED_BY_RERANKER_STATUS:
-        return {
-            "deterministic_outcome": "blocked",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_analysis",
-        }
-    if normalized_status == CV_ANALYSIS_SKIPPED_FIT_GATE_STATUS:
-        return {
-            "deterministic_outcome": "skipped",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_analysis",
-        }
-    if normalized_status in {CV_ANALYSIS_FAILED_STATUS}:
-        return {
-            "deterministic_outcome": "rejected",
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_analysis",
-        }
-    if normalized_status == CV_ANALYSIS_READY_FOR_GENERATION_STATUS:
-        return {
-            "deterministic_outcome": None,
-            "stage_owned_subreason": normalized_status,
-            "source_stage": "cv_analysis",
-        }
-    return {
-        "deterministic_outcome": None,
-        "stage_owned_subreason": None,
-        "source_stage": None,
-    }
-
+    return _shared_deterministic_truth_fields(status)
 
 _bounded_event_payload = _build_bounded_event_payload_observability
 
@@ -2124,14 +2148,7 @@ def _authoritative_ranking_fit_label(
 
 
 def _cv_generation_status_for_analysis_status(status: str) -> str:
-    if status in {
-        CV_ANALYSIS_READY_FOR_GENERATION_STATUS,
-        CV_ANALYSIS_SKIPPED_FIT_GATE_STATUS,
-        CV_ANALYSIS_BLOCKED_BY_RERANKER_STATUS,
-        CV_ANALYSIS_FAILED_STATUS,
-    }:
-        return "not_attempted"
-    return "failed"
+    return _shared_cv_generation_status_for_analysis_status(status)
 
 
 def _build_decision_chain(
@@ -3837,6 +3854,7 @@ def run_pipeline(
                     surviving_normalized,
                     enrich_runtime_config,
                     pipeline_store=pipeline_store,
+                    incremental_save_run_id=run_id,
                     heartbeat_callback=(
                         (lambda payload: reporter.emit(  # type: ignore[union-attr]
                             "enrich_heartbeat",
@@ -3850,9 +3868,6 @@ def run_pipeline(
                         if reporter is not None else None
                     ),
                 )
-                if fresh_enriched_rows:
-                    pipeline_store.load_structured_jobs(fresh_enriched_rows, enrich_runtime_config)
-                pipeline_store.load_run_structured_jobs(enriched, run_id, enrich_runtime_config)
                 reused_count = sum(
                     1 for row in enriched
                     if str(row.get("enrich_reuse_status") or "") == REUSED_CACHED_ENRICHMENT_STATUS
@@ -6889,6 +6904,11 @@ def run_pipeline(
                     ),
                 )  # type: ignore[union-attr]
     return summary
+
+
+
+
+
 
 
 

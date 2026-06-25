@@ -49,3 +49,15 @@ Owns stage execution, ranking and CV lanes, validation, artifact emission, and s
 - [configuration.md](configuration.md)
 - [pipeline.md](pipeline.md)
 - [component_boundaries.md](component_boundaries.md)
+
+
+## Patch Notes
+
+- checkpoint resume now prefers explicit completed-stage checkpoint metadata over payload-shape inference when available
+- CV-generation env overrides now resolve from one route owner
+- role-taxonomy neighbor scoring now uses configured runtime taxonomy consistently across ranking/evidence, including run-scoped overlay parity
+- embedding reuse now treats fallback-capable provider mode as non-reusable by default
+- sqlite helper consolidation landed for local path wrappers; broader BigQuery helper consolidation remains deferred because shared client construction is high-blast-radius
+- large cleanup refactors such as pipeline-stage-runner adoption and reuse-engine deletion remain deferred; current characterization shows these modules are not imported by active `src/` or `tests/` surfaces
+
+

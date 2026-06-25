@@ -1402,6 +1402,95 @@ def unarchive_run(
     _execute_query_with_pipeline_runs_retry(bq, sql, job_config=job_config)
 
 
+
+def _delete_local_pipeline_run(run_id: str) -> None:
+    _LOCAL_RUNS.pop(run_id, None)
+    db_path = Path(_local_sqlite_path())
+    if db_path.exists():
+        with _sqlite_connection(db_path) as conn:
+            _ensure_local_pipeline_runs_table(conn)
+            _ensure_local_pipeline_run_events_table(conn)
+            conn.execute("DELETE FROM local_pipeline_runs WHERE run_id = ?", (run_id,))
+            conn.execute("DELETE FROM local_pipeline_run_events WHERE run_id = ?", (run_id,))
+            conn.commit()
+    event_file = _local_event_history_file(run_id)
+    if event_file.exists():
+        event_file.unlink()
+
+
+def _delete_run_artifact_mirror(run_id: str) -> None:
+    mirror_dir = Path("artifacts") / f"live_run_{run_id}"
+    if mirror_dir.exists():
+        shutil.rmtree(mirror_dir, ignore_errors=True)
+
+
+def delete_archived_runs(
+    older_than_days: int | str,
+    bq: Any,
+    *,
+    project: str,
+    dataset: str,
+    run_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    delete_all = isinstance(older_than_days, str) and older_than_days == "all"
+    cutoff = None if delete_all else now - datetime.timedelta(days=int(older_than_days))
+    selected_run_ids = {str(run_id).strip() for run_id in (run_ids or []) if str(run_id).strip()}
+
+    if bq is None:
+        deleted_run_ids: list[str] = []
+        for run in _list_local_pipeline_runs():
+            if run.archived_at is None:
+                continue
+            if selected_run_ids and run.run_id not in selected_run_ids:
+                continue
+            if cutoff is not None and run.archived_at > cutoff:
+                continue
+            deleted_run_ids.append(run.run_id)
+            _delete_local_pipeline_run(run.run_id)
+            _delete_run_artifact_mirror(run.run_id)
+        return {"deleted_count": len(deleted_run_ids), "deleted_run_ids": deleted_run_ids}
+
+    if cutoff is None:
+        select_sql = (
+            f"SELECT run_id FROM `{project}.{dataset}.pipeline_runs` "
+            f"WHERE archived_at IS NOT NULL ORDER BY archived_at ASC"
+        )
+        select_job_config = None
+    else:
+        select_sql = (
+            f"SELECT run_id FROM `{project}.{dataset}.pipeline_runs` "
+            f"WHERE archived_at IS NOT NULL AND archived_at <= @cutoff ORDER BY archived_at ASC"
+        )
+        select_job_config = bq_module.QueryJobConfig(
+            query_parameters=[
+                bq_module.ScalarQueryParameter("cutoff", "TIMESTAMP", cutoff),
+            ]
+        )
+    rows = bq.query(select_sql, job_config=select_job_config).result()
+    deleted_run_ids = [str(row.get("run_id") if isinstance(row, dict) else row[0]) for row in rows]
+    deleted_run_ids = [run_id for run_id in deleted_run_ids if run_id]
+    if selected_run_ids:
+        deleted_run_ids = [run_id for run_id in deleted_run_ids if run_id in selected_run_ids]
+    if not deleted_run_ids:
+        return {"deleted_count": 0, "deleted_run_ids": []}
+
+    delete_job_config = bq_module.QueryJobConfig(
+        query_parameters=[bq_module.ArrayQueryParameter("run_ids", "STRING", deleted_run_ids)]
+    )
+    event_sql = (
+        f"DELETE FROM `{project}.{dataset}.pipeline_run_events` "
+        f"WHERE run_id IN UNNEST(@run_ids)"
+    )
+    runs_sql = (
+        f"DELETE FROM `{project}.{dataset}.pipeline_runs` "
+        f"WHERE run_id IN UNNEST(@run_ids)"
+    )
+    _execute_query_with_pipeline_runs_retry(bq, event_sql, job_config=delete_job_config)
+    _execute_query_with_pipeline_runs_retry(bq, runs_sql, job_config=delete_job_config)
+    for run_id in deleted_run_ids:
+        _delete_run_artifact_mirror(run_id)
+    return {"deleted_count": len(deleted_run_ids), "deleted_run_ids": deleted_run_ids}
 def get_events(run_id: str, bq: Any, *, project: str, dataset: str) -> list[RunEvent]:
     if bq is None:
         events = _list_local_pipeline_run_events(run_id)
@@ -1936,3 +2025,4 @@ def insert_cv_version_row(row: dict[str, Any], bq: Any, *, project: str, dataset
 
     table = f"{project}.{dataset}.cv_versions"
     return list(bq.insert_rows_json(table, [row]))
+

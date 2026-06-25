@@ -53,6 +53,9 @@ canonical: true
       --code-color:  #c7d2fe;
       --code-border: #312e81;
       --divider:     #1e293b;
+      --surface-0:   #0f1117;
+      --panel-bg:    #1a1d2e;
+      --card-bg:     #1a1d2e;
     }
     :root[data-theme="light"] {
       --bg:          #f8fafc;
@@ -80,6 +83,9 @@ canonical: true
       --code-color:  #4338ca;
       --code-border: #c7d2fe;
       --divider:     #e2e8f0;
+      --surface-0:   #f8fafc;
+      --panel-bg:    #ffffff;
+      --card-bg:     #ffffff;
     }
 
     /* ── Reset & base ─────────────────────────────────────────────────────── */
@@ -383,6 +389,7 @@ canonical: true
       letter-spacing: 0.04em;
     }
     .badge-queued    { background: var(--badge-neutral-bg); color: var(--badge-neutral-fg); }
+    .badge-neutral  { background: var(--badge-neutral-bg); color: var(--badge-neutral-fg); }
     .badge-running   { background: var(--badge-info-bg);    color: var(--badge-info-fg); }
     .badge-succeeded { background: var(--badge-success-bg); color: var(--badge-success-fg); }
     .badge-failed    { background: var(--badge-error-bg);   color: var(--badge-error-fg); }
@@ -539,3 +546,4 @@ canonical: true
   </script>
 </body>
 </html>
+

@@ -15,7 +15,6 @@ lifecycle:
   - status: active
 """
 
-import os
 import sqlite3
 import time
 from collections.abc import Callable
@@ -28,7 +27,9 @@ T = TypeVar("T")
 
 
 def sqlite_path() -> str:
-    return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+    from fitcv.persistence import get_local_sqlite_path
+
+    return get_local_sqlite_path()
 
 
 def configure_sqlite_connection(conn: sqlite3.Connection) -> None:
@@ -96,12 +97,6 @@ def build_contract_fingerprint(payload: dict[str, Any]) -> str:
 
 def build_bigquery_client(config: dict[str, Any]) -> Any:
     """Build BigQuery client using optional service-account key path."""
-    from google.cloud import bigquery  # type: ignore[import-untyped]
-    from google.oauth2 import service_account  # type: ignore[import-untyped]
+    from fitcv.persistence import build_bigquery_client as _build_bigquery_client
 
-    project = str(config["gcp_project"])
-    key_path = str(config.get("service_account_key") or "")
-    if key_path:
-        credentials = service_account.Credentials.from_service_account_file(key_path)
-        return bigquery.Client(project=project, credentials=credentials)
-    return bigquery.Client(project=project)
+    return _build_bigquery_client(config)

@@ -26,6 +26,12 @@ from fitcv.evidence import (
     retrieve_evidence_bundle,
 )
 from fitcv.gap_analysis import compute_gap
+from fitcv.late_stage_contract import (
+    cv_generation_status_for_analysis_status as _shared_cv_generation_status_for_analysis_status,
+    shortlist_status_for_ranked_job as _shared_shortlist_status_for_ranked_job,
+    validation_status_for_cv_status as _shared_validation_status_for_cv_status,
+)
+from fitcv.ranking_contract import fit_label_from_score
 
 BLOCKED_BY_RERANKER_STATUS: Final[Literal["blocked_by_reranker_fit"]] = "blocked_by_reranker_fit"
 READY_FOR_GENERATION_STATUS: Final[Literal["ready_for_generation"]] = "ready_for_generation"
@@ -132,14 +138,7 @@ def _build_runtime_provenance() -> dict[str, Any]:
 
 
 def _fit_label_from_ai_score(score: float, config: dict[str, Any]) -> FitClassification:
-    thresholds = dict(config.get("fit_label_thresholds") or {})
-    strong_threshold = float(thresholds.get("strong", 0.70))
-    stretch_threshold = float(thresholds.get("stretch", 0.40))
-    if score >= strong_threshold:
-        return "strong"
-    if score >= stretch_threshold:
-        return "stretch"
-    return "skip"
+    return cast(FitClassification, fit_label_from_score(score, config))
 
 
 def resolve_ranked_job_fit(job: dict[str, Any], config: dict[str, Any]) -> FitClassification:
@@ -153,20 +152,11 @@ def resolve_ranked_job_fit(job: dict[str, Any], config: dict[str, Any]) -> FitCl
 
 
 def _shortlist_status_for_ranked_job(job: dict[str, Any]) -> str:
-    shortlist_origin = str(job.get("shortlist_origin") or "").strip().lower()
-    if shortlist_origin == "backfill":
-        return "backfilled_for_scoring"
-    return "returned_by_vector_search"
+    return _shared_shortlist_status_for_ranked_job(job)
 
 
 def _validation_status_for_cv_status(status: str) -> str:
-    if status == "accepted":
-        return "accepted"
-    if status == "validation_failed":
-        return "failed"
-    if status == "persistence_failed":
-        return "accepted"
-    return "not_run"
+    return _shared_validation_status_for_cv_status(status)
 
 
 def _authoritative_ranking_fit_label(
@@ -182,8 +172,7 @@ def _authoritative_ranking_fit_label(
 
 
 def _cv_generation_status_for_analysis_status(status: AnalysisStatus) -> str:
-    del status
-    return "not_attempted"
+    return _shared_cv_generation_status_for_analysis_status(status)
 
 
 def _build_cv_analysis_trace_record(

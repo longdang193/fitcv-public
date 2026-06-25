@@ -1,0 +1,32 @@
+<div style="overflow:auto;max-height:14rem;border:1px solid var(--accent);border-radius:6px">
+  <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+    <thead>
+      <tr style="background:var(--panel-bg)">
+        <th style="text-align:left;padding:0.35rem 0.5rem">Alias</th>
+        <th style="text-align:left;padding:0.35rem 0.5rem">Canonical</th>
+        <th style="text-align:left;padding:0.35rem 0.5rem">Decision</th>
+        <th style="text-align:left;padding:0.35rem 0.5rem">Recommendation</th>
+        <th style="text-align:left;padding:0.35rem 0.5rem">Queue Source</th>
+        <th style="text-align:left;padding:0.35rem 0.5rem">Last Action / Why</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in synonym_proposal_decision_ledger %}
+      <tr>
+        <td style="padding:0.3rem 0.5rem"><code>{{ row.alias }}</code></td>
+        <td style="padding:0.3rem 0.5rem"><code>{{ row.canonical }}</code></td>
+        <td style="padding:0.3rem 0.5rem">
+          <span class="badge badge-{{ 'warning' if row.decision == 'pending' else ('success' if row.decision == 'approve' else ('error' if row.decision == 'reject' else ('info' if row.decision == 'defer' else 'neutral'))) }}">{{ row.decision_display or row.decision or '—' }}</span>
+          {% if row.is_overridden %}<span class="badge badge-info" style="margin-left:0.25rem">Overridden</span>{% endif %}
+        </td>
+        <td style="padding:0.3rem 0.5rem">{% if row.recommendation_display and row.recommendation_display != '—' %}<span class="badge badge-neutral">{{ row.recommendation_display }}</span>{% else %}—{% endif %}</td>
+        <td style="padding:0.3rem 0.5rem">{{ row.decision_source_display or row.decision_source }}</td>
+        <td style="padding:0.3rem 0.5rem">
+          <div>{{ row.last_action_display or '—' }}</div>
+          <div class="meta">{{ row.decision_reason_display or row.decision_reason }}</div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

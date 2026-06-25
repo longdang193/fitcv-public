@@ -153,42 +153,7 @@
   </div>
   {% endif %}
   {% if synonym_proposal_decision_ledger %}
-  <div style="margin:0.2rem 0 0.85rem 0">
-    <div class="meta" style="margin-bottom:0.15rem"><strong>Synonym Decisions</strong></div>
-    <div class="meta" style="margin-bottom:0.35rem">Decision = current state. Recommendation = model suggestion. Queue Source = provenance only.</div>
-    <div style="overflow:auto;max-height:14rem;border:1px solid var(--accent);border-radius:6px">
-      <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
-        <thead>
-          <tr style="background:var(--panel-bg)">
-            <th style="text-align:left;padding:0.35rem 0.5rem">Alias</th>
-            <th style="text-align:left;padding:0.35rem 0.5rem">Canonical</th>
-            <th style="text-align:left;padding:0.35rem 0.5rem">Decision</th>
-            <th style="text-align:left;padding:0.35rem 0.5rem">Recommendation</th>
-            <th style="text-align:left;padding:0.35rem 0.5rem">Queue Source</th>
-            <th style="text-align:left;padding:0.35rem 0.5rem">Last Action / Why</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in synonym_proposal_decision_ledger %}
-          <tr>
-            <td style="padding:0.3rem 0.5rem"><code>{{ row.alias }}</code></td>
-            <td style="padding:0.3rem 0.5rem"><code>{{ row.canonical }}</code></td>
-            <td style="padding:0.3rem 0.5rem">
-              <span class="badge badge-{{ 'warning' if row.decision == 'pending' else ('success' if row.decision == 'approve' else ('error' if row.decision == 'reject' else ('info' if row.decision == 'defer' else 'neutral'))) }}">{{ row.decision_display or row.decision or '—' }}</span>
-              {% if row.is_overridden %}<span class="badge badge-info" style="margin-left:0.25rem">Overridden</span>{% endif %}
-            </td>
-            <td style="padding:0.3rem 0.5rem">{% if row.recommendation_display and row.recommendation_display != '—' %}<span class="badge badge-neutral">{{ row.recommendation_display }}</span>{% else %}—{% endif %}</td>
-            <td style="padding:0.3rem 0.5rem">{{ row.decision_source_display or row.decision_source }}</td>
-            <td style="padding:0.3rem 0.5rem">
-              <div>{{ row.last_action_display or '—' }}</div>
-              <div class="meta">{{ row.decision_reason_display or row.decision_reason }}</div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  {% include "_synonym_decision_ledger.html" %}
   {% else %}
   <div class="meta" style="margin:0.2rem 0 0.85rem 0;padding:0.55rem 0.65rem;border:1px solid var(--accent);border-radius:6px">
     Proposal Decision Ledger: no rows yet (all suppressed or none generated).
@@ -354,25 +319,25 @@
 
 <div class="inspection-card">
 <!-- ── Inspection Tab Bar ────────────────────────────────────────────────── -->
-<div class="tab-bar--attached">
-  <button class="tab-btn active" id="tab-btn-enriched"   onclick="showTab('enriched')">📊 Enriched Jobs</button>
-  <button class="tab-btn"        id="tab-btn-jobs-input" onclick="showTab('jobs-input')">📄 Original Job Input</button>
-  <button class="tab-btn"        id="tab-btn-profile"    onclick="showTab('profile')">👤 Candidate Profile</button>
+<div class="tab-bar--attached" role="tablist" aria-label="Run inspection views">
+  <button class="tab-btn active" id="tab-btn-enriched" type="button" role="tab" aria-controls="pane-enriched" aria-selected="true" onclick="showTab('enriched')">📊 Enriched Jobs</button>
+  <button class="tab-btn"        id="tab-btn-jobs-input" type="button" role="tab" aria-controls="pane-jobs-input" aria-selected="false" onclick="showTab('jobs-input')">📄 Original Job Input</button>
+  <button class="tab-btn"        id="tab-btn-profile" type="button" role="tab" aria-controls="pane-profile" aria-selected="false" onclick="showTab('profile')">👤 Candidate Profile</button>
 </div>
 
-<div class="pane-container tab-pane active" id="pane-enriched" data-tab-id="enriched" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/enriched">
+<div class="pane-container tab-pane active" id="pane-enriched" role="tabpanel" aria-labelledby="tab-btn-enriched" data-tab-id="enriched" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/enriched">
   <div class="card tab-loading-state">
     <p class="meta">Enriched job diagnostics load on demand.</p>
   </div>
 </div>
 
-<div class="pane-container tab-pane" id="pane-jobs-input" data-tab-id="jobs-input" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/jobs-input">
+<div class="pane-container tab-pane" id="pane-jobs-input" role="tabpanel" aria-labelledby="tab-btn-jobs-input" hidden data-tab-id="jobs-input" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/jobs-input">
   <div class="card tab-loading-state">
     <p class="meta">Original trigger input snapshot loads on demand.</p>
   </div>
 </div>
 
-<div class="pane-container tab-pane" id="pane-profile" data-tab-id="profile" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/profile">
+<div class="pane-container tab-pane" id="pane-profile" role="tabpanel" aria-labelledby="tab-btn-profile" hidden data-tab-id="profile" data-tab-url="/admin/runs/{{ run.run_id }}/tabs/profile">
   <div class="card tab-loading-state">
     <p class="meta">Candidate profile snapshot loads on demand.</p>
   </div>
@@ -722,14 +687,19 @@
 </div>{% endif %}  </div></details><script>
 function showTab(id) {
   document.querySelectorAll('.tab-pane').forEach(p => {
-    p.style.display = 'none';
     p.classList.remove('active');
+    p.hidden = true;
   });
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   const pane = document.getElementById('pane-' + id);
-  pane.style.display = 'block';
   pane.classList.add('active');
-  document.getElementById('tab-btn-' + id).classList.add('active');
+  pane.hidden = false;
+  const button = document.getElementById('tab-btn-' + id);
+  button.classList.add('active');
+  button.setAttribute('aria-selected', 'true');
   ensureTabLoaded(id);
 }
 
@@ -1279,21 +1249,3 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 {% endblock %}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
