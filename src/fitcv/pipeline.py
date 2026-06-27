@@ -84,6 +84,7 @@ from fitcv.pipeline_stages.common import (
     pipeline_int,
     extract_job_title,
     extract_job_url,
+    job_identity_keys,
     normalize_shortlist_row,
     json_safe_value,
     shortlist_outcome_for_row,
@@ -142,6 +143,7 @@ from fitcv.late_stage_contract import (
 )
 from fitcv.ranking_contract import fit_label_from_score
 from fitcv.rule_filter import (
+    DEFAULT_SELECTED_RULE_FILTERS,
     apply_pre_enrichment_global_filters,
     apply_rule_filters,
     store_filter_results,
@@ -739,42 +741,63 @@ def _build_export_results(
     cv_generation_debug_records: list[dict[str, Any]],
     vector_search_top_n: int,
 ) -> list[dict[str, Any]]:
-    original_by_url = {extract_job_url(job): job for job in raw_jobs if extract_job_url(job)}
-    enriched_by_url = {extract_job_url(job): job for job in enriched if extract_job_url(job)}
-    passed_by_url = {extract_job_url(job): job for job in passed_jobs if extract_job_url(job)}
-    raw_shortlist_by_url = {
-        extract_job_url(job): normalize_shortlist_row(job)
-        for job in raw_shortlist
-        if extract_job_url(job)
-    }
-    scoring_shortlist_by_url = {
-        extract_job_url(job): normalize_shortlist_row(job)
-        for job in shortlist_for_scoring
-        if extract_job_url(job)
-    }
-    scoring_by_url = {extract_job_url(job): job for job in ranking_inputs if extract_job_url(job)}
-    ranked_by_url = {extract_job_url(job): job for job in ranked if extract_job_url(job)}
-    analysis_by_url = {
-        str(record.get("job_url") or ""): record
-        for record in cv_analysis_results
-        if str(record.get("job_url") or "")
-    }
-    cv_by_url = {str(item["job_url"]): item for item in cv_results if item.get("job_url")}
-    passed_job_urls = set(passed_by_url)
-    debug_by_url = {
-        str(record.get("job_url") or ""): record
+    def _identity_seed(row: dict[str, Any]) -> dict[str, Any]:
+        seeded = dict(row)
+        seeded["source_job_url"] = str(
+            seeded.get("source_job_url")
+            or seeded.get("job_url")
+            or seeded.get("jobUrl")
+            or ""
+        ).strip()
+        return seeded
+
+    def _index_rows_by_identity(
+        items: list[dict[str, Any]],
+        *,
+        transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        indexed: dict[str, dict[str, Any]] = {}
+        for item in items:
+            seeded = _identity_seed(item)
+            payload = transform(seeded) if transform is not None else seeded
+            for identity_key in job_identity_keys(seeded):
+                indexed[identity_key] = payload
+        return indexed
+
+    def _identity_keys_for(row: dict[str, Any]) -> list[str]:
+        return job_identity_keys(_identity_seed(row))
+
+    def _lookup(indexed: dict[str, dict[str, Any]], row: dict[str, Any]) -> dict[str, Any] | None:
+        for identity_key in _identity_keys_for(row):
+            match = indexed.get(identity_key)
+            if match is not None:
+                return match
+        return None
+
+    def _matches(identity_index: set[str], row: dict[str, Any]) -> bool:
+        return any(identity_key in identity_index for identity_key in _identity_keys_for(row))
+
+    enriched_by_identity = _index_rows_by_identity(enriched)
+    passed_by_identity = _index_rows_by_identity(passed_jobs)
+    raw_shortlist_by_identity = _index_rows_by_identity(raw_shortlist, transform=normalize_shortlist_row)
+    scoring_shortlist_by_identity = _index_rows_by_identity(shortlist_for_scoring, transform=normalize_shortlist_row)
+    scoring_by_identity = _index_rows_by_identity(ranking_inputs)
+    ranked_by_identity = _index_rows_by_identity(ranked)
+    analysis_by_identity = _index_rows_by_identity(cv_analysis_results)
+    cv_by_identity = _index_rows_by_identity(cv_results)
+    passed_job_urls = {extract_job_url(job) for job in passed_jobs if extract_job_url(job)}
+    debug_by_identity = _index_rows_by_identity(cv_generation_debug_records)
+    skipped_fit_gate_identity_keys = {
+        identity_key
         for record in cv_generation_debug_records
-        if str(record.get("job_url") or "")
+        if str(record.get("status") or "") == "skipped_fit_gate"
+        for identity_key in _identity_keys_for(record)
     }
-    skipped_fit_gate_urls = {
-        str(record.get("job_url") or "")
+    blocked_by_reranker_identity_keys = {
+        identity_key
         for record in cv_generation_debug_records
-        if str(record.get("status") or "") == "skipped_fit_gate" and str(record.get("job_url") or "")
-    }
-    blocked_by_reranker_urls = {
-        str(record.get("job_url") or "")
-        for record in cv_generation_debug_records
-        if str(record.get("status") or "") == CV_ANALYSIS_BLOCKED_BY_RERANKER_STATUS and str(record.get("job_url") or "")
+        if str(record.get("status") or "") == CV_ANALYSIS_BLOCKED_BY_RERANKER_STATUS
+        for identity_key in _identity_keys_for(record)
     }
     deduplicated_by_input_index = {
         int(job.get("input_index", -1)): job
@@ -782,46 +805,45 @@ def _build_export_results(
         if job.get("input_index") is not None
     }
 
-    reject_reasons_by_url: dict[str, list[str]] = {}
-    rule_filter_marks_by_url: dict[str, list[dict[str, Any]]] = {
-        extract_job_url(job): list(job.get("marks") or [])
-        for job in passed_jobs
-        if extract_job_url(job)
-    }
-    rejected_before_enrichment_urls: set[str] = set()
-    rejected_after_enrichment_urls: set[str] = set()
+    reject_reasons_by_identity: dict[str, list[str]] = {}
+    rule_filter_marks_by_identity: dict[str, list[dict[str, Any]]] = {}
+    for job in passed_jobs:
+        marks = list(job.get("marks") or [])
+        for identity_key in _identity_keys_for(job):
+            rule_filter_marks_by_identity[identity_key] = marks
+    rejected_before_enrichment_identity_keys: set[str] = set()
+    rejected_after_enrichment_identity_keys: set[str] = set()
     for rejected in pre_filter_rejected:
-        job_url = str(rejected.get("job_url") or "")
-        if not job_url:
-            continue
-        reject_reasons_by_url[job_url] = list(rejected.get("reasons") or [])
-        rejected_before_enrichment_urls.add(job_url)
+        reject_reasons = list(rejected.get("reasons") or [])
+        for identity_key in _identity_keys_for(rejected):
+            reject_reasons_by_identity[identity_key] = reject_reasons
+            rejected_before_enrichment_identity_keys.add(identity_key)
     for rejected in candidate_filter_rejected:
-        job_url = str(rejected.get("job_url") or "")
-        if not job_url:
-            continue
-        reject_reasons_by_url[job_url] = list(rejected.get("reasons") or [])
-        rule_filter_marks_by_url[job_url] = list(rejected.get("marks") or [])
-        rejected_after_enrichment_urls.add(job_url)
+        reject_reasons = list(rejected.get("reasons") or [])
+        marks = list(rejected.get("marks") or [])
+        for identity_key in _identity_keys_for(rejected):
+            reject_reasons_by_identity[identity_key] = reject_reasons
+            rule_filter_marks_by_identity[identity_key] = marks
+            rejected_after_enrichment_identity_keys.add(identity_key)
 
-    def _status_for(job_url: str) -> str:
-        if job_url in cv_by_url:
+    def _status_for(raw_job: dict[str, Any]) -> str:
+        if _lookup(cv_by_identity, raw_job) is not None:
             return "ranked_with_cv"
-        if job_url in blocked_by_reranker_urls:
+        if _matches(blocked_by_reranker_identity_keys, raw_job):
             return PIPELINE_STATUS_RANKED_BLOCKED_BY_RERANKER
-        if job_url in skipped_fit_gate_urls:
+        if _matches(skipped_fit_gate_identity_keys, raw_job):
             return "ranked_skipped_fit_gate"
-        if job_url in ranked_by_url:
+        if _lookup(ranked_by_identity, raw_job) is not None:
             return "ranked_no_cv"
-        if job_url in rejected_before_enrichment_urls:
+        if _matches(rejected_before_enrichment_identity_keys, raw_job):
             return "rejected_before_enrichment"
-        if job_url in rejected_after_enrichment_urls:
+        if _matches(rejected_after_enrichment_identity_keys, raw_job):
             return "rejected_after_enrichment"
-        if job_url in scoring_by_url:
+        if _lookup(scoring_by_identity, raw_job) is not None:
             return "scored_not_ranked"
-        if job_url in scoring_shortlist_by_url:
+        if _lookup(scoring_shortlist_by_identity, raw_job) is not None:
             return "shortlisted_not_scored"
-        if job_url in passed_by_url:
+        if _lookup(passed_by_identity, raw_job) is not None:
             return "not_shortlisted"
         return "unknown_pipeline_state"
 
@@ -851,15 +873,16 @@ def _build_export_results(
     rows: list[dict[str, Any]] = []
     for input_index, raw_job in enumerate(raw_jobs):
         job_url = extract_job_url(raw_job)
-        enriched_job = enriched_by_url.get(job_url)
+        seeded_raw_job = _identity_seed(raw_job)
+        enriched_job = _lookup(enriched_by_identity, seeded_raw_job)
         deduplicated_job = deduplicated_by_input_index.get(input_index)
         score_source = {
-            **scoring_shortlist_by_url.get(job_url, {}),
-            **scoring_by_url.get(job_url, {}),
-            **ranked_by_url.get(job_url, {}),
+            **(_lookup(scoring_shortlist_by_identity, seeded_raw_job) or {}),
+            **(_lookup(scoring_by_identity, seeded_raw_job) or {}),
+            **(_lookup(ranked_by_identity, seeded_raw_job) or {}),
         }
-        cv_row = cv_by_url.get(job_url)
-        analysis_row = analysis_by_url.get(job_url)
+        cv_row = _lookup(cv_by_identity, seeded_raw_job)
+        analysis_row = _lookup(analysis_by_identity, seeded_raw_job)
         cv_payload = None
         if cv_row is not None:
             cv_payload = {
@@ -886,9 +909,23 @@ def _build_export_results(
                 "markdown": cv_row.get("cv_markdown"),
                 "created_at": cv_row.get("generated_at"),
             }
-        pipeline_status = _status_for(job_url)
-        reject_reasons = reject_reasons_by_url.get(job_url, [])
-        rule_filter_marks = rule_filter_marks_by_url.get(job_url, [])
+        pipeline_status = _status_for(seeded_raw_job)
+        reject_reasons = next(
+            (
+                reject_reasons_by_identity[identity_key]
+                for identity_key in _identity_keys_for(seeded_raw_job)
+                if identity_key in reject_reasons_by_identity
+            ),
+            [],
+        )
+        rule_filter_marks = next(
+            (
+                rule_filter_marks_by_identity[identity_key]
+                for identity_key in _identity_keys_for(seeded_raw_job)
+                if identity_key in rule_filter_marks_by_identity
+            ),
+            [],
+        )
         if deduplicated_job is not None:
             pipeline_status = "deduplicated_before_enrichment"
             reject_reasons = [
@@ -896,11 +933,13 @@ def _build_export_results(
             ]
             score_source = {}
 
-        raw_shortlist_row = raw_shortlist_by_url.get(job_url)
-        scoring_shortlist_row = scoring_shortlist_by_url.get(job_url)
-        if job_url in passed_by_url:
+        raw_shortlist_row = _lookup(raw_shortlist_by_identity, seeded_raw_job)
+        scoring_shortlist_row = _lookup(scoring_shortlist_by_identity, seeded_raw_job)
+        matched_passed_job = _lookup(passed_by_identity, seeded_raw_job)
+        matched_passed_job_url = extract_job_url(matched_passed_job or {})
+        if matched_passed_job is not None and matched_passed_job_url:
             shortlist_status = _shortlist_status_for_export_row(
-                job_url=job_url,
+                job_url=matched_passed_job_url,
                 passed_job_urls=passed_job_urls,
                 raw_shortlist_row=raw_shortlist_row,
                 scoring_shortlist_row=scoring_shortlist_row,
@@ -912,10 +951,10 @@ def _build_export_results(
         ranking_fit_source = str(score_source.get("fit_label_source") or "").strip() or None
         if ranking_fit_label is not None and ranking_fit_source is None:
             ranking_fit_source = "reranker"
-        debug_row = debug_by_url.get(job_url)
+        debug_row = _lookup(debug_by_identity, seeded_raw_job)
         if debug_row is not None:
             cv_status = str(debug_row.get("status") or "not_attempted")
-        elif job_url in ranked_by_url:
+        elif _lookup(ranked_by_identity, seeded_raw_job) is not None:
             cv_status = "not_attempted"
         else:
             cv_status = "not_applicable"
@@ -924,7 +963,7 @@ def _build_export_results(
         else:
             decision_chain = _build_decision_chain(
                 shortlist_status=shortlist_status,
-                advanced_to_scoring=job_url in scoring_shortlist_by_url,
+                advanced_to_scoring=_lookup(scoring_shortlist_by_identity, seeded_raw_job) is not None,
                 ranking_fit_label=ranking_fit_label,
                 ranking_fit_source=ranking_fit_source,
                 cv_status=cv_status,
@@ -940,6 +979,16 @@ def _build_export_results(
         rows.append(
             {
                 "job_url": job_url,
+                "source_job_url": str(raw_job.get("source_job_url") or job_url),
+                "raw_job_fingerprint": (
+                    str(
+                        (enriched_job or {}).get("raw_job_fingerprint")
+                        or raw_job.get("raw_job_fingerprint")
+                        or score_source.get("raw_job_fingerprint")
+                        or ""
+                    ).strip()
+                    or None
+                ),
                 "job_title": extract_job_title(enriched_job or raw_job or {}),
                 "company": (enriched_job or raw_job or {}).get("company_name")
                 or (enriched_job or raw_job or {}).get("companyName"),
@@ -3257,12 +3306,7 @@ def _build_stage_transition_artifacts(
             config.get("rule_filter", {}) if isinstance(config.get("rule_filter"), dict) else {}
         ).get(
             "selected_filters",
-            [
-                "seniority_mismatch",
-                "location_type_excluded",
-                "contract_type_excluded",
-                "experience_level_excluded",
-            ],
+            DEFAULT_SELECTED_RULE_FILTERS,
         )
     )
     ranking_fit_distribution: dict[str, int] = {}

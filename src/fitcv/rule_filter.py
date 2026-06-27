@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 RULE_FILTER_SIGNALS: tuple[dict[str, Any], ...] = (
     {"code": "seniority_mismatch", "label": "Seniority mismatch", "default_selected": True},
+    {"code": "missing_fit_context", "label": "Missing fit context", "default_selected": True},
     {"code": "location_type_excluded", "label": "Location type excluded", "default_selected": True},
     {"code": "contract_type_excluded", "label": "Contract type excluded", "default_selected": True},
     {"code": "experience_level_excluded", "label": "Experience level excluded", "default_selected": True},
@@ -212,6 +213,14 @@ def check_location_type(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
         return True
     return location_type in allowed
 
+
+def check_fit_context(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
+    """Return True when at least one normalized fit-context field exists."""
+    del prefs
+    return any(
+        str(job.get(field_name) or "").strip()
+        for field_name in ("location_type", "seniority", "job_family", "domain")
+    )
 
 def check_contract_type(job: dict[str, Any], prefs: dict[str, Any]) -> bool:
     """Return True if job contract_type is permitted by include/exclude prefs."""
@@ -457,6 +466,7 @@ def apply_rule_filters(
     """
     checks: list[tuple[str, Any]] = [
         ("seniority_mismatch",        lambda j, p: check_seniority(j, p, config)),
+        ("missing_fit_context",       check_fit_context),
         ("location_type_excluded",    check_location_type),
         ("contract_type_excluded",    check_contract_type),
         ("experience_level_excluded", check_experience_level),
@@ -491,13 +501,22 @@ def apply_rule_filters(
         if reasons:
             rejected.append({
                 "job_url": str(job.get("job_url", "")),
+                "raw_job_fingerprint": job.get("raw_job_fingerprint"),
+                "source_job_url": job.get("source_job_url") or job.get("job_url"),
                 "reasons": reasons,
                 "marks": marks,
             })
         else:
             job_url = str(job.get("job_url", ""))
             passed.append(job_url)
-            passed_records.append({"job_url": job_url, "marks": marks})
+            passed_records.append(
+                {
+                    "job_url": job_url,
+                    "raw_job_fingerprint": job.get("raw_job_fingerprint"),
+                    "source_job_url": job.get("source_job_url") or job_url,
+                    "marks": marks,
+                }
+            )
 
     return {"passed": passed, "passed_records": passed_records, "rejected": rejected}
 
@@ -517,7 +536,73 @@ def store_filter_results(
     Requires GOOGLE_APPLICATION_CREDENTIALS.
     Decorated with @pytest.mark.integration in tests.
     """
+    now = datetime.now(tz=timezone.utc).isoformat()
+    rows: list[dict[str, Any]] = []
+    passed_records_by_url = {
+        str(item.get("job_url") or ""): item
+        for item in result.get("passed_records", [])
+        if str(item.get("job_url") or "")
+    }
+    for job_url in result.get("passed", []):
+        passed_record = passed_records_by_url.get(str(job_url)) or {}
+        rows.append({
+            "job_url": job_url,
+            "source_job_url": passed_record.get("source_job_url") or job_url,
+            "raw_job_fingerprint": passed_record.get("raw_job_fingerprint"),
+            "passed": True,
+            "reasons": [],
+            "marks_json": json.dumps(list(passed_record.get("marks") or []), ensure_ascii=False),
+            "filtered_at": now,
+            "run_id": run_id,
+        })
+    for item in result.get("rejected", []):
+        rows.append({
+            "job_url": item["job_url"],
+            "source_job_url": item.get("source_job_url") or item["job_url"],
+            "raw_job_fingerprint": item.get("raw_job_fingerprint"),
+            "passed": False,
+            "reasons": item["reasons"],
+            "marks_json": json.dumps(list(item.get("marks") or []), ensure_ascii=False),
+            "filtered_at": now,
+            "run_id": run_id,
+        })
+
     if sqlite_mode_enabled(config):
+        from fitcv_cp import bq_store as cp_bq_store
+        from pathlib import Path
+
+        db_path = Path(cp_bq_store._local_sqlite_path())
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        with cp_bq_store._sqlite_connection(db_path) as conn:
+            cp_bq_store._ensure_local_rule_filter_results_table(conn)
+            conn.execute("DELETE FROM rule_filter_results WHERE run_id = ?", (run_id,))
+            for row in rows:
+                conn.execute(
+                    """
+                    INSERT INTO rule_filter_results (
+                        run_id,
+                        job_url,
+                        passed,
+                        reasons,
+                        marks_json,
+                        filtered_at,
+                        raw_job_fingerprint,
+                        source_job_url
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row["run_id"],
+                        row["job_url"],
+                        1 if row["passed"] else 0,
+                        json.dumps(list(row.get("reasons") or []), ensure_ascii=False),
+                        row["marks_json"],
+                        row["filtered_at"],
+                        row.get("raw_job_fingerprint"),
+                        row.get("source_job_url"),
+                    ),
+                )
+            conn.commit()
         return
     from google.cloud import bigquery  # type: ignore[import-untyped]
     from google.oauth2 import service_account  # type: ignore[import-untyped]
@@ -531,31 +616,6 @@ def store_filter_results(
     else:
         client = bigquery.Client(project=project)
     table_ref = f"{project}.{dataset}.rule_filter_results"
-    now = datetime.now(tz=timezone.utc).isoformat()
-
-    rows: list[dict[str, Any]] = []
-    passed_records_by_url = {
-        str(item.get("job_url") or ""): item
-        for item in result.get("passed_records", [])
-        if str(item.get("job_url") or "")
-    }
-    for job_url in result.get("passed", []):
-        rows.append({
-            "job_url": job_url, "passed": True, "reasons": [],
-            "marks_json": json.dumps(
-                list((passed_records_by_url.get(str(job_url)) or {}).get("marks") or []),
-                ensure_ascii=False,
-            ),
-            "filtered_at": now, "run_id": run_id,
-        })
-    for item in result.get("rejected", []):
-        rows.append({
-            "job_url": item["job_url"], "passed": False,
-            "reasons": item["reasons"],
-            "marks_json": json.dumps(list(item.get("marks") or []), ensure_ascii=False),
-            "filtered_at": now,
-            "run_id": run_id,
-        })
 
     if rows:
         errors = client.insert_rows_json(table_ref, rows)

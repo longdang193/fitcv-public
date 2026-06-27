@@ -26,6 +26,19 @@ TERMINAL_REVIEW_RESOLUTION_STATUSES = {
     "regenerated_and_rejected",
 }
 
+def normalize_review_resolution_status(action_name: Any, explicit_status: Any) -> str:
+    normalized_explicit = str(explicit_status or "").strip().lower()
+    if normalized_explicit:
+        return normalized_explicit
+    normalized_action = str(action_name or "").strip().lower()
+    if normalized_action in {"approve", "approve_as_is"}:
+        return "approved_as_is"
+    if normalized_action == "reject":
+        return "rejected"
+    if normalized_action == "regenerate_once":
+        return "regeneration_requested"
+    return "pending"
+
 
 def normalize_review_item_id(value: Any) -> str | None:
     raw = str(value or "").strip()
@@ -73,5 +86,5 @@ def ensure_review_item_id(
 
 
 def is_review_resolution_pending(resolution_status: Any) -> bool:
-    normalized = str(resolution_status or "").strip().lower() or "pending"
+    normalized = normalize_review_resolution_status(None, resolution_status)
     return normalized not in TERMINAL_REVIEW_RESOLUTION_STATUSES

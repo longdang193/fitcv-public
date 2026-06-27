@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from fitcv_cp.backend_runtime import BackendRuntime, set_backend_runtime
 from fitcv_cp import bq_store
 from fitcv_cp.models import PipelineRun, RunEvent
 from fitcv_cp.run_artifact_contracts import decode_run_attempt_payload_or_none
@@ -75,6 +76,7 @@ class ControlPlaneStore:
     bq: Any
     project: str
     dataset: str
+    backend_runtime: BackendRuntime | None = None
     insert_run_fn: Any | None = None
     update_run_queue_job_id_fn: Any | None = None
     update_run_orchestration_binding_fn: Any | None = None
@@ -98,6 +100,10 @@ class ControlPlaneStore:
     update_run_cv_generation_debug_fn: Any | None = None
     update_run_stage_transition_artifacts_fn: Any | None = None
     insert_cv_version_row_fn: Any | None = None
+
+    def __post_init__(self) -> None:
+        if self.backend_runtime is not None:
+            set_backend_runtime(self.backend_runtime)
 
     def _resolve_fn(self, override_fn: Any | None, default_fn: Any) -> Any:
         return override_fn or default_fn

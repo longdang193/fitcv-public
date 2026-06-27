@@ -35,8 +35,9 @@
     <span class="meta">Summary for next decision.</span>
   </div>
   <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
-    <span class="badge badge-{{ run.status.value }}">{{ run.status.value }}</span>
+    <span class="badge badge-{{ run.status.value }}">{{ run_status_projection.display_status }}</span>
     <span class="badge badge-info">{{ run_mode_label }}</span>
+    {% if run_status_projection.raw_status %}<span class="meta">stored status: <strong>{{ run_status_projection.raw_status }}</strong> (compatibility view: <code>{{ run_status_projection.status }}</code>)</span>{% endif %}
     {% if run.error_stage %}<span class="meta">failed at: <strong>{{ run.error_stage }}</strong></span>{% endif %}
   </div>
   <div class="kv">
@@ -226,7 +227,7 @@
 {% endif %}
 
 <!-- ── Error Banner ──────────────────────────────────────────────────────── -->
-{% if run.status.value == 'failed' and run.error_message %}
+{% if run.status.value == 'failed' and not run_status_projection.raw_status and run.error_message %}
 <div class="error-box">
   <strong>⚠ Pipeline Error{% if run.error_stage %} — {{ run.error_stage }}{% endif %}</strong>
   <code>{{ run.error_message }}</code>

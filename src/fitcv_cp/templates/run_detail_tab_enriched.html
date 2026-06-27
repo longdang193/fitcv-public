@@ -95,8 +95,10 @@
     </thead>
     <tbody>
       {% for job in enriched_jobs %}
-      {% set fr = filter_results_by_job_url.get(job.job_url) %}
-      {% set outcome = pipeline_outcomes_by_job_url.get(job.job_url) %}
+      {% set filter_lookup_key = job.filter_result_lookup_key or job.job_url_lookup_key or job.job_url %}
+      {% set outcome_lookup_key = job.pipeline_outcome_lookup_key or job.job_url_lookup_key or job.job_url %}
+      {% set fr = filter_results_by_job_url.get(filter_lookup_key) %}
+      {% set outcome = pipeline_outcomes_by_job_url.get(outcome_lookup_key) %}
       <tr>
         <td><a href="{{ job.job_url }}" target="_blank">{{ job.title or job.job_url }}</a></td>
         <td class="meta">

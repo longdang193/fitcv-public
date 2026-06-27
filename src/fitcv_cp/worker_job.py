@@ -46,7 +46,7 @@ from fitcv.telemetry import (
     observe_span,
     set_span_attributes,
 )
-from fitcv_cp.backend_runtime import resolve_backend_runtime
+from fitcv_cp.backend_runtime import resolve_backend_runtime, resolve_backend_runtime_or_active, set_backend_runtime
 from fitcv_cp.bq_store import (
     append_event,
     get_events,
@@ -213,6 +213,7 @@ def execute_cv_regenerate_once(
     note: str | None = None,
 ) -> None:
     runtime = resolve_backend_runtime()
+    set_backend_runtime(runtime)
     project = runtime.project
     dataset = runtime.dataset
     bq = _get_bq() if runtime.backend_type == "bigquery" else None
@@ -886,7 +887,7 @@ def _build_settings_used_payload_dict(
         settings["stage_runtime"] = stage_runtime
 
     _materialize_stage_runtime_snapshot(effective_settings)
-    sqlite_mode = resolve_backend_runtime().backend_type == "sqlite"
+    sqlite_mode = resolve_backend_runtime_or_active().backend_type == "sqlite"
     if sqlite_mode:
         effective_settings.pop("service_account_key", None)
     compatibility_projection = {
@@ -1924,13 +1925,7 @@ def execute_pipeline_run(
     queue_job_id: str | None = None,
 ) -> None:
     runtime = resolve_backend_runtime()
-    previous_backend_env = os.environ.get("FITCV_CP_DATA_BACKEND")
-    previous_sqlite_path_env = os.environ.get("FITCV_CP_SQLITE_PATH")
-    os.environ["FITCV_CP_DATA_BACKEND"] = str(runtime.backend_type)
-    if runtime.backend_type == "sqlite":
-        os.environ["FITCV_CP_SQLITE_PATH"] = str(runtime.sqlite_path)
-    elif "FITCV_CP_SQLITE_PATH" in os.environ:
-        del os.environ["FITCV_CP_SQLITE_PATH"]
+    set_backend_runtime(runtime)
     project = runtime.project
     dataset = runtime.dataset
     bq = _get_bq() if runtime.backend_type == "bigquery" else None
@@ -1978,6 +1973,18 @@ def execute_pipeline_run(
     ):
         try:
             current_run_record = get_run(run_id, bq, project=project, dataset=dataset)
+            if current_run_record and current_run_record.cancel_requested_at is not None:
+                logger.info("[run_id=%s] Cancellation already requested — exiting early", run_id)
+                update_run_status(
+                    run_id, RunStatus.CANCELLED, bq, project=project, dataset=dataset,
+                    finished_at=datetime.datetime.now(datetime.timezone.utc),
+                )
+                append_event(
+                    _run_cancelled_event(run_id, "Run cancelled before pipeline execution started"),
+                    bq, project=project, dataset=dataset,
+                )
+                set_span_attributes({"run_terminal_status": str(RunStatus.CANCELLED)})
+                return
             # ── Step 1: Mark running ──────────────────────────────────────────────
             update_run_status(
                 run_id, RunStatus.RUNNING, bq, project=project, dataset=dataset,
@@ -3020,15 +3027,6 @@ def execute_pipeline_run(
                 )
             except Exception as mirror_exc:
                 logger.warning("[run_id=%s] Failed to persist terminal artifact mirror: %s", run_id, mirror_exc)
-        finally:
-            if previous_backend_env is None:
-                os.environ.pop("FITCV_CP_DATA_BACKEND", None)
-            else:
-                os.environ["FITCV_CP_DATA_BACKEND"] = previous_backend_env
-            if previous_sqlite_path_env is None:
-                os.environ.pop("FITCV_CP_SQLITE_PATH", None)
-            else:
-                os.environ["FITCV_CP_SQLITE_PATH"] = previous_sqlite_path_env
 
 
 

@@ -22,17 +22,22 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from fitcv_cp.settings_schema import coerce_value, editable_settings_keys
+from fitcv_cp.backend_runtime import get_backend_runtime
+from fitcv_cp.settings_schema import canonical_settings_key, coerce_value, editable_settings_keys
 
 logger = logging.getLogger(__name__)
 
 
 def _local_sqlite_path() -> Path:
-    raw = str(
-        os.environ.get("FITCV_CP_SETTINGS_SQLITE_PATH")
-        or os.environ.get("FITCV_CP_SQLITE_PATH")
-        or "data/fitcv_cp.sqlite3"
-    ).strip() or "data/fitcv_cp.sqlite3"
+    runtime = get_backend_runtime()
+    if runtime is not None and str(runtime.sqlite_path or "").strip():
+        raw = str(runtime.sqlite_path).strip()
+    else:
+        raw = str(
+            os.environ.get("FITCV_CP_SETTINGS_SQLITE_PATH")
+            or os.environ.get("FITCV_CP_SQLITE_PATH")
+            or "data/fitcv_cp.sqlite3"
+        ).strip() or "data/fitcv_cp.sqlite3"
     return Path(raw)
 
 
@@ -468,8 +473,9 @@ def save_setting(
     dataset: str,
 ) -> None:
     """Append a new row for this key. Current value = latest row per key."""
+    canonical_key = canonical_settings_key(key)
     row = {
-        "setting_key": key,
+        "setting_key": canonical_key,
         "setting_value_json": json.dumps(value),
         "updated_by": updated_by,
         "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -481,6 +487,7 @@ def save_setting(
     errors = bq.insert_rows_json(table, [row])
     if errors:
         logger.error("BQ save_setting errors: %s", errors)
+        raise RuntimeError(f"Failed to save setting: {errors}")
 
 
 def save_settings_group(
@@ -502,6 +509,15 @@ def save_settings_group(
     partial failures are possible but accepted for this admin tool.
     """
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    canonical_payload: dict[str, Any] = {}
+    for key, value in keys_values.items():
+        canonical_key = canonical_settings_key(key)
+        if canonical_key == key:
+            canonical_payload[canonical_key] = value
+    for key, value in keys_values.items():
+        canonical_key = canonical_settings_key(key)
+        if canonical_key not in canonical_payload:
+            canonical_payload[canonical_key] = value
     rows = [
         {
             "setting_key": key,
@@ -509,7 +525,7 @@ def save_settings_group(
             "updated_by": updated_by,
             "updated_at": now,
         }
-        for key, value in keys_values.items()
+        for key, value in canonical_payload.items()
     ]
     if bq is None:
         _save_local_settings_rows(rows)
@@ -536,18 +552,26 @@ def load_active_settings(*, bq: Any, project: str, dataset: str) -> dict[str, An
         )
         rows = list(bq.query(sql).result())
 
+    ordered_rows = sorted(
+        enumerate(rows),
+        key=lambda item: (
+            0 if canonical_settings_key(str(item[1]["setting_key"])) == str(item[1]["setting_key"]) else 1,
+            item[0],
+        ),
+    )
     seen_valid: set[str] = set()
     result: dict[str, Any] = {}
-    for row in rows:
-        key = str(row["setting_key"])
-        if key in seen_valid:
-            continue  # older value for same key — skip
+    for _, row in ordered_rows:
+        original_key = str(row["setting_key"])
+        canonical_key = canonical_settings_key(original_key)
+        if canonical_key in seen_valid:
+            continue
         raw = json.loads(str(row["setting_value_json"]))
         try:
-            result[key] = coerce_value(key, raw)
-            seen_valid.add(key)
+            result[canonical_key] = coerce_value(canonical_key, raw)
+            seen_valid.add(canonical_key)
         except (KeyError, ValueError) as exc:
-            logger.warning("Skipping unknown/invalid setting key=%s: %s", key, exc)
+            logger.warning("Skipping unknown/invalid setting key=%s: %s", original_key, exc)
 
     return result
 

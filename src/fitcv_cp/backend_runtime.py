@@ -20,6 +20,8 @@ from dataclasses import dataclass
 
 from fitcv.config import load_control_plane_config
 
+_ACTIVE_BACKEND_RUNTIME: BackendRuntime | None = None
+
 
 @dataclass(frozen=True)
 class BackendRuntime:
@@ -27,6 +29,24 @@ class BackendRuntime:
     project: str
     dataset: str
     sqlite_path: str
+
+
+def set_backend_runtime(runtime: BackendRuntime | None) -> None:
+    """Set process-wide backend runtime for live data-plane helpers."""
+    global _ACTIVE_BACKEND_RUNTIME
+    _ACTIVE_BACKEND_RUNTIME = runtime
+
+
+def get_backend_runtime() -> BackendRuntime | None:
+    """Return active backend runtime when startup already resolved it."""
+    return _ACTIVE_BACKEND_RUNTIME
+
+
+def resolve_backend_runtime_or_active() -> BackendRuntime:
+    active = get_backend_runtime()
+    if active is not None:
+        return active
+    return resolve_backend_runtime()
 
 
 def resolve_backend_runtime() -> BackendRuntime:

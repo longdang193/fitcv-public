@@ -19,6 +19,7 @@ from typing import Any
 
 from fitcv.config import load_config
 from fitcv.cv_presets import SUPPORTED_PRESETS
+from fitcv.rule_filter import DEFAULT_SELECTED_RULE_FILTERS, RULE_FILTER_SIGNALS
 
 
 class ValidationError(ValueError):
@@ -31,14 +32,7 @@ _CV_GENERATION_MODELS = [
     "gemini-2.5-pro",
 ]
 _CV_PRESET_OPTIONS = sorted(SUPPORTED_PRESETS)
-_RULE_FILTER_SELECTABLE_OPTIONS = [
-    "seniority_mismatch",
-    "location_type_excluded",
-    "contract_type_excluded",
-    "experience_level_excluded",
-    "must_have_skill_missing",
-    "domain_not_preferred",
-]
+_RULE_FILTER_SELECTABLE_OPTIONS = [str(item["code"]) for item in RULE_FILTER_SIGNALS]
 _RESPONSIBILITY_ALIGNMENT_WEIGHT_KEYS: frozenset[str] = frozenset(
     {
     "cv_analysis.semantic_alignment.responsibility_lexical_weight",
@@ -642,12 +636,7 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "rule_filter.selected_filters",
         "type": "list[str]",
-        "default": [
-            "seniority_mismatch",
-            "location_type_excluded",
-            "contract_type_excluded",
-            "experience_level_excluded",
-        ],
+        "default": list(DEFAULT_SELECTED_RULE_FILTERS),
         "label": "Blocking Rule Filters",
         "description": "Choose which post-enrichment deterministic rule filters reject jobs. Unselected filters are still evaluated and recorded as marks.",
         "options": _RULE_FILTER_SELECTABLE_OPTIONS,
@@ -1672,6 +1661,10 @@ _LEGACY_THROUGHPUT_ALIAS_TO_CANONICAL: dict[str, str] = {
     "enrichment_concurrency": "stage_runtime.enrich.concurrency",
 }
 
+def canonical_settings_key(key: str) -> str:
+    raw_key = str(key or "").strip()
+    return _LEGACY_THROUGHPUT_ALIAS_TO_CANONICAL.get(raw_key, raw_key)
+
 def _normalize_settings_aliases(settings: dict[str, Any]) -> dict[str, Any]:
     """Apply canonical-over-legacy precedence for throughput compatibility aliases."""
     normalized = dict(settings)
@@ -1681,6 +1674,5 @@ def _normalize_settings_aliases(settings: dict[str, Any]) -> dict[str, Any]:
         if legacy_key in normalized:
             normalized[canonical_key] = normalized[legacy_key]
     return normalized
-
 
 

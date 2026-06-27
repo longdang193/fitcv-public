@@ -66,8 +66,12 @@ _rq_scheduler_stub.ForkProcess = _real_scheduler.ForkProcess
 _rq_scheduler_stub.RQScheduler = _real_scheduler.RQScheduler
 from rq.job import Job
 
-_queue: Optional[Queue] = None
+_QUEUES_BY_REDIS_URL: dict[str, Queue] = {}
 _INLINE_JOB_STATUS: dict[str, str] = {}
+
+
+def _normalized_redis_url(redis_url: str) -> str:
+    return str(redis_url or "").strip() or "redis://redis:6379/0"
 
 
 def _inline_execution_enabled() -> bool:
@@ -208,11 +212,13 @@ def _run_inline_cv_regenerate_once_after_delay(
 
 
 def get_queue(redis_url: str = "redis://redis:6379/0") -> Queue:
-    global _queue
-    if _queue is None:
-        conn = redis.from_url(redis_url)
-        _queue = Queue("fitcv", connection=conn)
-    return _queue
+    normalized = _normalized_redis_url(redis_url)
+    queue = _QUEUES_BY_REDIS_URL.get(normalized)
+    if queue is None:
+        conn = redis.from_url(normalized)
+        queue = Queue("fitcv", connection=conn)
+        _QUEUES_BY_REDIS_URL[normalized] = queue
+    return queue
 
 
 def enqueue_run_with_job_id(

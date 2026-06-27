@@ -34,13 +34,16 @@ control_plane:
     parts:
       enrich_extraction:
         provider: openai_compatible
-        model: ds/deepseek-v4-flash
+        # model: ds/deepseek-v4-flash
+        model: cx/gpt-5.4-mini
       ranking_ai_score:
         provider: openai_compatible
-        model: ds/deepseek-v4-pro
+        # model: ds/deepseek-v4-flash
+        model: cx/gpt-5.4-mini
       cv_generation_structured_write:
         provider: openai_compatible
-        model: ds/deepseek-v4-flash
+        # model: ds/deepseek-v4-flash
+        model: cx/gpt-5.4-mini
     task_overrides: {}
 
   observability:

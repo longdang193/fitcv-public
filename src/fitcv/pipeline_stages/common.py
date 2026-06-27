@@ -18,6 +18,7 @@ lifecycle:
 from __future__ import annotations
 
 from typing import Any, Mapping
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 from fitcv.candidate import flatten_skills, infer_effective_preferences
 
@@ -35,6 +36,60 @@ def pipeline_int(config: Mapping[str, Any], key: str, *, default: int = 0) -> in
 
 def extract_job_url(job: Mapping[str, Any]) -> str:
     return str(job.get("job_url") or job.get("jobUrl") or "")
+
+def normalize_job_url_key(job_url: str | None) -> str:
+    normalized_url = str(job_url or "").strip()
+    if not normalized_url:
+        return ""
+    try:
+        parsed = urlparse(normalized_url)
+    except Exception:
+        return normalized_url.rstrip("/")
+    if not parsed.scheme and not parsed.netloc:
+        return normalized_url.rstrip("/")
+    normalized_scheme = str(parsed.scheme or "").lower()
+    normalized_netloc = str(parsed.netloc or "").lower()
+    normalized_path = str(parsed.path or "").rstrip("/")
+    normalized_query = ""
+    if normalized_netloc.endswith("indeed.com") and normalized_path == "/viewjob":
+        stable_pairs = [
+            (str(key or "").lower(), str(value or "").strip())
+            for key, value in parse_qsl(parsed.query, keep_blank_values=False)
+            if str(key or "").lower() in {"jk", "vjk"} and str(value or "").strip()
+        ]
+        if stable_pairs:
+            stable_pairs.sort()
+            normalized_query = urlencode(stable_pairs)
+    return parsed._replace(
+        scheme=normalized_scheme,
+        netloc=normalized_netloc,
+        path=normalized_path,
+        params="",
+        query=normalized_query,
+        fragment="",
+    ).geturl()
+
+def job_identity_keys(job: Mapping[str, Any]) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    raw_job_fingerprint = str(job.get("raw_job_fingerprint") or "").strip()
+    if raw_job_fingerprint:
+        fingerprint_key = f"fp:{raw_job_fingerprint}"
+        keys.append(fingerprint_key)
+        seen.add(fingerprint_key)
+
+    for field_name in ("source_job_url", "job_url", "jobUrl"):
+        normalized_url = normalize_job_url_key(str(job.get(field_name) or ""))
+        if not normalized_url:
+            continue
+        url_key = f"url:{normalized_url}"
+        if url_key in seen:
+            continue
+        keys.append(url_key)
+        seen.add(url_key)
+
+    return keys
 
 
 def extract_job_title(job: Mapping[str, Any]) -> str:

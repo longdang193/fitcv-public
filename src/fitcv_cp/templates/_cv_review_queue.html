@@ -183,8 +183,13 @@
     batchForm.addEventListener('submit', (event) => {
       const actionField = batchForm.querySelector('select[name="action"]');
       const selectedAction = actionField ? String(actionField.value || '').trim() : '';
-      if (selectedAction !== 'regenerate_once') return;
       const selected = selectableCheckboxes().filter((cb) => cb.checked);
+      if (selected.length === 0) {
+        event.preventDefault();
+        window.alert('Select at least one review-required row.');
+        return;
+      }
+      if (selectedAction !== 'regenerate_once') return;
       const hasMissingUrlSelection = selected.some((cb) => String(cb.dataset.hasJobUrl || '').toLowerCase() !== 'true');
       if (!hasMissingUrlSelection) return;
       event.preventDefault();

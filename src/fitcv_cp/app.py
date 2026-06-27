@@ -59,6 +59,7 @@ from fitcv.openai_compat import (
     extract_openai_chat_completions_text,
     extract_openai_responses_text,
 )
+from fitcv.pipeline_stages.common import job_identity_keys, normalize_job_url_key
 from fitcv.prompts import render_prompt
 from fitcv.pipeline import (
     _infer_last_completed_stage_from_state,
@@ -67,6 +68,7 @@ from fitcv.pipeline import (
 )
 from fitcv.tracker import create_cv_version_record
 import fitcv_cp.bq_store as bq_store_module
+from fitcv_cp.backend_runtime import BackendRuntime
 from fitcv_cp.models import PipelineRun, RunEvent, RunStatus
 from fitcv_cp.orchestrator import RunSubmission, get_orchestration_adapter
 from fitcv_cp.queue import (
@@ -98,6 +100,7 @@ from fitcv_cp.settings_schema import (
     editable_settings_keys,
     hidden_deprecated_settings_keys,
     metadata_only_settings_keys,
+    canonical_settings_key,
     settings_ia_contract_for_key,
     settings_ia_metadata_by_key,
     settings_keys_for_control_surface,
@@ -134,7 +137,11 @@ from fitcv_cp.synonym_proposals import (
 from fitcv_cp.data_plane import data_plane_contract_payload
 from fitcv_cp.observability import emit_observability_event
 from fitcv_cp.store import ControlPlaneStore
-from fitcv_cp.review_identity import ensure_review_item_id
+from fitcv_cp.review_identity import (
+    ensure_review_item_id,
+    is_review_resolution_pending,
+    normalize_review_resolution_status,
+)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 ORCHESTRATION_ADAPTER = get_orchestration_adapter()
 _RUN_SUBMISSION_CACHE_TTL_SECS = float(os.environ.get("FITCV_CP_SUBMISSION_CACHE_TTL_SECS") or 15 * 60)
@@ -686,6 +693,13 @@ PIPELINE_OUTCOME_META: dict[str, dict[str, str]] = {
         "badge_class": "badge-warning",
     },
 }
+DEFAULT_ENRICHED_PIPELINE_OUTCOMES: tuple[str, ...] = (
+    "ranked_with_cv",
+    "ranked_blocked_by_reranker_fit",
+    "ranked_no_cv",
+    "scored_not_ranked",
+    "ranked_skipped_fit_gate",
+)
 DECISION_CHAIN_LABELS: dict[str, str] = {
     "returned_by_vector_search": "returned by vector search",
     "backfilled_for_scoring": "backfilled for scoring",
@@ -733,8 +747,11 @@ REPLAY_MODES = {"strict", "policy_replay"}
 
 def _run_status_projection(run: PipelineRun) -> dict[str, Any]:
     status_value = run.status.value
+    raw_status = str(getattr(run, "raw_status", "") or "").strip() or None
     return {
         "status": status_value,
+        "raw_status": raw_status,
+        "display_status": raw_status or status_value,
         "is_active": status_value in RUN_STATUS_GROUPS["active"],
         "is_terminal": status_value in RUN_STATUS_GROUPS["terminal"],
         "is_awaiting_continue": status_value in RUN_STATUS_GROUPS["awaiting_continue"],
@@ -2277,12 +2294,6 @@ def _fit_classification_badge_class(value: str | None) -> str:
         return "badge-success"
     return "badge-neutral"
 
-_HITL_TERMINAL_RESOLUTION_STATUSES = {
-    "approved_as_is",
-    "rejected",
-    "regenerated_and_accepted",
-    "regenerated_and_rejected",
-}
 _TRUNCATED_MARKDOWN_SENTINELS = (
     "...[truncated]",
     "...[truncated in review queue]",
@@ -2290,21 +2301,10 @@ _TRUNCATED_MARKDOWN_SENTINELS = (
 
 
 def _normalize_hitl_resolution_status(action_name: str | None, explicit_status: str | None) -> str:
-    normalized_explicit = str(explicit_status or "").strip().lower()
-    if normalized_explicit:
-        return normalized_explicit
-    normalized_action = str(action_name or "").strip().lower()
-    if normalized_action in {"approve", "approve_as_is"}:
-        return "approved_as_is"
-    if normalized_action == "reject":
-        return "rejected"
-    if normalized_action == "regenerate_once":
-        return "regeneration_requested"
-    return "pending"
+    return normalize_review_resolution_status(action_name, explicit_status)
 
 def _is_hitl_resolution_pending(resolution_status: str | None) -> bool:
-    normalized = str(resolution_status or "").strip().lower() or "pending"
-    return normalized not in _HITL_TERMINAL_RESOLUTION_STATUSES
+    return is_review_resolution_pending(resolution_status)
 
 
 def _build_hitl_review_queue(run: PipelineRun) -> dict[str, Any]:
@@ -4664,6 +4664,8 @@ def _fallback_enriched_rows_from_results_export(rows: list[dict[str, Any]]) -> l
         fallback_rows.append(
             {
                 "job_url": job_url,
+                "raw_job_fingerprint": row.get("raw_job_fingerprint"),
+                "source_job_url": row.get("source_job_url"),
                 "title": str(row.get("title") or row.get("job_title") or job_url),
                 "location_type": row.get("location_type"),
                 "seniority": row.get("seniority"),
@@ -4775,6 +4777,41 @@ def _event_payload(event: RunEvent) -> dict[str, Any]:
     return decode_json_object_or_none(raw_payload) or {}
 
 
+def _canonical_pipeline_outcome_status(row: dict[str, Any]) -> str:
+    pipeline_status = str(row.get("pipeline_status") or "").strip()
+    if pipeline_status in PIPELINE_OUTCOME_META:
+        return pipeline_status
+
+    status = str(row.get("status") or "").strip()
+    if status in PIPELINE_OUTCOME_META:
+        return status
+
+    source_stage = str(row.get("source_stage") or "").strip()
+    stage_owned_subreason = str(row.get("stage_owned_subreason") or "").strip()
+    deterministic_outcome = str(row.get("deterministic_outcome") or "").strip()
+
+    if source_stage == "cv_generation" or status in {"accepted", "review_required", "validation_failed", "generation_failed", "persistence_failed"}:
+        if deterministic_outcome == "accepted" or status == "accepted" or stage_owned_subreason == "accepted":
+            return "ranked_with_cv"
+        if status in {"review_required", "validation_failed", "generation_failed", "persistence_failed"}:
+            return "ranked_no_cv"
+        if stage_owned_subreason in {"review_required", "validation_failed", "generation_failed", "persistence_failed"}:
+            return "ranked_no_cv"
+        if deterministic_outcome in {"rejected", "review_required"}:
+            return "ranked_no_cv"
+
+    if source_stage == "cv_analysis" or status in {"ready_for_generation", "blocked_by_reranker_fit", "skipped_fit_gate", "analysis_failed"}:
+        if status == "blocked_by_reranker_fit" or stage_owned_subreason == "blocked_by_reranker_fit":
+            return "ranked_blocked_by_reranker_fit"
+        if status == "skipped_fit_gate" or stage_owned_subreason == "skipped_fit_gate":
+            return "ranked_skipped_fit_gate"
+        if status in {"ready_for_generation", "analysis_failed"}:
+            return "ranked_no_cv"
+        if stage_owned_subreason in {"ready_for_generation", "analysis_failed"}:
+            return "ranked_no_cv"
+
+    return pipeline_status
+
 def _pipeline_outcome_surface(row: dict[str, Any]) -> dict[str, str]:
     pipeline_status = str(row.get("pipeline_status") or "")
     deterministic_outcome = str(row.get("deterministic_outcome") or "").strip()
@@ -4812,6 +4849,63 @@ def _pipeline_outcome_surface(row: dict[str, Any]) -> dict[str, str]:
     )
 
 
+def _job_lookup_keys(row: dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    raw_job_fingerprint = str(row.get("raw_job_fingerprint") or "").strip()
+    if raw_job_fingerprint:
+        fingerprint_key = f"fp:{raw_job_fingerprint}"
+        keys.append(fingerprint_key)
+        seen.add(fingerprint_key)
+
+    for identity_key in job_identity_keys(row):
+        if not identity_key.startswith("url:"):
+            continue
+        url_key = identity_key.removeprefix("url:")
+        if not url_key or url_key in seen:
+            continue
+        keys.append(url_key)
+        seen.add(url_key)
+
+    return keys
+
+def _normalize_job_url_key(job_url: str | None) -> str:
+    return normalize_job_url_key(job_url)
+
+def _primary_job_lookup_key(row: dict[str, Any]) -> str:
+    keys = _job_lookup_keys(row)
+    return keys[0] if keys else ""
+
+def _index_rows_by_lookup_key(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        for lookup_key in _job_lookup_keys(row):
+            indexed[lookup_key] = row
+    return indexed
+
+def _lookup_row_by_lookup_key(
+    indexed_rows: dict[str, dict[str, Any]],
+    row: dict[str, Any],
+) -> dict[str, Any]:
+    for lookup_key in _job_lookup_keys(row):
+        matched = indexed_rows.get(lookup_key)
+        if isinstance(matched, dict):
+            return matched
+    return {}
+
+def _best_lookup_key_for_row(
+    row: dict[str, Any],
+    *indexed_rows: dict[str, dict[str, Any]],
+) -> str:
+    keys = _job_lookup_keys(row)
+    for indexed in indexed_rows:
+        for lookup_key in keys:
+            if lookup_key and lookup_key in indexed:
+                return lookup_key
+    return keys[0] if keys else ""
+
+
 def _build_job_primary_label(
     *,
     title: str | None,
@@ -4830,14 +4924,298 @@ def _build_job_primary_label(
     return canonical_title
 
 
+def _job_metadata_by_url_from_cv_generation_debug(run: PipelineRun) -> dict[str, dict[str, str]]:
+    payload = _load_run_cv_generation_debug_payload(run)
+    if not isinstance(payload, dict):
+        return {}
+    metadata: dict[str, dict[str, str]] = {}
+    for row in list(payload.get("debug_records") or payload.get("cv_generation_debug_records") or []):
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("job_url") or "").strip()
+        if not url:
+            continue
+        metadata[_normalize_job_url_key(url)] = {
+            "title": str(row.get("job_title") or row.get("title") or "").strip(),
+            "company": str(row.get("company") or "").strip(),
+            "location": str(row.get("location") or "").strip(),
+        }
+    return metadata
+
+
+def _filter_results_fallback_from_stage_artifacts(run: PipelineRun) -> list[dict[str, Any]]:
+    rule_filter_stage = dict(_stage_artifacts_by_id(run).get("rule_filter") or {})
+    fallback_rows: list[dict[str, Any]] = []
+    seen_job_urls: set[str] = set()
+    for sample_key in ("outputs_sample", "dropped_or_changed_sample"):
+        for row in list(rule_filter_stage.get(sample_key) or []):
+            if not isinstance(row, dict):
+                continue
+            job_url = str(row.get("job_url") or "").strip()
+            if not job_url or job_url in seen_job_urls:
+                continue
+            reasons = row.get("reject_reasons") or row.get("reasons") or []
+            if not isinstance(reasons, list):
+                reasons = []
+            passed = row.get("passed")
+            if not isinstance(passed, bool):
+                filter_outcome = str(row.get("filter_outcome") or "").strip().lower()
+                change_type = str(row.get("change_type") or "").strip().lower()
+                if filter_outcome == "reject" or change_type == "rejected_after_enrichment":
+                    passed = False
+                else:
+                    passed = not bool(reasons)
+            fallback_rows.append(
+                {
+                    "job_url": job_url,
+                    "passed": passed,
+                    "reasons": reasons,
+                    "marks": list(row.get("marks") or []),
+                }
+            )
+            seen_job_urls.add(job_url)
+    return fallback_rows
+
+
+def _pipeline_outcomes_fallback_from_cv_generation_debug(run: PipelineRun) -> dict[str, dict[str, Any]]:
+    payload = _load_run_cv_generation_debug_payload(run)
+    if not isinstance(payload, dict):
+        return {}
+    status_to_subreason = {
+        "accepted": ("cv_generation", "accepted", "accepted"),
+        "review_required": ("cv_generation", "review_required", "review_required"),
+        "validation_failed": ("cv_generation", "validation_failed", "rejected"),
+        "generation_failed": ("cv_generation", "generation_failed", "rejected"),
+        "persistence_failed": ("cv_generation", "persistence_failed", "rejected"),
+        "ready_for_generation": ("cv_analysis", "ready_for_generation", "accepted"),
+        "blocked_by_reranker_fit": ("cv_analysis", "blocked_by_reranker_fit", "rejected"),
+        "skipped_fit_gate": ("cv_analysis", "skipped_fit_gate", "rejected"),
+        "analysis_failed": ("cv_analysis", "analysis_failed", "rejected"),
+    }
+    fallback: dict[str, dict[str, Any]] = {}
+    for row in list(payload.get("debug_records") or payload.get("cv_generation_debug_records") or []):
+        if not isinstance(row, dict):
+            continue
+        job_url = str(row.get("job_url") or "").strip()
+        if not job_url:
+            continue
+        status = str(row.get("status") or "").strip()
+        source_stage = str(row.get("source_stage") or "").strip()
+        stage_owned_subreason = str(row.get("stage_owned_subreason") or "").strip()
+        deterministic_outcome = str(row.get("deterministic_outcome") or "").strip()
+        if (not source_stage or not stage_owned_subreason or not deterministic_outcome) and status in status_to_subreason:
+            default_source_stage, default_subreason, default_outcome = status_to_subreason[status]
+            source_stage = source_stage or default_source_stage
+            stage_owned_subreason = stage_owned_subreason or default_subreason
+            deterministic_outcome = deterministic_outcome or default_outcome
+        if not source_stage and not stage_owned_subreason and not deterministic_outcome:
+            continue
+        fallback[_normalize_job_url_key(job_url)] = {
+            "source_stage": source_stage,
+            "stage_owned_subreason": stage_owned_subreason,
+            "deterministic_outcome": deterministic_outcome,
+        }
+    return fallback
+
+def _pipeline_outcomes_overlay_from_hitl_review_actions(run: PipelineRun) -> dict[str, dict[str, str | None]]:
+    payload = _load_run_cv_generation_debug_payload(run)
+    if not isinstance(payload, dict):
+        return {}
+
+    actions = [item for item in list(payload.get("hitl_review_actions") or []) if isinstance(item, dict)]
+    if not actions:
+        return {}
+
+    latest_action_by_review_item_id: dict[str, dict[str, Any]] = {}
+    latest_action_by_job_url: dict[str, dict[str, Any]] = {}
+    for action in actions:
+        review_item_id = str(action.get("review_item_id") or "").strip()
+        if review_item_id:
+            latest_action_by_review_item_id[review_item_id] = action
+        job_url = str(action.get("job_url") or "").strip()
+        if job_url:
+            latest_action_by_job_url[job_url] = action
+
+    overlays: dict[str, dict[str, str | None]] = {}
+    for record in list(payload.get("debug_records") or payload.get("cv_generation_debug_records") or []):
+        if not isinstance(record, dict):
+            continue
+        if str(record.get("status") or "").strip() != "review_required":
+            continue
+        review_item_id = str(record.get("review_item_id") or "").strip()
+        job_url = str(record.get("job_url") or "").strip()
+        latest_action = latest_action_by_review_item_id.get(review_item_id) if review_item_id else None
+        if latest_action is None and job_url:
+            latest_action = latest_action_by_job_url.get(job_url)
+        resolution_status = _normalize_hitl_resolution_status(
+            str((latest_action or {}).get("action") or "").strip() or None,
+            str((latest_action or {}).get("resolution_status") or "").strip() or None,
+        )
+        if _is_hitl_resolution_pending(resolution_status):
+            continue
+
+        if resolution_status in {"approved_as_is", "regenerated_and_accepted"}:
+            overlay_row: dict[str, Any] = {
+                "source_stage": "cv_generation",
+                "stage_owned_subreason": "accepted",
+                "deterministic_outcome": "accepted",
+            }
+        elif resolution_status in {"rejected", "regenerated_and_rejected"}:
+            overlay_row = {
+                "pipeline_status": "rejected_after_enrichment",
+                "deterministic_outcome": "rejected",
+            }
+        else:
+            continue
+
+        outcome_surface = _pipeline_outcome_surface(overlay_row)
+        canonical_status = _canonical_pipeline_outcome_status(overlay_row)
+        rendered_overlay = {
+            "status": canonical_status or str(overlay_row.get("pipeline_status") or ""),
+            "label": outcome_surface["label"],
+            "badge_class": outcome_surface["badge_class"],
+            "detail": None,
+        }
+        for lookup_key in _job_lookup_keys(record):
+            overlays[lookup_key] = rendered_overlay
+    return overlays
+
+def _pipeline_outcomes_fallback_from_stage_artifacts(
+    run: PipelineRun,
+    filter_results: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    stage_artifacts = _stage_artifacts_by_id(run)
+    fallback: dict[str, dict[str, Any]] = {}
+    ranked_urls: set[str] = set()
+
+    def _store(job_url: Any, payload: dict[str, Any]) -> None:
+        normalized_key = _normalize_job_url_key(str(job_url or "").strip())
+        if not normalized_key:
+            return
+        fallback[normalized_key] = payload
+
+    rule_filter_stage = dict(stage_artifacts.get("rule_filter") or {})
+    for row in list(rule_filter_stage.get("dropped_or_changed_sample") or []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("change_type") or "").strip().lower() != "rejected_after_enrichment":
+            continue
+        reject_reasons = row.get("reasons") or row.get("reject_reasons") or []
+        first_reason = ""
+        if isinstance(reject_reasons, list):
+            first_reason = next((str(item).strip() for item in reject_reasons if str(item).strip()), "")
+        _store(
+            row.get("job_url"),
+            {
+                "status": "rejected_after_enrichment",
+                "pipeline_status": "rejected_after_enrichment",
+                "source_stage": "rule_filter",
+                "stage_owned_subreason": first_reason,
+                "deterministic_outcome": "rejected",
+                "reject_reasons": reject_reasons if isinstance(reject_reasons, list) else [],
+            },
+        )
+
+    ranking_stage = dict(stage_artifacts.get("ranking") or {})
+    for row in list(ranking_stage.get("outputs_sample") or []):
+        if not isinstance(row, dict):
+            continue
+        job_url = str(row.get("job_url") or "").strip()
+        if not job_url:
+            continue
+        ranked_urls.add(job_url)
+    for row in list(ranking_stage.get("dropped_or_changed_sample") or []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("change_type") or "").strip().lower() != "scored_not_ranked":
+            continue
+        _store(
+            row.get("job_url"),
+            {
+                "status": "scored_not_ranked",
+                "pipeline_status": "scored_not_ranked",
+            },
+        )
+
+    cv_analysis_stage = dict(stage_artifacts.get("cv_analysis") or {})
+    for row in list(cv_analysis_stage.get("outputs_sample") or []):
+        if not isinstance(row, dict):
+            continue
+        stage_owned_subreason = str(row.get("stage_owned_subreason") or row.get("status") or "").strip()
+        if not stage_owned_subreason:
+            continue
+        _store(
+            row.get("job_url"),
+            {
+                "status": "ranked_no_cv",
+                "pipeline_status": "ranked_no_cv",
+                "source_stage": "cv_analysis",
+                "stage_owned_subreason": stage_owned_subreason,
+                "deterministic_outcome": str(row.get("deterministic_outcome") or "").strip() or "accepted",
+            },
+        )
+    for row in list(cv_analysis_stage.get("dropped_or_changed_sample") or []):
+        if not isinstance(row, dict):
+            continue
+        stage_owned_subreason = str(row.get("stage_owned_subreason") or row.get("change_type") or "").strip()
+        if not stage_owned_subreason:
+            continue
+        _store(
+            row.get("job_url"),
+            {
+                "status": "ranked_blocked_by_reranker_fit" if stage_owned_subreason == "blocked_by_reranker_fit" else "ranked_skipped_fit_gate",
+                "pipeline_status": "ranked_blocked_by_reranker_fit" if stage_owned_subreason == "blocked_by_reranker_fit" else "ranked_skipped_fit_gate",
+                "source_stage": "cv_analysis",
+                "stage_owned_subreason": stage_owned_subreason,
+                "deterministic_outcome": str(row.get("deterministic_outcome") or "").strip() or "blocked",
+            },
+        )
+
+    cv_generation_stage = dict(stage_artifacts.get("cv_generation") or {})
+    for sample_key in ("outputs_sample", "dropped_or_changed_sample"):
+        for row in list(cv_generation_stage.get(sample_key) or []):
+            if not isinstance(row, dict):
+                continue
+            stage_owned_subreason = str(row.get("stage_owned_subreason") or row.get("status") or row.get("change_type") or "").strip()
+            if not stage_owned_subreason:
+                continue
+            deterministic_outcome = str(row.get("deterministic_outcome") or "").strip()
+            _store(
+                row.get("job_url"),
+                {
+                    "status": "ranked_with_cv" if deterministic_outcome == "accepted" else "ranked_no_cv",
+                    "pipeline_status": "ranked_with_cv" if deterministic_outcome == "accepted" else "ranked_no_cv",
+                    "source_stage": "cv_generation",
+                    "stage_owned_subreason": stage_owned_subreason,
+                    "deterministic_outcome": deterministic_outcome or ("accepted" if stage_owned_subreason == "accepted" else "rejected"),
+                },
+            )
+
+    ranking_input_counts = dict(ranking_stage.get("input_counts") or {})
+    ranking_inputs = int(ranking_input_counts.get("ranking_inputs") or ranking_input_counts.get("ai_scores") or 0)
+    passed_rows = [row for row in filter_results if row.get("passed") is True]
+    if ranking_inputs > 0 and ranking_inputs == len(passed_rows):
+        ranked_url_keys = {_normalize_job_url_key(url) for url in ranked_urls if _normalize_job_url_key(url)}
+        for row in passed_rows:
+            normalized_key = _normalize_job_url_key(str(row.get("job_url") or "").strip())
+            if not normalized_key or normalized_key in ranked_url_keys or normalized_key in fallback:
+                continue
+            fallback[normalized_key] = {
+                "status": "scored_not_ranked",
+                "pipeline_status": "scored_not_ranked",
+            }
+
+    return fallback
+
+
 def _job_metadata_by_url_from_results_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
     metadata: dict[str, dict[str, str]] = {}
     for row in rows:
         url = str(row.get("job_url") or "").strip()
         if not url:
             continue
-        metadata[url] = {
-            "title": str(row.get("job_title") or "").strip(),
+        metadata[_normalize_job_url_key(url)] = {
+            "title": str(row.get("job_title") or row.get("title") or "").strip(),
             "company": str(row.get("company") or "").strip(),
             "location": str(row.get("location") or "").strip(),
         }
@@ -4889,6 +5267,12 @@ def _normalize_pipeline_outcomes(values: list[str] | tuple[str, ...] | None) -> 
             continue
         normalized.append(value)
     return normalized
+
+def _selected_enriched_pipeline_outcomes(values: list[str] | tuple[str, ...] | None) -> list[str]:
+    normalized = _normalize_pipeline_outcomes(values)
+    if normalized:
+        return normalized
+    return list(DEFAULT_ENRICHED_PIPELINE_OUTCOMES)
 
 def _build_enriched_tab_url(
     *,
@@ -4984,38 +5368,76 @@ def _build_enriched_tab_context(
         enriched_jobs = _fallback_enriched_rows_from_results_export(results_rows)
     enriched_jobs = [_with_required_skills_display(job) for job in enriched_jobs]
     filter_results = list_filter_results_for_run(run_id, bq, project=project, dataset=dataset)
-    if not filter_results and results_rows:
-        # sqlite mode does not persist rule_filter_results; derive passed/rejected
-        # flags from the results export so UI counters stay consistent.
-        for row in results_rows:
-            job_url = str(row.get("job_url") or "").strip()
-            if not job_url:
-                continue
-            pipeline_status = str(row.get("pipeline_status") or "").strip()
-            if pipeline_status == "deduplicated_before_enrichment":
-                continue
-            if pipeline_status == "rejected_after_enrichment":
-                filter_results.append({"job_url": job_url, "passed": False, "reasons": []})
-            else:
-                filter_results.append({"job_url": job_url, "passed": True, "reasons": []})
-    filter_results_by_job_url: dict[str, dict[str, Any]] = {
-        str(row.get("job_url") or ""): row for row in filter_results if row.get("job_url")
+    if not filter_results:
+        filter_results = _filter_results_fallback_from_stage_artifacts(run)
+    filter_results_by_job_url = _index_rows_by_lookup_key(filter_results)
+    enriched_job_urls = {
+        lookup_key
+        for job in enriched_jobs
+        for lookup_key in _job_lookup_keys(job)
+        if lookup_key
     }
-    enriched_job_urls = {str(job.get("job_url") or "") for job in enriched_jobs if job.get("job_url")}
     pre_enrichment_rejects = [
         row for row in filter_results
-        if str(row.get("job_url") or "") not in enriched_job_urls and row.get("reasons")
+        if row.get("reasons") and not any(lookup_key in enriched_job_urls for lookup_key in _job_lookup_keys(row))
     ]
-    pipeline_outcomes_by_job_url: dict[str, dict[str, str | None]] = {
-        str(row.get("job_url") or ""): {
-            "status": str(row.get("pipeline_status") or ""),
+    pipeline_outcomes_by_job_url: dict[str, dict[str, str | None]] = {}
+    for row in results_rows:
+        if not row.get("job_url"):
+            continue
+        canonical_status = _canonical_pipeline_outcome_status(row)
+        outcome_payload = {
+            "status": canonical_status or str(row.get("pipeline_status") or ""),
             "label": _pipeline_outcome_surface(row)["label"],
             "badge_class": _pipeline_outcome_surface(row)["badge_class"],
             "detail": _format_pipeline_outcome_detail(row),
         }
-        for row in results_rows
-        if row.get("job_url")
-    }
+        for lookup_key in _job_lookup_keys(row):
+            pipeline_outcomes_by_job_url[lookup_key] = outcome_payload
+    for outcome_key, outcome_row in _pipeline_outcomes_fallback_from_cv_generation_debug(run).items():
+        existing = dict(pipeline_outcomes_by_job_url.get(outcome_key) or {})
+        existing_status = str(existing.get("status") or "").strip()
+        if existing and existing_status not in {"", "unknown_pipeline_state"}:
+            continue
+        pipeline_outcome_surface = _pipeline_outcome_surface(outcome_row)
+        canonical_status = _canonical_pipeline_outcome_status(outcome_row)
+        pipeline_outcomes_by_job_url[outcome_key] = {
+            "status": canonical_status or existing_status,
+            "label": pipeline_outcome_surface["label"],
+            "badge_class": pipeline_outcome_surface["badge_class"],
+            "detail": _format_pipeline_outcome_detail(outcome_row),
+        }
+    for outcome_key, outcome_row in _pipeline_outcomes_fallback_from_stage_artifacts(run, filter_results).items():
+        existing = dict(pipeline_outcomes_by_job_url.get(outcome_key) or {})
+        existing_status = str(existing.get("status") or "").strip()
+        if existing and existing_status not in {"", "unknown_pipeline_state"}:
+            continue
+        pipeline_outcome_surface = _pipeline_outcome_surface(outcome_row)
+        canonical_status = _canonical_pipeline_outcome_status(outcome_row)
+        pipeline_outcomes_by_job_url[outcome_key] = {
+            "status": canonical_status or existing_status,
+            "label": pipeline_outcome_surface["label"],
+            "badge_class": pipeline_outcome_surface["badge_class"],
+            "detail": _format_pipeline_outcome_detail(outcome_row),
+        }
+    for outcome_key, filter_row in filter_results_by_job_url.items():
+        if dict(pipeline_outcomes_by_job_url.get(outcome_key) or {}):
+            continue
+        if filter_row.get("passed") is not False:
+            continue
+        outcome_row = {
+            "pipeline_status": "rejected_after_enrichment",
+            "reject_reasons": list(filter_row.get("reasons") or []),
+        }
+        pipeline_outcome_surface = _pipeline_outcome_surface(outcome_row)
+        pipeline_outcomes_by_job_url[outcome_key] = {
+            "status": "rejected_after_enrichment",
+            "label": pipeline_outcome_surface["label"],
+            "badge_class": pipeline_outcome_surface["badge_class"],
+            "detail": _format_pipeline_outcome_detail(outcome_row),
+        }
+    for outcome_key, overlay_row in _pipeline_outcomes_overlay_from_hitl_review_actions(run).items():
+        pipeline_outcomes_by_job_url[outcome_key] = overlay_row
     deduplicated_before_enrichment = [
         {
             "job_url": row.get("job_url"),
@@ -5028,11 +5450,11 @@ def _build_enriched_tab_context(
 
     enriched_passed_count = sum(
         1 for job in enriched_jobs
-        if filter_results_by_job_url.get(str(job.get("job_url") or ""), {}).get("passed") is True
+        if _lookup_row_by_lookup_key(filter_results_by_job_url, job).get("passed") is True
     )
     enriched_rejected_count = sum(
         1 for job in enriched_jobs
-        if filter_results_by_job_url.get(str(job.get("job_url") or ""), {}).get("passed") is False
+        if _lookup_row_by_lookup_key(filter_results_by_job_url, job).get("passed") is False
     )
 
     normalized_filter = str(filter_name or "all").strip().lower()
@@ -5043,8 +5465,7 @@ def _build_enriched_tab_context(
 
     filter_scoped_rows: list[dict[str, Any]] = []
     for job in enriched_jobs:
-        job_url = str(job.get("job_url") or "")
-        filter_result = filter_results_by_job_url.get(job_url, {})
+        filter_result = _lookup_row_by_lookup_key(filter_results_by_job_url, job)
         passed = filter_result.get("passed")
         if normalized_filter == "passed" and passed is not True:
             continue
@@ -5053,7 +5474,7 @@ def _build_enriched_tab_context(
         if normalized_filter == "unknown" and passed is not None:
             continue
         if normalized_pipeline_outcomes:
-            outcome_row = pipeline_outcomes_by_job_url.get(job_url, {})
+            outcome_row = _lookup_row_by_lookup_key(pipeline_outcomes_by_job_url, job)
             outcome_status = str(outcome_row.get("status") or "").strip()
             if outcome_status not in normalized_pipeline_outcomes:
                 continue
@@ -5072,7 +5493,24 @@ def _build_enriched_tab_context(
 
     nav_pager = _paginate_rows(filter_scoped_rows, page=page, page_size=page_size)
     pager = _paginate_rows(filtered_rows, page=page, page_size=page_size)
-    visible_rows = filtered_rows[pager["start"]:pager["end"]]
+    visible_rows = []
+    for job in filtered_rows[pager["start"]:pager["end"]]:
+        row = dict(job)
+        row["filter_result_lookup_key"] = _best_lookup_key_for_row(
+            row,
+            filter_results_by_job_url,
+        )
+        row["pipeline_outcome_lookup_key"] = _best_lookup_key_for_row(
+            row,
+            pipeline_outcomes_by_job_url,
+            filter_results_by_job_url,
+        )
+        row["job_url_lookup_key"] = row["filter_result_lookup_key"] or row["pipeline_outcome_lookup_key"] or _best_lookup_key_for_row(
+            row,
+            pipeline_outcomes_by_job_url,
+            filter_results_by_job_url,
+        )
+        visible_rows.append(row)
 
     prev_url = None
     if nav_pager["current_page"] > 1:
@@ -5938,12 +6376,19 @@ def _can_unarchive_run(run: PipelineRun) -> bool:
     return run.archived_at is not None
 
 
-def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
+def create_app(
+    bq: Any,
+    project: str,
+    dataset: str,
+    redis_url: str,
+    backend_runtime: BackendRuntime | None = None,
+) -> FastAPI:
     global _CP_STORE
     _CP_STORE = ControlPlaneStore(
         bq=bq,
         project=project,
         dataset=dataset,
+        backend_runtime=backend_runtime,
         insert_run_fn=insert_run,
         update_run_queue_job_id_fn=update_run_queue_job_id,
         update_run_orchestration_binding_fn=update_run_orchestration_binding,
@@ -6005,7 +6450,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
     def _filter_canonical_settings_payload(settings: dict[str, Any]) -> dict[str, Any]:
         """Drop throughput compatibility aliases from persisted settings payloads."""
         return {
-            key: value
+            canonical_settings_key(key): value
             for key, value in settings.items()
             if key in editable_keys and key not in compatibility_runtime_alias_keys
         }
@@ -7294,14 +7739,13 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             completed_stages=[],
         )
         _persist_run_initial(run, bq=bq, project=project, dataset=dataset)
-        _, queue_job_id = enqueue_run_with_job_id(
+        submission = submit_run(
             jobs_path=actual_jobs_path,
             config_path=config_path,
             triggered_by=triggered_by,
             redis_url=redis_url,
             run_id=run_id,
         )
-        submission = _resolve_submission_binding(run_id, queue_job_id)
         _persist_run_orchestration_binding(
             run_id,
             queue_job_id=submission.queue_job_id,
@@ -7484,14 +7928,13 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             completed_stages=[],
         )
         _persist_run_initial(run, bq=bq, project=project, dataset=dataset)
-        _, queue_job_id = enqueue_run_with_job_id(
+        submission = submit_run(
             jobs_path=jobs_path,
             config_path=config_path,
             triggered_by=triggered_by,
             redis_url=redis_url,
             run_id=run_id,
         )
-        submission = _resolve_submission_binding(run_id, queue_job_id)
         _persist_run_orchestration_binding(
             run_id,
             queue_job_id=submission.queue_job_id,
@@ -7772,14 +8215,15 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         key: str,
         raw_value: Any,
     ) -> Any:
+        canonical_key = canonical_settings_key(key)
         try:
-            coerced = coerce_value(key, raw_value)
+            coerced = coerce_value(canonical_key, raw_value)
         except KeyError:
             raise HTTPException(status_code=422, detail=f"Unknown setting key: {key!r}")
         except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         try:
-            validate_settings({key: coerced})
+            validate_settings({canonical_key: coerced})
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
         return coerced
@@ -7812,16 +8256,20 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
 
     @app.post("/settings/{key}", status_code=200)
     def update_setting(key: str, body: SettingUpdate) -> dict:
-        if key in metadata_only_keys:
+        canonical_key = canonical_settings_key(key)
+        if canonical_key in metadata_only_keys:
             raise HTTPException(status_code=422, detail=f"Setting '{key}' is metadata-only and cannot be saved through single-key routes")
-        if key in hidden_deprecated_keys:
+        if canonical_key in hidden_deprecated_keys:
             raise HTTPException(
                 status_code=422,
                 detail=f"Setting '{key}' is hidden_deprecated and cannot be saved through settings routes",
             )
-        coerced = _coerce_and_validate_single_setting(key, body.value)
-        save_setting(key, coerced, updated_by=body.updated_by, bq=bq, project=project, dataset=dataset)
-        return {"key": key, "value": coerced}
+        coerced = _coerce_and_validate_single_setting(canonical_key, body.value)
+        try:
+            save_setting(canonical_key, coerced, updated_by=body.updated_by, bq=bq, project=project, dataset=dataset)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        return {"key": canonical_key, "value": coerced}
 
     @app.get("/admin/settings", response_class=HTMLResponse)
     def admin_settings_view(request: Request) -> HTMLResponse:
@@ -7837,7 +8285,8 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         from fastapi.responses import RedirectResponse
         form = await request.form()
         value = form.get("value", "")
-        if key in metadata_only_keys:
+        canonical_key = canonical_settings_key(key)
+        if canonical_key in metadata_only_keys:
             active = load_active_settings(bq=bq, project=project, dataset=dataset)
             return templates.TemplateResponse(
                 request=request,
@@ -7848,7 +8297,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 ),
                 status_code=422,
             )
-        if key in hidden_deprecated_keys:
+        if canonical_key in hidden_deprecated_keys:
             active = load_active_settings(bq=bq, project=project, dataset=dataset)
             return templates.TemplateResponse(
                 request=request,
@@ -7860,7 +8309,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 status_code=422,
             )
         try:
-            coerced = _coerce_and_validate_single_setting(key, value)
+            coerced = _coerce_and_validate_single_setting(canonical_key, value)
         except HTTPException as exc:
             active = load_active_settings(bq=bq, project=project, dataset=dataset)
             return templates.TemplateResponse(
@@ -7869,7 +8318,16 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 context=_build_settings_context(active, error=str(exc.detail)),
                 status_code=422,
             )
-        save_setting(key, coerced, updated_by="admin", bq=bq, project=project, dataset=dataset)
+        try:
+            save_setting(canonical_key, coerced, updated_by="admin", bq=bq, project=project, dataset=dataset)
+        except RuntimeError as exc:
+            active = load_active_settings(bq=bq, project=project, dataset=dataset)
+            return templates.TemplateResponse(
+                request=request,
+                name="settings.html",
+                context=_build_settings_context(active, error=f"Save failed: {exc}"),
+                status_code=422,
+            )
         return RedirectResponse("/admin/settings", status_code=303)
 
     @app.post("/admin/settings/group/{group_name}", response_class=HTMLResponse)
@@ -7990,7 +8448,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             else:
                 raw = _settings_form_value(form, key)
             try:
-                coerced[key] = _coerce_and_validate_single_setting(key, raw)
+                coerced[key] = _coerce_and_validate_single_setting(canonical_settings_key(key), raw)
             except HTTPException as exc:
                 section_errors[key] = str(exc.detail)
 
@@ -8260,11 +8718,11 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 )
                 return {"status": "cancelled", "run_id": run_id}
         if run.status == RunStatus.QUEUED and run.started_at is None:
-            request_run_cancel(run_id, "admin", RunStatus.CANCELLED.value, bq, project=project, dataset=dataset)
+            request_run_cancel(run_id, "admin", RunStatus.CANCELLING.value, bq, project=project, dataset=dataset)
             append_event(
                 RunEvent(
                     run_id=run_id, event_id=event_id, stage="cancel_requested",
-                    level="warning", message="Stop requested — cancelled before worker claim",
+                    level="warning", message="Stop requested — run will be cancelled at next checkpoint",
                     created_at=now,
                 ),
                 bq, project=project, dataset=dataset,
@@ -8277,7 +8735,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 ),
                 bq, project=project, dataset=dataset,
             )
-            return {"status": "cancelled", "run_id": run_id}
+            return {"status": "cancelling", "run_id": run_id}
         # Running (or queued but already claimed) — set cancelling
         request_run_cancel(run_id, "admin", RunStatus.CANCELLING.value, bq, project=project, dataset=dataset)
         append_event(
@@ -8627,7 +9085,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             checkpoint_payload_json=run.checkpoint_payload_json,
         )
         try:
-            _, queue_job_id = continue_run_with_job_id(
+            submission = continue_run_submission(
                 run_id=run.run_id,
                 jobs_path=run.jobs_path,
                 config_path=run.config_path,
@@ -8673,7 +9131,6 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 status_code=503,
                 detail="Continue enqueue failed; run restored to awaiting_continue. Check queue/redis connectivity and retry.",
             ) from exc
-        submission = _resolve_submission_binding(run.run_id, queue_job_id)
         _persist_run_orchestration_binding(
             run.run_id,
             queue_job_id=submission.queue_job_id,
@@ -8737,14 +9194,13 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             raise HTTPException(status_code=409, detail="Retry rejected: max_attempts exhausted")
 
         update_run_status(run.run_id, RunStatus.QUEUED, bq, project=project, dataset=dataset)
-        _, queue_job_id = enqueue_run_with_job_id(
+        submission = submit_run(
             jobs_path=run.jobs_path,
             config_path=run.config_path,
             triggered_by="admin_retry",
             redis_url=redis_url,
             run_id=run.run_id,
         )
-        submission = _resolve_submission_binding(run.run_id, queue_job_id)
         _persist_run_orchestration_binding(
             run.run_id,
             queue_job_id=submission.queue_job_id,
@@ -9017,14 +9473,16 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         cv_versions = list_cvs_for_run(run_id, bq, project=project, dataset=dataset)
         results_rows = _results_export_rows(run)
         job_metadata_by_url = _job_metadata_by_url_from_results_rows(results_rows)
+        for metadata_key, metadata_value in _job_metadata_by_url_from_cv_generation_debug(run).items():
+            job_metadata_by_url.setdefault(metadata_key, metadata_value)
         cv_versions_with_bookmarks: list[dict[str, Any]] = []
         for cv in cv_versions:
             if not isinstance(cv, dict):
                 continue
             row = dict(cv)
             job_url = str(row.get("job_url") or "").strip()
-            metadata = job_metadata_by_url.get(job_url, {})
-            job_title = str(row.get("job_title") or metadata.get("title") or "View Job").strip()
+            metadata = job_metadata_by_url.get(_normalize_job_url_key(job_url), {})
+            job_title = str(row.get("job_title") or row.get("title") or metadata.get("title") or "View Job").strip()
             company = str(row.get("company") or metadata.get("company") or "").strip()
             location = str(row.get("location") or metadata.get("location") or "").strip()
             bookmark_key = bookmark_key_for_job(
@@ -10959,6 +11417,9 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         run = require_run_or_404(run_id, detail="")
         page = _coerce_positive_int(page, default=1, minimum=1, maximum=10000)
         page_size = _coerce_positive_int(page_size, default=25, minimum=10, maximum=100)
+        selected_pipeline_outcomes = _selected_enriched_pipeline_outcomes(
+            request.query_params.getlist("pipeline_outcome")
+        )
         context = _build_enriched_tab_context(
             run,
             run_id=run_id,
@@ -10967,7 +11428,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             bq=bq,
             filter_name=filter_name,
             query=q,
-            pipeline_outcomes=request.query_params.getlist("pipeline_outcome"),
+            pipeline_outcomes=selected_pipeline_outcomes,
             page=page,
             page_size=page_size,
         )
@@ -10985,6 +11446,9 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
         q: str = "",
     ) -> Response:
         run = require_run_or_404(run_id, detail="")
+        selected_pipeline_outcomes = _selected_enriched_pipeline_outcomes(
+            request.query_params.getlist("pipeline_outcome")
+        )
         context = _build_enriched_tab_context(
             run,
             run_id=run_id,
@@ -10993,7 +11457,7 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
             bq=bq,
             filter_name=filter_name,
             query=q,
-            pipeline_outcomes=request.query_params.getlist("pipeline_outcome"),
+            pipeline_outcomes=selected_pipeline_outcomes,
             page=1,
             page_size=1_000_000,
         )
@@ -11017,9 +11481,9 @@ def create_app(bq: Any, project: str, dataset: str, redis_url: str) -> FastAPI:
                 dropped_rows.append({"job_url": job_url, "reason": "missing_raw_job"})
                 continue
 
-            outcome_row = outcomes_by_url.get(job_url, {})
+            outcome_row = _lookup_row_by_lookup_key(outcomes_by_url, job)
             pipeline_status = str(outcome_row.get("status") or "").strip()
-            filter_row = filter_results_by_job_url.get(job_url, {})
+            filter_row = _lookup_row_by_lookup_key(filter_results_by_job_url, job)
             passed = filter_row.get("passed")
             filter_status = "UNKNOWN"
             if passed is True:
@@ -11771,12 +12235,6 @@ def _run_to_dict(run: PipelineRun) -> dict:
 
 
 
-
-
-
-def _is_hitl_resolution_pending(resolution_status: str | None) -> bool:
-    normalized = str(resolution_status or "").strip().lower() or "pending"
-    return normalized not in _HITL_TERMINAL_RESOLUTION_STATUSES
 
 
 

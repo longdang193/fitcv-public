@@ -32,11 +32,10 @@ _CAMEL_TO_SNAKE: dict[str, str] = SCRAPER_CAMEL_TO_SNAKE.copy()
 # Fields the scraper must always provide
 _REQUIRED_SCRAPER_FIELDS: tuple[str, ...] = REQUIRED_SCRAPER_FIELDS
 
-
 # ── parsing ──────────────────────────────────────────────────────────────────
 
 def parse_jobs_file(path: str | Path) -> list[dict[str, Any]]:
-    """Load a JSON array of LinkedIn job objects from *path*.
+    """Load a JSON array of job objects from *path*.
 
     Raises:
         FileNotFoundError: if the file does not exist.
@@ -52,8 +51,7 @@ def parse_jobs_file(path: str | Path) -> list[dict[str, Any]]:
     if not isinstance(data, list):
         raise ValueError(f"Jobs file must contain a JSON array, expected a JSON array but got {type(data).__name__}")
 
-    return data  # type: ignore[return-value]
-
+    return data
 
 def validate_linkedin_schema(job: dict[str, Any]) -> list[str]:
     """Return a list of error strings for any missing required scraper fields.
@@ -66,16 +64,137 @@ def validate_linkedin_schema(job: dict[str, Any]) -> list[str]:
         if field not in job
     ]
 
-
 # ── key conversion ────────────────────────────────────────────────────────────
 
+def _indeed_description_text(job: dict[str, Any]) -> str:
+    description = job.get("description")
+    if isinstance(description, dict):
+        return str(description.get("text") or "")
+    return str(description or "")
+
+
+def _indeed_location_text(job: dict[str, Any]) -> str:
+    location = job.get("location")
+    if not isinstance(location, dict):
+        return str(location or "")
+
+    parts = [
+        str(location.get("city") or "").strip(),
+        str(location.get("countryName") or "").strip(),
+    ]
+    if not any(parts):
+        fallback = str(location.get("streetAddress") or location.get("postalCode") or "").strip()
+        return fallback
+    return ", ".join(part for part in parts if part)
+
+
+def _indeed_job_types_text(job: dict[str, Any]) -> str:
+    job_types = job.get("jobTypes")
+    if isinstance(job_types, dict):
+        values = [str(value).strip() for value in job_types.values() if str(value).strip()]
+        return ", ".join(dict.fromkeys(values))
+    if isinstance(job_types, list):
+        values = [str(value).strip() for value in job_types if str(value).strip()]
+        return ", ".join(dict.fromkeys(values))
+    return str(job_types or "")
+
+
+def _indeed_company_name(job: dict[str, Any]) -> str:
+    employer = job.get("employer")
+    if isinstance(employer, dict):
+        name = str(employer.get("name") or "").strip()
+        if name:
+            return name
+    parent_employer = job.get("parentEmployer")
+    if isinstance(parent_employer, dict):
+        return str(parent_employer.get("name") or "")
+    return ""
+
+
+def _indeed_company_url(job: dict[str, Any]) -> str:
+    employer = job.get("employer")
+    if isinstance(employer, dict):
+        url = str(employer.get("companyPageUrl") or "").strip()
+        if url:
+            return url
+    parent_employer = job.get("parentEmployer")
+    if isinstance(parent_employer, dict):
+        return str(parent_employer.get("companyPageUrl") or "")
+    return ""
+
+
+def _indeed_job_url(job: dict[str, Any]) -> str:
+    return str(job.get("url") or job.get("job_url") or "")
+
+
+def _indeed_apply_url(job: dict[str, Any]) -> str:
+    apply_url = str(job.get("jobUrl") or "").strip()
+    if apply_url:
+        return apply_url
+    return _indeed_job_url(job)
+
+
+def _indeed_company_id(job: dict[str, Any]) -> str:
+    company_url = _indeed_company_url(job)
+    if company_url:
+        return company_url
+    company_name = _indeed_company_name(job)
+    if company_name:
+        return company_name
+    return _indeed_job_url(job)
+
+
+def _indeed_published_at(job: dict[str, Any]) -> str | None:
+    published_at = str(job.get("datePublished") or "").strip()
+    if not published_at:
+        return None
+    return published_at.split("T", 1)[0]
+
+
+def _indeed_posted_time(job: dict[str, Any]) -> str:
+    return str(job.get("dateOnIndeed") or "")
+
+
+def _is_indeed_job(job: dict[str, Any]) -> bool:
+    return bool(job.get("url")) and (
+        "dateOnIndeed" in job
+        or isinstance(job.get("employer"), dict)
+        or isinstance(job.get("jobTypes"), dict)
+    )
+
+
+def _normalize_indeed_job(job: dict[str, Any]) -> dict[str, Any]:
+    apply_url = _indeed_apply_url(job)
+    return {
+        "job_url": _indeed_job_url(job),
+        "title": str(job.get("title") or ""),
+        "location": _indeed_location_text(job),
+        "posted_time": _indeed_posted_time(job),
+        "published_at": _indeed_published_at(job),
+        "company_name": _indeed_company_name(job),
+        "company_url": _indeed_company_url(job),
+        "company_id": _indeed_company_id(job),
+        "description": _indeed_description_text(job),
+        "applications_count": "",
+        "contract_type": _indeed_job_types_text(job),
+        "experience_level": "",
+        "work_type": "",
+        "sector": "",
+        "salary": "",
+        "apply_url": apply_url,
+        "apply_type": "EXTERNAL" if apply_url else "",
+        "raw_json": json.dumps(job, ensure_ascii=False),
+    }
+
+
 def snake_case_keys(job: dict[str, Any]) -> dict[str, Any]:
-    """Return a new dict with camelCase LinkedIn keys mapped to snake_case.
+    """Return a new dict with scraper keys mapped to canonical snake_case.
 
     Fields not in the mapping are preserved as-is with their original key.
     """
+    if _is_indeed_job(job):
+        return _normalize_indeed_job(job)
     return {_CAMEL_TO_SNAKE.get(k, k): v for k, v in job.items()}
-
 
 # ── row preparation ───────────────────────────────────────────────────────────
 
@@ -289,5 +408,6 @@ def fetch_from_apify(config: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(data, list):
         raise ValueError("Apify API did not return a JSON array")
 
-    return data  # type: ignore[return-value]
+    return data
+
 

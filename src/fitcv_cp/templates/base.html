@@ -27,6 +27,9 @@ canonical: true
   <title>{% block title %}FitCV Admin{% endblock %}</title>
   <style>
     /* ── CSS Custom Properties (tokens) ──────────────────────────────────── */
+    :root {
+      --font-sans: system-ui, sans-serif;
+    }
     :root[data-theme="dark"] {
       --bg:          #0f1117;
       --surface-1:   #1a1d2e;
@@ -91,7 +94,7 @@ canonical: true
     /* ── Reset & base ─────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: var(--font-sans);
       background: var(--bg);
       color: var(--text-primary);
       min-height: 100vh;
@@ -376,7 +379,7 @@ canonical: true
 
     /* Legacy fallback — default button style (same as primary) */
     button { background: var(--accent); color: #fff; border: none; padding: 0.5rem 1.1rem; border-radius: 6px; font-size: 0.875rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s; }
-    button:not(.btn-secondary):hover { background: var(--accent-hover); }
+    button:not(.btn-primary):not(.btn-secondary):not(.btn-section):not(.decision-toggle):hover { background: var(--accent-hover); }
 
     /* ── Badges ───────────────────────────────────────────────────────────── */
     .badge {

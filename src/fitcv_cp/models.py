@@ -91,6 +91,7 @@ class PipelineRun:
     cancel_requested_by: Optional[str] = None
     archived_at: Optional[datetime.datetime] = None
     archived_by: Optional[str] = None
+    raw_status: Optional[str] = None
 
 
 @dataclasses.dataclass

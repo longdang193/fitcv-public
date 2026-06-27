@@ -13,18 +13,21 @@ lifecycle:
   - status: active
 """
 
+from __future__ import annotations
+
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
-from fitcv_cp.app import create_app
-from fitcv_cp.backend_runtime import resolve_backend_runtime
-from fitcv_cp.bq_store import get_pipeline_runs_schema_status
 from fitcv.config import resolve_model_routing_part
+from fitcv_cp.app import create_app
+from fitcv_cp.backend_runtime import resolve_backend_runtime, set_backend_runtime
+from fitcv_cp.bigquery_client import build_bigquery_client
+from fitcv_cp.bq_store import get_pipeline_runs_schema_status
 
 logger = logging.getLogger(__name__)
+
 
 def _load_dotenv_defaults() -> None:
     """Load local `.env` defaults without overriding existing process env."""
@@ -45,41 +48,9 @@ def _load_dotenv_defaults() -> None:
         logger.warning("Failed to read .env defaults from %s: %s", dotenv_path, exc)
 
 
-def _validate_google_credentials_path() -> None:
-    """Resolve credentials path when possible; otherwise fall back to ADC."""
-    credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if not credentials_path:
-        return
-
-    path = Path(credentials_path)
-    if not path.exists():
-        warnings.warn(
-            "GOOGLE_APPLICATION_CREDENTIALS does not exist: "
-            f"{credentials_path}. Falling back to ADC.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        return
-    if path.is_dir():
-        candidates = sorted(candidate for candidate in path.glob("*.json") if candidate.is_file())
-        if len(candidates) == 1:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(candidates[0])
-            return
-        warnings.warn(
-            "GOOGLE_APPLICATION_CREDENTIALS points to a directory without a single "
-            f"key JSON file: {credentials_path}. Falling back to ADC.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-
-
 def _build_bigquery_client() -> Any:
-    _validate_google_credentials_path()
-    from google.cloud import bigquery
+    return build_bigquery_client()
 
-    return bigquery.Client()
 
 def _warn_or_fail_langgraph_override_drift() -> None:
     """Detect env override drift against control-plane SSOT routing."""
@@ -117,6 +88,7 @@ def _warn_or_fail_langgraph_override_drift() -> None:
         raise RuntimeError(message)
     logger.warning(message)
 
+
 def _ensure_safe_local_execution_mode() -> None:
     """Default to queue execution on Windows when execution mode is unset."""
     if os.name != "nt":
@@ -135,6 +107,7 @@ def build_app() -> Any:
     _ensure_safe_local_execution_mode()
     _warn_or_fail_langgraph_override_drift()
     runtime = resolve_backend_runtime()
+    set_backend_runtime(runtime)
     redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
     if runtime.backend_type == "sqlite":
@@ -144,6 +117,7 @@ def build_app() -> Any:
             project=runtime.project or "local",
             dataset=runtime.dataset,
             redis_url=redis_url,
+            backend_runtime=runtime,
         )
 
     if not runtime.project:
@@ -179,6 +153,7 @@ def build_app() -> Any:
         project=runtime.project,
         dataset=runtime.dataset,
         redis_url=redis_url,
+        backend_runtime=runtime,
     )
 
 

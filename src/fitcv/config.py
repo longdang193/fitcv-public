@@ -227,8 +227,9 @@ def resolve_data_backend(config: dict[str, Any] | None = None) -> str:
     1. explicit FITCV_CP_DATA_BACKEND env override
     2. passed config["control_plane"]["data_backend"]["type"]
     3. passed config["data_backend"]["type"]
-    4. load_control_plane_config() when available
-    5. default to bigquery for backward compatibility
+    4. legacy passed config["sqlite_mode"] bool bridge
+    5. load_control_plane_config() when available
+    6. default to bigquery for backward compatibility
     """
     env_backend = str(os.environ.get("FITCV_CP_DATA_BACKEND", "")).strip().lower()
     if env_backend:
@@ -249,6 +250,10 @@ def resolve_data_backend(config: dict[str, Any] | None = None) -> str:
         if backend not in {"bigquery", "sqlite"}:
             raise ValueError("data_backend.type must be one of: bigquery, sqlite")
         return backend
+
+    legacy_sqlite_mode = cfg.get("sqlite_mode")
+    if isinstance(legacy_sqlite_mode, bool):
+        return "sqlite" if legacy_sqlite_mode else "bigquery"
 
     try:
         control_plane_cfg = load_control_plane_config()

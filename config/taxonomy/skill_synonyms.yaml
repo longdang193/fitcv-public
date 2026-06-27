@@ -65,6 +65,7 @@ skill_synonyms:
   analysing data: data analysis
   analysis of alternatives: analysis of alternatives
   analytical skills: analytical skills
+  analytics engineering: analytics engineering
   analyze data: data analysis
   analyze financial statements: financial statement analysis
   anforderungsanalyse: requirements analysis
@@ -88,6 +89,7 @@ skill_synonyms:
   as400 von vorteil: ibm as/400
   atlassian jira: jira
   attribution tooling: marketing attribution
+  audience segmentation: audience segmentation
   auswertungen und analysen: data analysis
   automated regression testing: automated regression testing
   automated testing: automated testing
@@ -96,6 +98,8 @@ skill_synonyms:
   automotive electronics: automotive electronics
   aws: amazon web services
   azure: microsoft azure
+  azure machine learning: azure machine learning
+  azure ml: azure machine learning
   b2b sales pipeline management: b2b sales pipeline management
   backend development: backend development
   backend-anwendungen: backend development
@@ -126,9 +130,11 @@ skill_synonyms:
   board bi: board bi
   bookkeeping: bookkeeping
   bpmn 2.0: bpmn 2.0
+  brand analysis: brand analysis
   brand strategy: brand strategy
   brandschutz: fire protection
   briefing: briefing
+  bruin: bruin
   bsi grundschutz: bsi grundschutz
   bsi-grundschutz: bsi grundschutz
   budget management: budget management
@@ -141,6 +147,7 @@ skill_synonyms:
   business analysis: business analysis
   business case development: business case development
   business central: microsoft dynamics 365 business central
+  business intelligence: business intelligence
   business intelligence tools: business intelligence tools
   business process analysis: business process analysis
   business valuation: business valuation
@@ -149,6 +156,7 @@ skill_synonyms:
   c4c: sap cloud for customer
   cad: cad design
   cad design: cad design
+  campaign analytics: campaign analytics
   campaign development: campaign development
   campaign execution: campaign execution
   campaign management: campaign management
@@ -160,6 +168,7 @@ skill_synonyms:
   capitaliq: capital iq
   cash flow analysis: cash flow analysis
   cash-flow analysen: cash flow analysis
+  category management: category management
   causal analysis: causal analysis
   ccna security: ccna security
   change management: change management
@@ -188,6 +197,7 @@ skill_synonyms:
   cold calling: cold calling
   collateral reporting: collateral reporting
   color palette development: color palette development
+  commercial coordination: commercial coordination
   commissioning: plant commissioning
   company valuation: company valuation
   competitive analysis: competitive analysis
@@ -195,8 +205,10 @@ skill_synonyms:
   compliance preparation: compliance preparation
   computational finance: computational finance
   computer networking: computer networking
+  concept validation: concept validation
   configuring ai coding assistants: ai coding assistants
   confluence: confluence
+  consumer research: consumer research
   container technologies: containers
   containers: containers
   containertechnologien: containers
@@ -232,6 +244,8 @@ skill_synonyms:
   crm data hygiene: crm data hygiene
   crm hygiene: crm data hygiene
   cro initiatives: conversion rate optimization
+  cross functional collaboration: cross-functional collaboration
+  cross-functional collaboration: cross-functional collaboration
   ctes: sql common table expressions
   custom orchestration: ai agent orchestration
   customer journey mapping: customer journey mapping
@@ -248,6 +262,7 @@ skill_synonyms:
   dashboards: dashboard development
   data analysis: data analysis
   data analysis capabilities: data analysis
+  data analysis expressions: dax
   data analytics: data analytics
   data annotation: data annotation
   data catalog: data catalog
@@ -298,11 +313,14 @@ skill_synonyms:
   datenquellen intelligent zusammenführen: data integration
   datenvisualisierung: data visualization
   datev: datev
+  dax: dax
   dbt: dbt
   dbt core: dbt
   dds: data distribution service
   debugging: debugging
   debugging discrepancies: debugging
+  decision support: decision support systems
+  decision support systems: decision support systems
   define target operating models: target operating model
   demand-side platforms: demand-side platforms
   derating: derating
@@ -331,16 +349,20 @@ skill_synonyms:
   distributed system design: distributed systems design
   distributed systems design: distributed systems design
   docker: docker
+  docker compose: docker compose
+  docker-compose: docker compose
   document management: document management
   document management software: document management software
   documentation: documentation
   doip: diagnostics over ip
   dokumentation von änderungen: documentation
   drehen: turning
+  drift detection: drift detection
   driving end-to-end recruitment: recruitment management
   dry sanitation: dry sanitation
   dry toilet operation: dry sanitation
   dsps: demand-side platforms
+  duckdb: duckdb
   due diligence: due diligence
   due-diligence-aktivitäten: due diligence
   dynamics 365 business central: microsoft dynamics 365 business central
@@ -389,11 +411,13 @@ skill_synonyms:
   excel macros: excel macros
   excel pivottables: excel pivottables
   executive reporting: executive reporting
+  exploratory analysis: exploratory data analysis
   exploratory data analysis: exploratory data analysis
   facebook ads: meta ads
   failure analysis: failure analysis
   familiarity with ranking models: ranking models
   familiarity with semantic search: semantic search
+  fastapi: fastapi
   feature engineering: feature engineering
   field trials: field trials
   field-oriented control: field-oriented control
@@ -428,7 +452,7 @@ skill_synonyms:
   funnel instrumentation: funnel instrumentation
   ga4: google analytics 4
   gas measurement: gas measurement
-  gcp: google cloud platform
+  gcp: google cloud
   gefriertrocknung: freeze drying
   gefährdungsbeurteilungen: risk assessment
   gemini: google gemini
@@ -498,6 +522,7 @@ skill_synonyms:
   informationssicherheit: information security
   insbesondere excel: microsoft excel
   insbesondere powerpoint: microsoft powerpoint
+  insight generation: insight generation
   instagram ads: instagram ads
   instagram marketing: instagram marketing
   instagram reels: instagram reels
@@ -547,6 +572,7 @@ skill_synonyms:
   llm function calling: llm tool calling
   llm tool calling: llm tool calling
   llm tool use: llm tool use
+  llm workflow design: llm workflow design
   llms: large language models
   logo design: logo design
   looker: looker
@@ -608,6 +634,7 @@ skill_synonyms:
   microsoft power apps: microsoft power apps
   microsoft power automate: microsoft power automate
   microsoft power bi: microsoft power bi
+  microsoft power query: power query
   microsoft powerpoint: microsoft powerpoint
   microsoft sharepoint: microsoft sharepoint
   microsoft sql server: microsoft sql server
@@ -620,10 +647,12 @@ skill_synonyms:
   missing data handling: missing data handling
   mitwirkung beim monatlichen reporting: reporting
   ml: machine learning
+  mlflow: mlflow
   mlops: mlops
   mlops practices: mlops
   model deployment: model deployment
   model deployment workflows: model deployment
+  model drift detection: drift detection
   model evaluation: model evaluation
   model evaluation metrics: model evaluation metrics
   model fine-tuning: model fine-tuning
@@ -650,6 +679,7 @@ skill_synonyms:
   networking issues and technologies: computer networking
   neural network: neural networks
   neural networks: neural networks
+  new product development: new product development
   newsletter creation: newsletter creation
   nlp: natural language processing
   node js: node.js
@@ -681,6 +711,7 @@ skill_synonyms:
   pair programming: pair programming
   pair-programming-sessions: pair programming
   partitioning strategies: data partitioning
+  performance analysis: performance analysis
   performance dashboards: dashboard development
   performance-dashboards: dashboard development
   permaculture: permaculture
@@ -700,8 +731,10 @@ skill_synonyms:
   power apps: microsoft power apps
   power automate: microsoft power automate
   power bi: microsoft power bi
+  power bi dax: dax
   power bi skills: microsoft power bi
   power point: microsoft powerpoint
+  power query: power query
   powerbi: microsoft power bi
   powerpoint: microsoft powerpoint
   precedent transactions: precedent transactions analysis
@@ -717,7 +750,9 @@ skill_synonyms:
   process modeling: process modeling
   process modelling: process modeling
   process optimization: process optimization
+  process standardization: process standardization
   process troubleshooting: troubleshooting
+  product and commercial analysis: product and commercial analysis
   product costing: product costing
   product launch activation: product launch activation
   production control: production control
@@ -738,6 +773,7 @@ skill_synonyms:
   promotion management: promotion management
   prompt engineering: prompt engineering
   präzise briefings: briefing
+  py: python
   python: python
   python programming: python
   quality assurance: quality assurance
@@ -760,6 +796,7 @@ skill_synonyms:
   recruitment automation: recruitment automation
   recruitment management: recruitment management
   red teaming: red teaming
+  redis: redis
   redshift: amazon redshift
   regelmäßige code-reviews: code review
   regulatory reporting: regulatory reporting
@@ -789,6 +826,7 @@ skill_synonyms:
   roi optimization: roi optimization
   root cause analysis: root cause analysis
   ros 2: ros 2
+  rq: rq
   s-ibus: s-ibus
   sales controlling: sales controlling
   sales demos: sales demos
@@ -866,6 +904,9 @@ skill_synonyms:
   sql server clustering: sql server clustering
   sql server replication: sql server replication
   sql window functions: sql window functions
+  stakeholder communication: stakeholder communication
+  stakeholder engagement: stakeholder management
+  stakeholder management: stakeholder management
   startup valuation: startup valuation
   statistical analysis: statistical analysis
   statistical analysis of results: statistical analysis
@@ -983,43 +1024,3 @@ skill_synonyms:
   zalando advertising: zalando advertising
   zeitreihenanalyse: time series analysis
   zwei linearbeschleuniger: linearbeschleuniger
-  analytics engineering: analytics engineering
-  audience segmentation: audience segmentation
-  azure machine learning: azure machine learning
-  azure ml: azure machine learning
-  brand analysis: brand analysis
-  bruin: bruin
-  business intelligence: business intelligence
-  campaign analytics: campaign analytics
-  category management: category management
-  commercial coordination: commercial coordination
-  concept validation: concept validation
-  consumer research: consumer research
-  cross functional collaboration: cross-functional collaboration
-  cross-functional collaboration: cross-functional collaboration
-  data analysis expressions: dax
-  dax: dax
-  decision support: decision support systems
-  decision support systems: decision support systems
-  docker compose: docker compose
-  docker-compose: docker compose
-  drift detection: drift detection
-  duckdb: duckdb
-  exploratory analysis: exploratory data analysis
-  fastapi: fastapi
-  insight generation: insight generation
-  llm workflow design: llm workflow design
-  microsoft power query: power query
-  mlflow: mlflow
-  model drift detection: drift detection
-  new product development: new product development
-  performance analysis: performance analysis
-  power bi dax: dax
-  power query: power query
-  process standardization: process standardization
-  product and commercial analysis: product and commercial analysis
-  redis: redis
-  rq: rq
-  stakeholder communication: stakeholder communication
-  stakeholder engagement: stakeholder management
-  stakeholder management: stakeholder management

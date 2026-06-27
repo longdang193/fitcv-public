@@ -26,6 +26,7 @@ from typing import Any, Callable, Optional
 
 from google.cloud import bigquery as bq_module
 
+from fitcv_cp.backend_runtime import get_backend_runtime
 from fitcv_cp.models import PipelineRun, RunEvent, RunStatus
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ def _is_transient_sqlite_open_error(exc: sqlite3.OperationalError) -> bool:
 
 
 def _local_sqlite_path() -> str:
+    runtime = get_backend_runtime()
+    if runtime is not None and str(runtime.sqlite_path or "").strip():
+        return str(runtime.sqlite_path).strip()
     return str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
 
 def _configure_sqlite_connection(conn: sqlite3.Connection) -> None:
@@ -181,6 +185,30 @@ def _ensure_local_pipeline_run_events_table(conn: sqlite3.Connection) -> None:
         """
     )
 
+def _ensure_local_rule_filter_results_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS rule_filter_results (
+            run_id TEXT NOT NULL,
+            job_url TEXT NOT NULL,
+            passed INTEGER NOT NULL,
+            reasons TEXT NOT NULL,
+            marks_json TEXT,
+            filtered_at TEXT NOT NULL,
+            raw_job_fingerprint TEXT,
+            source_job_url TEXT
+        )
+        """
+    )
+    existing_columns = {
+        str(row[1] or "")
+        for row in conn.execute("PRAGMA table_info(rule_filter_results)").fetchall()
+    }
+    if "raw_job_fingerprint" not in existing_columns:
+        conn.execute("ALTER TABLE rule_filter_results ADD COLUMN raw_job_fingerprint TEXT")
+    if "source_job_url" not in existing_columns:
+        conn.execute("ALTER TABLE rule_filter_results ADD COLUMN source_job_url TEXT")
+
 def _pipeline_run_to_json(run: PipelineRun) -> str:
     payload = dataclasses.asdict(run)
     payload["status"] = run.status.value
@@ -221,6 +249,15 @@ def _decode_json_or_none(raw: Any) -> Any:
 def _decode_json_list(raw: Any) -> list[Any]:
     parsed = _decode_json_or_none(raw)
     return parsed if isinstance(parsed, list) else []
+
+def _decode_reason_list(raw: Any) -> list[str]:
+    if isinstance(raw, list):
+        return [str(item).strip() for item in raw if str(item).strip()]
+    if isinstance(raw, str):
+        parsed = _decode_json_or_none(raw)
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    return []
 
 def _coerce_int_or_none(value: Any) -> int | None:
     if value is None:
@@ -361,10 +398,14 @@ def _pipeline_run_from_json(run_json: str) -> Optional[PipelineRun]:
         return None
     if not isinstance(payload, dict):
         return None
+    raw_status = str(payload.get("raw_status") or "").strip().lower()
+    status_value = str(payload.get("status") or "").strip().lower()
     try:
-        status = RunStatus(str(payload.get("status") or "").strip().lower())
+        status = RunStatus(status_value)
+        raw_status_value: str | None = raw_status or None
     except ValueError:
         status = RunStatus.FAILED
+        raw_status_value = raw_status or status_value or None
     return PipelineRun(
         run_id=str(payload.get("run_id") or ""),
         status=status,
@@ -409,6 +450,7 @@ def _pipeline_run_from_json(run_json: str) -> Optional[PipelineRun]:
         cancel_requested_by=payload.get("cancel_requested_by"),
         archived_at=_parse_dt(payload.get("archived_at")),
         archived_by=payload.get("archived_by"),
+        raw_status=raw_status_value,
     )
 
 def _upsert_local_pipeline_run(run: PipelineRun) -> None:
@@ -1552,13 +1594,15 @@ def _row_to_run(row: Any) -> PipelineRun:
     raw_status = str(r.get("status") or "").strip().lower()
     try:
         status = RunStatus(raw_status)
+        raw_status_value: str | None = None
     except ValueError:
         logger.warning(
-            "Unknown pipeline run status %r for run_id=%s; coercing to failed for admin compatibility",
+            "Unknown pipeline run status %r for run_id=%s; preserving raw_status for diagnostics",
             raw_status,
             r.get("run_id"),
         )
         status = RunStatus.FAILED
+        raw_status_value = raw_status or None
     completed_stages_raw = r.get("completed_stages_json")
     completed_stages: list[str] | None = None
     if isinstance(completed_stages_raw, str) and completed_stages_raw.strip():
@@ -1608,6 +1652,7 @@ def _row_to_run(row: Any) -> PipelineRun:
         cancel_requested_by=r.get("cancel_requested_by"),
         archived_at=r.get("archived_at"),
         archived_by=r.get("archived_by"),
+        raw_status=raw_status_value,
     )
 
 
@@ -1866,7 +1911,7 @@ def list_run_structured_jobs(
         import json
         import sqlite3
 
-        db_path = str(os.environ.get("FITCV_CP_SQLITE_PATH") or "data/fitcv_cp.sqlite3").strip() or "data/fitcv_cp.sqlite3"
+        db_path = _local_sqlite_path()
         try:
             with sqlite3.connect(db_path) as conn:
                 rows = conn.execute(
@@ -1930,10 +1975,34 @@ def list_filter_results_for_run(
     Ordered by job_url for deterministic display. Uses parameterized SQL.
     """
     if bq is None:
-        return []
+        db_path = _local_sqlite_path()
+        try:
+            with sqlite3.connect(db_path) as conn:
+                _ensure_local_rule_filter_results_table(conn)
+                cursor = conn.execute(
+                    """
+                    SELECT *
+                    FROM rule_filter_results
+                    WHERE run_id = ?
+                    ORDER BY job_url
+                    """,
+                    (run_id,),
+                )
+                columns = [str(item[0] or "") for item in (cursor.description or [])]
+                rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            return []
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            row_dict = dict(zip(columns, row))
+            row_dict["passed"] = bool(row_dict.get("passed"))
+            row_dict["reasons"] = _decode_reason_list(row_dict.get("reasons"))
+            row_dict["marks"] = _decode_json_list(row_dict.get("marks_json"))
+            results.append(row_dict)
+        return results
     table = f"{project}.{dataset}.rule_filter_results"
     sql = f"""
-        SELECT job_url, passed, reasons, marks_json, run_id, filtered_at
+        SELECT job_url, passed, reasons, marks_json, run_id, filtered_at, raw_job_fingerprint, source_job_url
         FROM `{table}`
         WHERE run_id = @run_id
         ORDER BY job_url
@@ -1963,6 +2032,7 @@ def list_filter_results_for_run(
     results: list[dict[str, Any]] = []
     for row in rows:
         row_dict = dict(row.items())
+        row_dict["reasons"] = _decode_reason_list(row_dict.get("reasons"))
         marks_raw = row_dict.get("marks_json")
         row_dict["marks"] = _decode_json_list(marks_raw)
         results.append(row_dict)
@@ -2025,4 +2095,3 @@ def insert_cv_version_row(row: dict[str, Any], bq: Any, *, project: str, dataset
 
     table = f"{project}.{dataset}.cv_versions"
     return list(bq.insert_rows_json(table, [row]))
-

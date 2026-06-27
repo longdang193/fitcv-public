@@ -18,10 +18,10 @@ from __future__ import annotations
 
 import datetime
 import logging
-import os
 import time
 
 from fitcv_cp.backend_runtime import resolve_backend_runtime
+from fitcv_cp.bigquery_client import build_bigquery_client
 from fitcv_cp.reconciler import reconcile_abandoned_attempts
 from fitcv_cp.retry_settings import load_retry_settings
 from fitcv_cp.store import ControlPlaneStore
@@ -32,13 +32,15 @@ logger = logging.getLogger(__name__)
 def _build_store() -> ControlPlaneStore:
     runtime = resolve_backend_runtime()
     if runtime.backend_type == "sqlite":
-        os.environ.setdefault("FITCV_CP_SQLITE_PATH", runtime.sqlite_path)
-        return ControlPlaneStore(bq=None, project=str(runtime.project or "local"), dataset=str(runtime.dataset or "local"))
+        return ControlPlaneStore(
+            bq=None,
+            project=str(runtime.project or "local"),
+            dataset=str(runtime.dataset or "local"),
+            backend_runtime=runtime,
+        )
 
-    from fitcv_cp.main import _build_bigquery_client
-
-    bq = _build_bigquery_client()
-    return ControlPlaneStore(bq=bq, project=str(runtime.project), dataset=str(runtime.dataset))
+    bq = build_bigquery_client()
+    return ControlPlaneStore(bq=bq, project=str(runtime.project), dataset=str(runtime.dataset), backend_runtime=runtime)
 
 
 def run_reconciler_forever() -> None:
@@ -68,6 +70,8 @@ def run_reconciler_forever() -> None:
 
 
 def main() -> None:
+    import os
+
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     run_reconciler_forever()
 
